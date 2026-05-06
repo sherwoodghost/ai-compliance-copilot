@@ -1,0 +1,33 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Infrastructure (Postgres + Redis)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "postgres", "redis"],
+      "port": 5432,
+      "cwd": "."
+    },
+    {
+      "name": "Backend (NestJS)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev"],
+      "port": 3001,
+      "cwd": "./backend"
+    },
+    {
+      "name": "Frontend (Next.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000,
+      "cwd": "./frontend"
+    },
+    {
+      "name": "Prisma Studio",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "prisma:studio"],
+      "port": 5555,
+      "cwd": "./backend"
+    }
+  ]
+}

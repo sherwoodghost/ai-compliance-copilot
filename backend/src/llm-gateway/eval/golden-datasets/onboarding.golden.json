@@ -1,0 +1,24 @@
+[
+  {
+    "id": "ob-001",
+    "description": "Onboarding dialogue must extract companyName and industry",
+    "agentName": "onboarding",
+    "promptTemplateId": "onboarding-dialogue",
+    "sampleInput": "We are Acme Corp, a fintech startup with 50 employees handling payment card data.",
+    "checks": {
+      "requiredExtractedFields": ["companyName", "industry"],
+      "forbiddenLanguage": ["certified", "guaranteed compliance"]
+    }
+  },
+  {
+    "id": "ob-002",
+    "description": "Onboarding must ask clarifying question when framework is ambiguous",
+    "agentName": "onboarding",
+    "promptTemplateId": "onboarding-dialogue",
+    "sampleInput": "We need to be compliant.",
+    "checks": {
+      "mustContainQuestion": true,
+      "nextQuestionMustTarget": ["complianceGoals", "frameworks"]
+    }
+  }
+]

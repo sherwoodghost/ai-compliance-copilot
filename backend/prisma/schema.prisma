@@ -1,0 +1,1485 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  starter
+  pro
+  enterprise
+}
+
+enum SubscriptionTier {
+  free
+  starter
+  growth
+  enterprise
+}
+
+enum UserRole {
+  admin
+  auditor
+  member
+}
+
+enum FrameworkType {
+  SOC2
+  ISO27001
+  HIPAA
+  PCI_DSS
+  GDPR
+  FEDRAMP
+}
+
+enum ControlStatus {
+  not_started
+  in_progress
+  implemented
+  failed
+  not_applicable
+}
+
+enum EvidenceType {
+  document
+  screenshot
+  log
+  api_response
+  manual
+}
+
+enum EvidenceSource {
+  integration
+  manual_upload
+  agent_generated
+}
+
+enum PolicyStatus {
+  draft
+  review
+  approved
+  archived
+}
+
+enum GeneratedBy {
+  agent
+  human
+}
+
+enum WorkflowType {
+  full_assessment
+  single_control
+  gap_analysis
+  replay
+}
+
+enum WorkflowStatus {
+  pending
+  running
+  paused
+  completed
+  failed
+  cancelled
+}
+
+enum AgentStatus {
+  pending
+  running
+  completed
+  failed
+  skipped
+}
+
+enum StepStatus {
+  pending
+  running
+  completed
+  failed
+}
+
+enum TaskPriority {
+  critical
+  high
+  medium
+  low
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  blocked
+  done
+}
+
+enum TaskSource {
+  agent
+  manual
+}
+
+enum IntegrationProvider {
+  aws
+  github
+  okta
+  slack
+  jira
+  gcp
+  azure
+  google_workspace
+  datadog
+  snyk
+  pagerduty
+  github_actions
+  gitlab
+  bamboohr
+  rippling
+  jamf
+  intune
+}
+
+enum IntegrationStatus {
+  connected
+  error
+  disconnected
+  pending
+}
+
+enum RiskLikelihood {
+  rare
+  unlikely
+  possible
+  likely
+  almost_certain
+}
+
+enum RiskImpact {
+  negligible
+  minor
+  moderate
+  major
+  catastrophic
+}
+
+enum RiskStatus {
+  open
+  mitigated
+  accepted
+  transferred
+}
+
+enum LogLevel {
+  info
+  warn
+  error
+  critical
+}
+
+enum CollectedVia {
+  onboarding_agent
+  manual
+  import
+}
+
+enum OnboardingStatus {
+  in_progress
+  completed
+  abandoned
+}
+
+enum MessageRole {
+  user
+  assistant
+}
+
+enum CompanyType {
+  startup
+  smb
+  enterprise
+  nonprofit
+  government
+}
+
+enum Industry {
+  saas
+  fintech
+  healthcare
+  ecommerce
+  edtech
+  legal
+  manufacturing
+  logistics
+  media
+  other
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+enum ComplianceDriver {
+  customer_request
+  investor_requirement
+  regulatory
+  internal_goal
+  ipo_prep
+}
+
+enum ReviewStatus {
+  passed
+  failed
+  partial
+}
+
+enum Confidence {
+  high
+  medium
+  low
+}
+
+enum JourneyStage {
+  onboarding
+  planning
+  gap_analysis
+  policy_generation
+  evidence_collection
+  validation
+  review
+  remediation
+  threat_intel
+  vendor_risk
+  task_generation
+  audit
+  completed
+}
+
+enum JourneyStatus {
+  active
+  paused_for_review
+  awaiting_human
+  completed
+  failed
+}
+
+enum CheckpointType {
+  after_onboarding
+  after_policy_generation
+  before_audit
+  manual
+  risk_threshold_exceeded
+}
+
+enum CheckpointStatus {
+  pending
+  approved
+  rejected
+  overridden
+  skipped
+}
+
+enum AgentEventType {
+  job_enqueued
+  job_started
+  job_completed
+  job_failed
+  job_retried
+  checkpoint_created
+  checkpoint_resolved
+  state_updated
+  replay_triggered
+}
+
+// ─── Tenancy Layer ────────────────────────────────────────────────────────────
+
+model Organization {
+  id                String           @id @default(uuid())
+  name              String
+  slug              String           @unique
+  plan              Plan             @default(starter)
+  subscriptionTier  SubscriptionTier @default(free) @map("subscription_tier")
+  settings          Json             @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users               User[]
+  sessions            Session[]
+  businessProfile     BusinessProfile?
+  onboardingSessions  OnboardingSession[]
+  organizationControls OrganizationControl[]
+  evidence            Evidence[]
+  policies            Policy[]
+  workflows           Workflow[]
+  agentRuns           AgentRun[]
+  tasks               Task[]
+  integrations        Integration[]
+  riskItems           RiskItem[]
+  vendorRisks         VendorRisk[]
+  auditLogs           AuditLog[]
+  systemLogs          SystemLog[]
+  profileChangeLogs   ProfileChangeLog[]
+  complianceJourneys  ComplianceJourney[]
+  humanCheckpoints    HumanCheckpoint[]
+  agentEvents         AgentEvent[]
+  profileVersions     BusinessProfileVersion[]
+  // Phase 9
+  controlApplicability ControlApplicability[]
+  soc2Scopes          Soc2Scope[]
+  iso27001Scopes      Iso27001Scope[]
+  soaEntries          IsoStatementOfApplicability[]
+  readinessScores     ReadinessScore[]
+  dashboardConfigs    DashboardConfig[]
+  auditExports        AuditExport[]
+  riskTreatments      RiskTreatment[]
+  // Phase 10 (Prompt 4)
+  agentMemory         AgentMemory[]
+  inferenceResults    InferenceResult[]
+  integrationSuggestions IntegrationSuggestion[]
+  llmBudget           LlmBudget?
+  // Phase A (Control Test Engine + Trust Center)
+  controlTestResults  ControlTestResult[]
+  trustCenter         TrustCenter?
+
+  @@map("organizations")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  orgId        String    @map("org_id")
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         UserRole  @default(member)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  organization          Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sessions              Session[]
+  assignedControls      OrganizationControl[] @relation("ControlAssignee")
+  reviewedEvidence      Evidence[]            @relation("EvidenceReviewer")
+  approvedPolicies      Policy[]              @relation("PolicyApprover")
+  triggeredWorkflows    Workflow[]            @relation("WorkflowTrigger")
+  assignedTasks         Task[]               @relation("TaskAssignee")
+  ownedRisks            RiskItem[]           @relation("RiskOwner")
+  auditLogs             AuditLog[]
+  onboardingSessions    OnboardingSession[]
+  profileChangeLogs     ProfileChangeLog[]
+  reviewedCheckpoints      HumanCheckpoint[]     @relation("CheckpointReviewer")
+  profileVersionsAuthor    BusinessProfileVersion[]
+  // Phase 9
+  applicabilityOverrides   ControlApplicability[] @relation("ApplicabilityOverride")
+  soc2ScopeApprovals       Soc2Scope[]            @relation("Soc2ScopeApprover")
+  isoScopeApprovals        Iso27001Scope[]        @relation("IsoScopeApprover")
+  riskTreatmentsOwned      RiskTreatment[]        @relation("RiskTreatmentOwner")
+  riskTreatmentsAccepted   RiskTreatment[]        @relation("RiskTreatmentAcceptor")
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  orgId        String   @map("org_id")
+  refreshToken String   @unique @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  isRevoked    Boolean  @default(false) @map("is_revoked")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── Compliance Layer ─────────────────────────────────────────────────────────
+
+model Framework {
+  id          String        @id @default(uuid())
+  name        String
+  type        FrameworkType
+  version     String
+  description String?
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  controls       Control[]
+  controlDomains ControlDomain[]
+
+  @@unique([type, version])
+  @@map("frameworks")
+}
+
+model Control {
+  id          String   @id @default(uuid())
+  frameworkId String   @map("framework_id")
+  code        String
+  title       String
+  description String
+  category    String
+  guidance    String?
+  weight      Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  framework            Framework             @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  organizationControls OrganizationControl[]
+  evidence             Evidence[]
+  policies             Policy[]
+  tasks                Task[]
+  riskItems            RiskItem[]
+  // Phase 9 relations
+  libraryMeta          ControlLibraryMeta?
+  evidenceRequirements ControlEvidenceRequirement[]
+  policyRequirements   ControlPolicyRequirement[]
+  crosswalkSources     FrameworkCrosswalk[]          @relation("CrosswalkSource")
+  crosswalkTargets     FrameworkCrosswalk[]          @relation("CrosswalkTarget")
+  applicability        ControlApplicability[]
+  soaEntries           IsoStatementOfApplicability[]
+
+  @@unique([frameworkId, code])
+  @@map("controls")
+}
+
+model OrganizationControl {
+  id             String        @id @default(uuid())
+  orgId          String        @map("org_id")
+  controlId      String        @map("control_id")
+  status         ControlStatus @default(not_started)
+  score          Int           @default(0)
+  assignedTo     String?       @map("assigned_to")
+  dueDate        DateTime?     @map("due_date")
+  notes          String?
+  reviewStatus   ReviewStatus? @map("review_status")
+  confidence     Confidence?
+  lastReviewedAt DateTime?     @map("last_reviewed_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("ControlAssignee", fields: [assignedTo], references: [id])
+
+  @@unique([orgId, controlId])
+  @@map("organization_controls")
+}
+
+model Evidence {
+  id          String         @id @default(uuid())
+  orgId       String         @map("org_id")
+  controlId   String         @map("control_id")
+  title       String
+  type        EvidenceType
+  source      EvidenceSource
+  storageUrl  String?        @map("storage_url")
+  metadata    Json           @default("{}")
+  collectedAt DateTime       @default(now()) @map("collected_at")
+  expiresAt   DateTime?      @map("expires_at")
+  isValid     Boolean        @default(true) @map("is_valid")
+  reviewedBy  String?        @map("reviewed_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  // Immutability — set when attached to an audit bundle, never mutated after
+  frozenAt    DateTime?      @map("frozen_at")
+  contentHash String?        @map("content_hash")  // SHA-256 of evidence data
+
+  organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control       Control             @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  reviewer      User?               @relation("EvidenceReviewer", fields: [reviewedBy], references: [id])
+  testResults   ControlTestResult[]
+
+  @@map("evidence")
+}
+
+model Policy {
+  id          String       @id @default(uuid())
+  orgId       String       @map("org_id")
+  controlId   String       @map("control_id")
+  title       String
+  content     String
+  version     Int          @default(1)
+  status      PolicyStatus @default(draft)
+  approvedBy  String?      @map("approved_by")
+  approvedAt  DateTime?    @map("approved_at")
+  generatedBy GeneratedBy  @default(agent) @map("generated_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  approver     User?        @relation("PolicyApprover", fields: [approvedBy], references: [id])
+
+  @@map("policies")
+}
+
+// ─── Agent Layer ──────────────────────────────────────────────────────────────
+
+model Workflow {
+  id             String         @id @default(uuid())
+  orgId          String         @map("org_id")
+  name           String
+  type           WorkflowType
+  status         WorkflowStatus @default(pending)
+  inputPayload   Json           @default("{}") @map("input_payload")
+  outputPayload  Json?          @map("output_payload")
+  startedAt      DateTime?      @map("started_at")
+  completedAt    DateTime?      @map("completed_at")
+  triggeredBy    String?        @map("triggered_by")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  organization      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  trigger           User?              @relation("WorkflowTrigger", fields: [triggeredBy], references: [id])
+  agentRuns         AgentRun[]
+  tasks             Task[]
+  complianceJourney ComplianceJourney?
+
+  @@map("workflows")
+}
+
+model AgentRun {
+  id            String      @id @default(uuid())
+  workflowId    String?     @map("workflow_id")
+  orgId         String      @map("org_id")
+  agentName     String      @map("agent_name")
+  status        AgentStatus @default(pending)
+  inputPayload  Json        @default("{}") @map("input_payload")
+  outputPayload Json?       @map("output_payload")
+  errorMessage  String?     @map("error_message")
+  retryCount    Int         @default(0) @map("retry_count")
+  startedAt     DateTime?   @map("started_at")
+  completedAt   DateTime?   @map("completed_at")
+  durationMs    Int?        @map("duration_ms")
+  llmTokensUsed Int?        @map("llm_tokens_used")
+  llmCostUsd    Decimal?    @map("llm_cost_usd") @db.Decimal(10, 6)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  workflow         Workflow?          @relation(fields: [workflowId], references: [id])
+  organization     Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps            AgentStep[]
+  onboardingSession OnboardingSession? @relation("OnboardingAgentRun")
+
+  @@map("agent_runs")
+}
+
+model AgentStep {
+  id              String     @id @default(uuid())
+  runId           String     @map("run_id")
+  stepName        String     @map("step_name")
+  stepIndex       Int        @map("step_index")
+  status          StepStatus @default(pending)
+  inputSnapshot   Json       @default("{}") @map("input_snapshot")
+  outputSnapshot  Json?      @map("output_snapshot")
+  errorMessage    String?    @map("error_message")
+  startedAt       DateTime?  @map("started_at")
+  completedAt     DateTime?  @map("completed_at")
+  durationMs      Int?       @map("duration_ms")
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@map("agent_steps")
+}
+
+// ─── Task Layer ───────────────────────────────────────────────────────────────
+
+model Task {
+  id          String       @id @default(uuid())
+  orgId       String       @map("org_id")
+  controlId   String?      @map("control_id")
+  workflowId  String?      @map("workflow_id")
+  title       String
+  description String?
+  priority    TaskPriority @default(medium)
+  status      TaskStatus   @default(open)
+  assignedTo  String?      @map("assigned_to")
+  dueDate     DateTime?    @map("due_date")
+  source      TaskSource   @default(agent)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control?     @relation(fields: [controlId], references: [id])
+  workflow     Workflow?    @relation(fields: [workflowId], references: [id])
+  assignee     User?        @relation("TaskAssignee", fields: [assignedTo], references: [id])
+
+  @@map("tasks")
+}
+
+// ─── Integration Layer ────────────────────────────────────────────────────────
+
+model Integration {
+  id           String              @id @default(uuid())
+  orgId        String              @map("org_id")
+  provider     IntegrationProvider
+  status       IntegrationStatus   @default(pending)
+  credentials  Json                @default("{}") // AES-256 encrypted at application layer
+  lastSyncedAt DateTime?           @map("last_synced_at")
+  settings     Json                @default("{}")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provider])
+  @@map("integrations")
+}
+
+// ─── Risk Layer ───────────────────────────────────────────────────────────────
+
+model RiskItem {
+  id           String         @id @default(uuid())
+  orgId        String         @map("org_id")
+  controlId    String?        @map("control_id")
+  title        String
+  description  String?
+  likelihood   RiskLikelihood
+  impact       RiskImpact
+  riskScore        Int            @map("risk_score") // computed: likelihood_value * impact_value
+  severity         String?        // critical | high | medium | low (derived from riskScore)
+  mitigationAdvice String?        @map("mitigation_advice") @db.Text
+  status           RiskStatus     @default(open)
+  owner            String?
+  identifiedBy     GeneratedBy    @default(agent) @map("identified_by")
+  identifiedAt     DateTime       @default(now()) @map("identified_at")
+  reviewedAt       DateTime?      @map("reviewed_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control        Control?        @relation(fields: [controlId], references: [id])
+  riskOwner      User?           @relation("RiskOwner", fields: [owner], references: [id])
+  riskTreatments RiskTreatment[]
+
+  @@map("risk_items")
+}
+
+model VendorRisk {
+  id             String     @id @default(uuid())
+  orgId          String     @map("org_id")
+  vendorName     String     @map("vendor_name")
+  category       String?
+  riskLevel      RiskLevel  @map("risk_level")
+  assessment     Json       @default("{}")
+  lastAssessedAt DateTime?  @map("last_assessed_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_risks")
+}
+
+// ─── Onboarding Layer ─────────────────────────────────────────────────────────
+
+model BusinessProfile {
+  id               String       @id @default(uuid())
+  orgId            String       @unique @map("org_id")
+  version          Int          @default(1)
+  companyName      String       @map("company_name")
+  companyType      CompanyType  @map("company_type")
+  industry         Industry
+  subIndustry      String?      @map("sub_industry")
+  employeeCount    String       @map("employee_count") // "11-50"
+  engineeringCount String?      @map("engineering_count")
+  foundedYear      Int?         @map("founded_year")
+  hqCountry        String?      @map("hq_country")
+  operatesIn       String[]     @map("operates_in")
+  infrastructure   Json         @default("{}")
+  tools            Json         @default("{}")
+  dataHandling     Json         @default("{}") @map("data_handling")
+  currentPosture   Json         @default("{}") @map("current_posture")
+  complianceGoals  Json         @default("{}") @map("compliance_goals")
+  riskProfile      Json         @default("{}") @map("risk_profile")
+  confidenceScores Json         @default("{}") @map("confidence_scores")
+  collectedVia     CollectedVia @default(onboarding_agent) @map("collected_via")
+  isComplete       Boolean      @default(false) @map("is_complete")
+  completedAt      DateTime?    @map("completed_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("business_profiles")
+}
+
+model OnboardingSession {
+  id                  String           @id @default(uuid())
+  orgId               String           @map("org_id")
+  userId              String           @map("user_id")
+  status              OnboardingStatus @default(in_progress)
+  currentState        String           @default("GREETING") @map("current_state")
+  conversationHistory Json             @default("[]") @map("conversation_history")
+  extractedData       Json             @default("{}") @map("extracted_data")
+  turnCount           Int              @default(0) @map("turn_count")
+  agentRunId          String?          @unique @map("agent_run_id")
+  startedAt           DateTime         @default(now()) @map("started_at")
+  completedAt         DateTime?        @map("completed_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentRun     AgentRun?    @relation("OnboardingAgentRun", fields: [agentRunId], references: [id])
+  messages     OnboardingMessage[]
+
+  @@map("onboarding_sessions")
+}
+
+model OnboardingMessage {
+  id              String      @id @default(uuid())
+  sessionId       String      @map("session_id")
+  turnIndex       Int         @map("turn_index")
+  role            MessageRole
+  content         String
+  extractedFields Json        @default("{}") @map("extracted_fields")
+  stateAtTime     String      @map("state_at_time")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  session OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_messages")
+}
+
+model ProfileChangeLog {
+  id              String   @id @default(uuid())
+  orgId           String   @map("org_id")
+  changedBy       String   @map("changed_by")
+  previousProfile Json     @map("previous_profile")
+  newProfile      Json     @map("new_profile")
+  changeReason    String?  @map("change_reason")
+  changedAt       DateTime @default(now()) @map("changed_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [changedBy], references: [id])
+
+  @@map("profile_change_logs")
+}
+
+// ─── Logs Layer ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  orgId        String   @map("org_id")
+  userId       String?  @map("user_id")
+  action       String
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  oldValue     Json?    @map("old_value")
+  newValue     Json?    @map("new_value")
+  ipAddress    String?  @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  orgId     String?  @map("org_id")
+  level     LogLevel
+  source    String
+  message   String
+  context   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [orgId], references: [id])
+
+  @@map("system_logs")
+}
+
+// ─── Compliance Journey ────────────────────────────────────────────────────────
+
+model ComplianceJourney {
+  id           String        @id @default(uuid())
+  orgId        String        @map("org_id")
+  workflowId   String?       @unique @map("workflow_id")
+  currentStage JourneyStage  @default(onboarding) @map("current_stage")
+  status       JourneyStatus @default(active)
+
+  // Accumulated structured outputs from every agent keyed by agentName
+  agentOutputs Json @default("{}") @map("agent_outputs")
+
+  // Ordered log of stage transitions: [{stage, status, timestamp, agentName, durationMs}]
+  history Json @default("[]")
+
+  // Human interventions: [{checkpointId, userId, action, notes, timestamp}]
+  humanInterventions Json @default("[]") @map("human_interventions")
+
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workflow     Workflow?           @relation(fields: [workflowId], references: [id])
+  checkpoints  HumanCheckpoint[]
+
+  @@map("compliance_journeys")
+}
+
+// ─── Human Checkpoints ────────────────────────────────────────────────────────
+
+model HumanCheckpoint {
+  id             String           @id @default(uuid())
+  orgId          String           @map("org_id")
+  journeyId      String           @map("journey_id")
+  workflowId     String?          @map("workflow_id")
+  checkpointType CheckpointType   @map("checkpoint_type")
+  status         CheckpointStatus @default(pending)
+  agentName      String           @map("agent_name")
+
+  // Structured review content generated by the Review/Audit agent
+  summary       String? @db.Text
+  findings      Json    @default("[]")
+  risks         Json    @default("[]")
+  uncertainties Json    @default("[]")
+  metrics       Json    @default("{}") // score, controlsImplemented, evidenceCount etc.
+
+  // Human decision
+  reviewerId  String?   @map("reviewer_id")
+  reviewedAt  DateTime? @map("reviewed_at")
+  decision    String?   // approved | rejected | override
+  comments    String?   @db.Text
+  overrideReason String? @map("override_reason") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  journey      ComplianceJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  reviewer     User?         @relation("CheckpointReviewer", fields: [reviewerId], references: [id])
+
+  @@map("human_checkpoints")
+}
+
+// ─── Agent Event Log ──────────────────────────────────────────────────────────
+
+model AgentEvent {
+  id         String         @id @default(uuid())
+  orgId      String         @map("org_id")
+  workflowId String?        @map("workflow_id")
+  journeyId  String?        @map("journey_id")
+  runId      String?        @map("run_id")
+  agentName  String         @map("agent_name")
+  eventType  AgentEventType @map("event_type")
+  payload    Json           @default("{}")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, workflowId])
+  @@index([orgId, agentName])
+  @@map("agent_events")
+}
+
+// ─── Business Profile Versions ────────────────────────────────────────────────
+
+model BusinessProfileVersion {
+  id           String   @id @default(uuid())
+  orgId        String   @map("org_id")
+  version      Int
+  snapshot     Json     // full BusinessProfile data at this point in time
+  changedById  String   @map("changed_by_id")
+  changeReason String?  @map("change_reason") @db.Text
+  diff         Json     @default("{}") // fields that changed vs previous version
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  changedBy    User         @relation(fields: [changedById], references: [id])
+
+  @@unique([orgId, version])
+  @@map("business_profile_versions")
+}
+
+// ─── Onboarding Dialogue State ────────────────────────────────────────────────
+
+model DialogueState {
+  id              String   @id @default(uuid())
+  orgId           String   @unique @map("org_id")
+  sessionId       String   @map("session_id")
+  currentTopic    String   @map("current_topic")   // which field cluster we are probing
+  completedFields Json     @default("[]") @map("completed_fields")
+  pendingFields   Json     @default("[]") @map("pending_fields")
+  questionHistory Json     @default("[]") @map("question_history") // [{question, answer, field, confidence}]
+  turnCount       Int      @default(0) @map("turn_count")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("dialogue_states")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE 9 — COMPLIANCE-AWARE AI PLATFORM ADDITIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Control Library Extensions ───────────────────────────────────────────────
+
+model ControlDomain {
+  id                   String  @id @default(uuid())
+  frameworkId          String  @map("framework_id")
+  code                 String  // e.g. "CC6", "A.5"
+  name                 String
+  trustServiceCategory String? @map("trust_service_category") // SOC2 only
+  description          String? @db.Text
+  sortOrder            Int     @default(0) @map("sort_order")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  framework    Framework            @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  libraryMetas ControlLibraryMeta[]
+
+  @@unique([frameworkId, code])
+  @@map("control_domains")
+}
+
+// Extends existing Control table with library metadata
+model ControlLibraryMeta {
+  id                 String   @id @default(uuid())
+  controlId          String   @unique @map("control_id")
+  domainId           String?  @map("domain_id")
+  applicabilityNotes String?  @db.Text @map("applicability_notes")
+  confidence         String   @default("high")  // high/medium/low
+  sourceReference    String?  @db.Text @map("source_reference")
+  importedAt         DateTime @default(now()) @map("imported_at")
+
+  control Control       @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  domain  ControlDomain? @relation(fields: [domainId], references: [id])
+
+  @@map("control_library_meta")
+}
+
+model ControlEvidenceRequirement {
+  id            String  @id @default(uuid())
+  controlId     String  @map("control_id")
+  evidenceType  String  @map("evidence_type")  // policy_doc/config_export/log/screenshot/etc
+  description   String? @db.Text
+  isMandatory   Boolean @default(true) @map("is_mandatory")
+  freshnessDays Int?    @map("freshness_days")  // max age in days
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  control Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
+
+  @@map("control_evidence_requirements")
+}
+
+model ControlPolicyRequirement {
+  id          String  @id @default(uuid())
+  controlId   String  @map("control_id")
+  policyName  String  @map("policy_name")
+  description String? @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  control Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
+
+  @@map("control_policy_requirements")
+}
+
+model FrameworkCrosswalk {
+  id               String  @id @default(uuid())
+  sourceControlId  String  @map("source_control_id")
+  targetControlId  String  @map("target_control_id")
+  mappingType      String  @default("related") @map("mapping_type") // equivalent/partial/related
+  confidence       String  @default("high")
+  rationale        String? @db.Text
+  automatable      Boolean @default(false)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  sourceControl Control @relation("CrosswalkSource", fields: [sourceControlId], references: [id], onDelete: Cascade)
+  targetControl Control @relation("CrosswalkTarget", fields: [targetControlId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceControlId, targetControlId])
+  @@map("framework_crosswalks")
+}
+
+// ─── Control Applicability ─────────────────────────────────────────────────────
+
+model ControlApplicability {
+  id                  String   @id @default(uuid())
+  orgId               String   @map("org_id")
+  controlId           String   @map("control_id")
+  applicable          Boolean
+  applicabilityStatus String   @default("needs_review") @map("applicability_status") // applicable/not_applicable/needs_review
+  rationale           String?  @db.Text
+  overriddenBy        String?  @map("overridden_by")  // userId who manually overrode
+  overriddenAt        DateTime? @map("overridden_at")
+  confidence          String   @default("high")
+  requiresHumanReview Boolean  @default(false) @map("requires_human_review")
+  profileVersionUsed  Int?     @map("profile_version_used")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  overriddenByUser User?    @relation("ApplicabilityOverride", fields: [overriddenBy], references: [id])
+
+  @@unique([orgId, controlId])
+  @@map("control_applicability")
+}
+
+// ─── Scoping ──────────────────────────────────────────────────────────────────
+
+model Soc2Scope {
+  id                      String    @id @default(uuid())
+  orgId                   String    @map("org_id")
+  workflowId              String?   @map("workflow_id")
+  trustServiceCategories  Json      @default("[]") @map("trust_service_categories")
+  auditType               String?   @map("audit_type")  // type_i/type_ii
+  systemsInScope          Json      @default("[]") @map("systems_in_scope")
+  systemsOutOfScope       Json      @default("[]") @map("systems_out_of_scope")
+  dataInScope             Json      @default("[]") @map("data_in_scope")
+  ambiguousItems          Json      @default("[]") @map("ambiguous_items")
+  status                  String    @default("draft")  // draft/approved/superseded
+  approvedBy              String?   @map("approved_by")
+  approvedAt              DateTime? @map("approved_at")
+  version                 Int       @default(1)
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  approver     User?        @relation("Soc2ScopeApprover", fields: [approvedBy], references: [id])
+
+  @@map("soc2_scopes")
+}
+
+model Iso27001Scope {
+  id                  String    @id @default(uuid())
+  orgId               String    @map("org_id")
+  ismsScope           String?   @db.Text @map("isms_scope")
+  boundaries          String?   @db.Text
+  interestedParties   Json      @default("[]") @map("interested_parties")
+  internalIssues      Json      @default("[]") @map("internal_issues")
+  externalIssues      Json      @default("[]") @map("external_issues")
+  exclusions          Json      @default("[]")
+  exclusionRationale  String?   @db.Text @map("exclusion_rationale")
+  status              String    @default("draft")
+  approvedBy          String?   @map("approved_by")
+  approvedAt          DateTime? @map("approved_at")
+  version             Int       @default(1)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  organization         Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  approver             User?                     @relation("IsoScopeApprover", fields: [approvedBy], references: [id])
+  statementOfApplicability IsoStatementOfApplicability[]
+
+  @@map("iso27001_scopes")
+}
+
+model IsoStatementOfApplicability {
+  id                   String   @id @default(uuid())
+  orgId                String   @map("org_id")
+  isoScopeId           String   @map("iso_scope_id")
+  controlId            String   @map("control_id")
+  applicable           Boolean
+  applicabilityRationale String? @db.Text @map("applicability_rationale")
+  implementationStatus String?  @map("implementation_status")
+  evidenceReferences   Json     @default("[]") @map("evidence_references")
+  version              Int      @default(1)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  isoScope     Iso27001Scope @relation(fields: [isoScopeId], references: [id], onDelete: Cascade)
+  control      Control       @relation(fields: [controlId], references: [id], onDelete: Cascade)
+
+  @@unique([isoScopeId, controlId])
+  @@map("iso_statement_of_applicability")
+}
+
+// ─── Prompt Registry ──────────────────────────────────────────────────────────
+
+model PromptTemplate {
+  id                 String   @id @default(uuid())
+  templateId         String   @map("template_id")  // e.g. "onboarding-dialogue"
+  version            String   // e.g. "v1", "v2"
+  agentName          String?  @map("agent_name")
+  purpose            String?  @db.Text
+  taskType           String?  @map("task_type")
+  systemPrompt       String   @db.Text @map("system_prompt")
+  userPromptTemplate String?  @db.Text @map("user_prompt_template")
+  inputVariables     Json     @default("[]") @map("input_variables")
+  outputSchemaId     String?  @map("output_schema_id")
+  contentHash        String   @map("content_hash")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  createdBy          String?  @map("created_by")
+
+  llmCalls LlmCall[]
+
+  @@unique([templateId, version])
+  @@map("prompt_templates")
+}
+
+// ─── LLM Gateway Logging ──────────────────────────────────────────────────────
+
+model LlmCall {
+  id                        String   @id @default(uuid())
+  orgId                     String?  @map("org_id")
+  workflowId                String?  @map("workflow_id")
+  agentRunId                String?  @map("agent_run_id")
+  taskType                  String?  @map("task_type")
+  promptTemplateId          String?  @map("prompt_template_id")
+  promptTemplateVersion     String?  @map("prompt_template_version")
+  promptHash                String?  @map("prompt_hash")
+  renderedPrompt            Json?    @map("rendered_prompt")  // exact messages sent
+  model                     String?
+  provider                  String?
+  inputTokens               Int?     @map("input_tokens")
+  outputTokens              Int?     @map("output_tokens")
+  costUsd                   Decimal? @map("cost_usd") @db.Decimal(10, 6)
+  latencyMs                 Int?     @map("latency_ms")
+  requiresRetrieval         Boolean  @default(false) @map("requires_retrieval")
+  requiresControlValidation Boolean  @default(false) @map("requires_control_validation")
+  schemaValid               Boolean? @map("schema_valid")
+  controlIdsValid           Boolean? @map("control_ids_valid")
+  hallucinationDetected     Boolean  @default(false) @map("hallucination_detected")
+  forbiddenLanguageDetected Boolean  @default(false) @map("forbidden_language_detected")
+  retryCount                Int      @default(0) @map("retry_count")
+  rawOutput                 String?  @db.Text @map("raw_output")
+  createdAt                 DateTime @default(now()) @map("created_at")
+
+  promptTemplate   PromptTemplate?      @relation(fields: [promptTemplateId, promptTemplateVersion], references: [templateId, version])
+  retrievalSources LlmRetrievalSource[]
+  evalResult       LlmEvalResult?
+
+  @@map("llm_calls")
+}
+
+model LlmRetrievalSource {
+  id               String   @id @default(uuid())
+  llmCallId        String   @map("llm_call_id")
+  sourceType       String   @map("source_type") // control_library/policy_template/evidence/agent_output/business_profile/risk_register
+  sourceId         String?  @map("source_id")
+  chunkId          String?  @map("chunk_id")
+  similarityScore  Float?   @map("similarity_score")
+  includedInPrompt Boolean  @default(true) @map("included_in_prompt")
+  chunkText        String?  @db.Text @map("chunk_text")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  llmCall LlmCall @relation(fields: [llmCallId], references: [id], onDelete: Cascade)
+
+  @@map("llm_retrieval_sources")
+}
+
+model LlmEvalResult {
+  id                       String   @id @default(uuid())
+  llmCallId                String?  @unique @map("llm_call_id")   // nullable — static eval cases have no real call
+  evalRunId                String?  @map("eval_run_id")
+  schemaValid              Boolean? @map("schema_valid")
+  controlIdsValid          Boolean? @map("control_ids_valid")
+  hallucinationDetected    Boolean? @map("hallucination_detected")
+  forbiddenLanguageDetected Boolean? @map("forbidden_language_detected")
+  citationsValid           Boolean? @map("citations_valid")
+  humanOverridden          Boolean  @default(false) @map("human_overridden")
+  correctnessScore         Float?   @map("correctness_score")
+  notes                    String?  @db.Text
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  llmCall LlmCall? @relation(fields: [llmCallId], references: [id], onDelete: SetNull)
+
+  @@map("llm_eval_results")
+}
+
+// ─── Vector Embeddings (RAG) ──────────────────────────────────────────────────
+// Note: actual vector column added via raw SQL migration (pgvector)
+
+model VectorEmbedding {
+  id          String   @id @default(uuid())
+  orgId       String?  @map("org_id")  // NULL = global (control library, templates)
+  sourceType  String   @map("source_type") // control/policy_template/evidence/agent_output/business_profile/risk_register
+  sourceId    String?  @map("source_id")
+  chunkIndex  Int      @default(0) @map("chunk_index")
+  chunkText   String   @db.Text @map("chunk_text")
+  metadata    Json     @default("{}")
+  // embedding VECTOR(1536) — added via raw SQL migration
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([orgId, sourceType])
+  @@map("vector_embeddings")
+}
+
+// ─── Readiness Scoring ────────────────────────────────────────────────────────
+
+model ReadinessScore {
+  id                   String   @id @default(uuid())
+  orgId                String   @map("org_id")
+  framework            String   // SOC2/ISO27001/BOTH
+  overallScore         Int      @default(0) @map("overall_score")
+  policyScore          Int      @default(0) @map("policy_score")
+  evidenceScore        Int      @default(0) @map("evidence_score")
+  controlDesignScore   Int      @default(0) @map("control_design_score")
+  operationalScore     Int      @default(0) @map("operational_score")
+  riskManagementScore  Int      @default(0) @map("risk_management_score")
+  scoreInputs          Json     @default("{}") @map("score_inputs")  // contributing factors snapshot
+  formulaVersion       String   @default("v1") @map("formula_version")
+  snapshotAt           DateTime @default(now()) @map("snapshot_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, framework])
+  @@map("readiness_scores")
+}
+
+// ─── Dashboard Config ─────────────────────────────────────────────────────────
+
+model DashboardConfig {
+  id                 String   @id @default(uuid())
+  orgId              String   @map("org_id")
+  roleView           String   @map("role_view")  // executive/security/auditor/admin/contributor
+  widgets            Json     @default("[]")
+  navigation         Json     @default("[]")
+  alerts             Json     @default("[]")
+  recommendedActions Json     @default("[]") @map("recommended_actions")
+  generatedBy        String?  @map("generated_by")  // dashboard-agent/manual
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, roleView])
+  @@map("dashboard_configs")
+}
+
+// ─── Audit Exports ────────────────────────────────────────────────────────────
+
+model AuditExport {
+  id               String    @id @default(uuid())
+  orgId            String    @map("org_id")
+  exportType       String    @map("export_type")  // soc2_readiness/iso_soa/evidence_binder/control_matrix
+  framework        String?
+  status           String    @default("draft")  // draft/approved/superseded
+  content          Json      @default("{}")
+  evidenceHashes   Json      @default("[]") @map("evidence_hashes")
+  policyVersions   Json      @default("[]") @map("policy_versions")
+  approvalRecordIds Json     @default("[]") @map("approval_record_ids")
+  disclaimerIncluded Boolean @default(true) @map("disclaimer_included")
+  generatedBy      String?   @map("generated_by")
+  workflowId       String?   @map("workflow_id")
+  dataSnapshotAt   DateTime? @map("data_snapshot_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("audit_exports")
+}
+
+// ─── Risk Treatments ──────────────────────────────────────────────────────────
+
+model RiskTreatment {
+  id                    String    @id @default(uuid())
+  riskId                String    @map("risk_id")
+  orgId                 String    @map("org_id")
+  treatmentType         String    @map("treatment_type")  // mitigate/accept/transfer/avoid
+  treatmentDescription  String?   @db.Text @map("treatment_description")
+  ownerId               String?   @map("owner_id")
+  targetCompletionDate  DateTime? @map("target_completion_date")
+  status                String    @default("open")  // open/in_progress/completed/accepted
+  acceptedBy            String?   @map("accepted_by")
+  acceptedAt            DateTime? @map("accepted_at")
+  residualRiskAfter     String?   @map("residual_risk_after")  // low/medium/high
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  riskItem     RiskItem      @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  owner        User?         @relation("RiskTreatmentOwner", fields: [ownerId], references: [id])
+  acceptedByUser User?       @relation("RiskTreatmentAcceptor", fields: [acceptedBy], references: [id])
+
+  @@map("risk_treatments")
+}
+
+// ─── Agent Memory (Shared Agent Memory Layer) ─────────────────────────────────
+
+model AgentMemory {
+  id              String    @id @default(uuid())
+  organizationId  String    @map("organization_id")
+  workflowRunId   String    @map("workflow_run_id")
+  agentId         String    @map("agent_id")
+  step            Int       @default(0)
+  namespace       String    // "inference", "scoping", "evidence", etc.
+  key             String
+  valueJson       Json      @map("value_json")
+  schemaVersion   String    @default("v1") @map("schema_version")
+  ttlAt           DateTime? @map("ttl_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowRunId, namespace, key])
+  @@index([workflowRunId], name: "idx_agent_memory_wf")
+  @@index([organizationId], name: "idx_agent_memory_org")
+  @@map("agent_memory")
+}
+
+// ─── Inference Results ────────────────────────────────────────────────────────
+
+model InferenceResult {
+  id                  String   @id @default(uuid())
+  orgId               String   @map("org_id")
+  onboardingVersion   Int      @default(1) @map("onboarding_version")
+  riskLevel           String   @map("risk_level")         // LOW/MEDIUM/HIGH
+  riskScore           Int      @default(0) @map("risk_score")
+  riskDrivers         Json     @default("[]") @map("risk_drivers")
+  inferredFrameworks  Json     @default("[]") @map("inferred_frameworks")
+  dataClassification  String   @map("data_classification") // PUBLIC/INTERNAL/CONFIDENTIAL/SENSITIVE
+  requiredControls    Json     @default("[]") @map("required_controls")
+  expectedIntegrations Json    @default("[]") @map("expected_integrations")
+  systemFlags         Json     @default("{}") @map("system_flags")
+  engineVersion       String   @default("1.0.0") @map("engine_version")
+  computedAt          DateTime @default(now()) @map("computed_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  organization         Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  integrationSuggestions IntegrationSuggestion[]
+
+  @@index([orgId])
+  @@map("inference_results")
+}
+
+// ─── Integration Suggestions ──────────────────────────────────────────────────
+
+model IntegrationSuggestion {
+  id                String   @id @default(uuid())
+  orgId             String   @map("org_id")
+  inferenceResultId String?  @map("inference_result_id")
+  provider          String
+  category          String   // identity/cloud/code/monitoring/ticketing/hr
+  reason            String   @db.Text
+  priority          String   @default("MEDIUM") // HIGH/MEDIUM/LOW
+  controlsSatisfied Json     @default("[]") @map("controls_satisfied")
+  setupComplexity   String   @default("MEDIUM") @map("setup_complexity") // LOW/MEDIUM/HIGH
+  status            String   @default("suggested") // suggested/dismissed/planned/connected
+  dismissedAt       DateTime? @map("dismissed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  organization    Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  inferenceResult InferenceResult? @relation(fields: [inferenceResultId], references: [id])
+
+  @@unique([orgId, provider])
+  @@map("integration_suggestions")
+}
+
+// ─── Control Test Engine ──────────────────────────────────────────────────────
+
+enum TestOutcome {
+  pass
+  fail
+  error
+  skipped
+}
+
+model ControlTestDefinition {
+  id                String   @id @default(uuid())
+  testId            String   @unique @map("test_id")       // e.g. "github-branch-protection"
+  controlCode       String   @map("control_code")          // e.g. "CC8.1"
+  name              String
+  description       String   @db.Text
+  frequencyCron     String   @default("0 */6 * * *") @map("frequency_cron")  // default: every 6h
+  requiresConnector String?  @map("requires_connector")    // "github" | "aws" | null (DB-only)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  results ControlTestResult[]
+
+  @@map("control_test_definitions")
+}
+
+model ControlTestResult {
+  id           String      @id @default(uuid())
+  orgId        String      @map("org_id")
+  testId       String      @map("test_id")
+  controlCode  String      @map("control_code")
+  outcome      TestOutcome
+  details      Json        @default("{}")
+  evidenceId   String?     @map("evidence_id")
+  errorMessage String?     @db.Text @map("error_message")
+  durationMs   Int?        @map("duration_ms")
+  testedAt     DateTime    @default(now()) @map("tested_at")
+
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  definition   ControlTestDefinition @relation(fields: [testId], references: [testId])
+  evidence     Evidence?            @relation(fields: [evidenceId], references: [id])
+
+  @@index([orgId, controlCode])
+  @@index([orgId, testId])
+  @@map("control_test_results")
+}
+
+// ─── Trust Center ─────────────────────────────────────────────────────────────
+
+model TrustCenter {
+  id           String    @id @default(uuid())
+  orgId        String    @unique @map("org_id")
+  slug         String    @unique                // URL: /trust/{slug}
+  isPublic     Boolean   @default(false) @map("is_public")
+  companyName  String    @map("company_name")
+  logoUrl      String?   @map("logo_url")
+  primaryColor String    @default("#6366f1") @map("primary_color")
+  headline     String    @default("Our Commitment to Security & Compliance")
+  description  String?   @db.Text
+  showControls Boolean   @default(true) @map("show_controls")
+  showEvidence Boolean   @default(false) @map("show_evidence")
+  publishedAt  DateTime? @map("published_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  accessLinks  TrustCenterAccessLink[]
+
+  @@map("trust_centers")
+}
+
+model TrustCenterAccessLink {
+  id            String    @id @default(uuid())
+  trustCenterId String    @map("trust_center_id")
+  token         String    @unique
+  label         String                             // e.g. "Shared with Acme Auditors"
+  expiresAt     DateTime? @map("expires_at")
+  viewCount     Int       @default(0) @map("view_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  trustCenter TrustCenter @relation(fields: [trustCenterId], references: [id], onDelete: Cascade)
+
+  @@map("trust_center_access_links")
+}
+
+// ─── OAuth State ──────────────────────────────────────────────────────────────
+// Short-lived state tokens for OAuth flows (stored in DB, cleaned up after use)
+
+model OAuthState {
+  id        String   @id @default(uuid())
+  state     String   @unique
+  orgId     String   @map("org_id")
+  userId    String   @map("user_id")
+  provider  String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([state])
+  @@map("oauth_states")
+}
+
+// ─── LLM Budget (Per-Tenant Cost Governance) ──────────────────────────────────
+
+model LlmBudget {
+  id                    String   @id @default(uuid())
+  orgId                 String   @unique @map("org_id")
+  dailyCapUsd           Decimal  @default(5) @map("daily_cap_usd") @db.Decimal(10, 4)
+  monthlyCapUsd         Decimal  @default(50) @map("monthly_cap_usd") @db.Decimal(10, 4)
+  ratePerMinuteLimit    Int      @default(30) @map("rate_per_minute_limit")
+  currentDaySpendUsd    Decimal  @default(0) @map("current_day_spend_usd") @db.Decimal(10, 6)
+  currentMonthSpendUsd  Decimal  @default(0) @map("current_month_spend_usd") @db.Decimal(10, 6)
+  capHitAt              DateTime? @map("cap_hit_at")
+  lastResetAt           DateTime  @default(now()) @map("last_reset_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("llm_budgets")
+}

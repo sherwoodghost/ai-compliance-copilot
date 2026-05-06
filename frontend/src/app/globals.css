@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  * { @apply border-gray-200; }
+
+  body {
+    @apply text-gray-900 antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  h1 { @apply text-2xl font-bold tracking-tight; }
+  h2 { @apply text-xl font-semibold tracking-tight; }
+  h3 { @apply text-lg font-semibold; }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+  }
+
+  .badge-passed  { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-success-50 text-success-700; }
+  .badge-failed  { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-danger-50 text-danger-700; }
+  .badge-partial { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-warning-50 text-warning-700; }
+  .badge-pending { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600; }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold
+           text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2
+           focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed
+           transition-colors duration-150;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold
+           text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none
+           focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50
+           transition-colors duration-150;
+  }
+
+  .input {
+    @apply block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm
+           placeholder:text-gray-400 focus:border-brand-500 focus:outline-none
+           focus:ring-2 focus:ring-brand-500/20 transition-colors duration-150;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600
+           hover:bg-gray-100 hover:text-gray-900 transition-colors duration-150;
+  }
+
+  .sidebar-link.active {
+    @apply bg-brand-50 text-brand-700;
+  }
+}
+
+/* Agent status pulse animation */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.agent-running::before {
+  content: '';
+  @apply absolute inset-0 rounded-full bg-brand-500 opacity-75;
+  animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}

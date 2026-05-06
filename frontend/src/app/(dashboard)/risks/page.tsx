@@ -1,0 +1,361 @@
+'use client';
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { apiClient as api } from '@/lib/api/client';
+import {
+  AlertTriangle, Shield, CheckCircle, ChevronDown, ChevronRight,
+  ShieldOff, ArrowRightLeft, Ban, Zap, Clock, Plus,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type RiskTreatment = {
+  id: string;
+  treatmentType: 'mitigate' | 'accept' | 'transfer' | 'avoid';
+  treatmentDescription: string;
+  status: string;
+  targetCompletionDate?: string;
+  residualRiskAfter?: string;
+  acceptedAt?: string;
+  createdAt: string;
+};
+
+type Risk = {
+  id: string;
+  title: string;
+  description: string;
+  likelihood: string;
+  impact: string;
+  riskScore: number;
+  severity: string;
+  status: string;
+  mitigationAdvice?: string;
+  riskTreatments: RiskTreatment[];
+  createdAt: string;
+};
+
+const SEVERITY_CONFIG: Record<string, { label: string; rowCls: string; badge: string; icon: string }> = {
+  critical: { label: 'Critical', rowCls: 'border-l-4 border-red-500', badge: 'bg-red-100 text-red-800', icon: 'text-red-500' },
+  high:     { label: 'High',     rowCls: 'border-l-4 border-orange-400', badge: 'bg-orange-100 text-orange-800', icon: 'text-orange-400' },
+  medium:   { label: 'Medium',   rowCls: 'border-l-4 border-yellow-400', badge: 'bg-yellow-100 text-yellow-800', icon: 'text-yellow-400' },
+  low:      { label: 'Low',      rowCls: 'border-l-4 border-gray-300', badge: 'bg-gray-100 text-gray-600', icon: 'text-gray-400' },
+};
+
+const TREATMENT_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  mitigate: { label: 'Mitigate', color: 'bg-blue-50 text-blue-700 border-blue-200',  icon: Zap },
+  accept:   { label: 'Accept',   color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: CheckCircle },
+  transfer: { label: 'Transfer', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: ArrowRightLeft },
+  avoid:    { label: 'Avoid',    color: 'bg-gray-50 text-gray-700 border-gray-200',  icon: Ban },
+};
+
+function TreatmentForm({ riskId, onClose }: { riskId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [type, setType] = useState<'mitigate' | 'accept' | 'transfer' | 'avoid'>('mitigate');
+  const [description, setDescription] = useState('');
+  const [residual, setResidual] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+
+  const create = useMutation({
+    mutationFn: () => api.post(`/risks/${riskId}/treatments`, {
+      treatmentType: type,
+      treatmentDescription: description,
+      residualRiskAfter: residual || undefined,
+      targetCompletionDate: targetDate || undefined,
+    }).then((r: any) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['risks'] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="mt-3 p-4 bg-white border border-gray-200 rounded-lg space-y-3">
+      <p className="text-xs font-semibold text-gray-700">Add Treatment Decision</p>
+      <div className="flex gap-2">
+        {(['mitigate', 'accept', 'transfer', 'avoid'] as const).map((t) => {
+          const cfg = TREATMENT_CONFIG[t];
+          const Icon = cfg.icon;
+          return (
+            <button
+              key={t}
+              onClick={() => setType(t)}
+              className={cn(
+                'flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-colors',
+                type === t ? cfg.color : 'border-gray-200 text-gray-500 hover:bg-gray-50',
+              )}
+            >
+              <Icon className="w-3 h-3" />
+              {cfg.label}
+            </button>
+          );
+        })}
+      </div>
+      <textarea
+        className="w-full text-xs border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+        rows={3}
+        placeholder="Describe the treatment plan, rationale, or acceptance rationale…"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <input
+            className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            placeholder="Residual risk (low/medium/high)"
+            value={residual}
+            onChange={(e) => setResidual(e.target.value)}
+          />
+        </div>
+        <div className="flex-1">
+          <input
+            type="date"
+            className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button className="btn-secondary text-xs" onClick={onClose}>Cancel</button>
+        <button
+          className="btn-primary text-xs"
+          disabled={!description.trim() || create.isPending}
+          onClick={() => create.mutate()}
+        >
+          {create.isPending ? 'Saving…' : 'Save Treatment'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RiskRow({ risk }: { risk: Risk }) {
+  const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const cfg = SEVERITY_CONFIG[risk.severity] ?? SEVERITY_CONFIG.low;
+  const latestTreatment = risk.riskTreatments?.[0];
+
+  const acceptTreatment = useMutation({
+    mutationFn: (treatmentId: string) =>
+      api.patch(`/risks/${risk.id}/treatments/${treatmentId}/accept`).then((r: any) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['risks'] }),
+  });
+
+  const completeTreatment = useMutation({
+    mutationFn: (treatmentId: string) =>
+      api.patch(`/risks/${risk.id}/treatments/${treatmentId}/complete`).then((r: any) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['risks'] }),
+  });
+
+  return (
+    <div className={cn('border border-gray-200 rounded-lg overflow-hidden', cfg.rowCls)}>
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 text-left"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+        <AlertTriangle className={cn('w-4 h-4 shrink-0', cfg.icon)} />
+        <span className="text-sm font-medium text-gray-900 flex-1 truncate">{risk.title}</span>
+        <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', cfg.badge)}>{cfg.label}</span>
+        {latestTreatment && (
+          <span className={cn('text-xs px-2 py-0.5 rounded border font-medium shrink-0', TREATMENT_CONFIG[latestTreatment.treatmentType]?.color ?? '')}>
+            {TREATMENT_CONFIG[latestTreatment.treatmentType]?.label}
+          </span>
+        )}
+        <span className={cn('text-xs px-2 py-0.5 rounded-full shrink-0',
+          risk.status === 'open' ? 'bg-red-50 text-red-700' :
+          risk.status === 'mitigated' ? 'bg-green-50 text-green-700' :
+          risk.status === 'accepted' ? 'bg-yellow-50 text-yellow-700' :
+          'bg-gray-100 text-gray-500')}>
+          {risk.status}
+        </span>
+        <span className="text-xs text-gray-400 font-mono shrink-0">Score: {risk.riskScore}</span>
+      </button>
+
+      {expanded && (
+        <div className="px-5 py-4 bg-gray-50 border-t border-gray-100 space-y-4">
+          {/* Risk details */}
+          <div className="grid grid-cols-3 gap-4 text-xs">
+            <div><p className="text-gray-400">Likelihood</p><p className="font-medium capitalize">{risk.likelihood}</p></div>
+            <div><p className="text-gray-400">Impact</p><p className="font-medium capitalize">{risk.impact}</p></div>
+            <div><p className="text-gray-400">Risk Score</p><p className="font-bold text-gray-900">{risk.riskScore}</p></div>
+          </div>
+
+          {risk.description && (
+            <p className="text-sm text-gray-600">{risk.description}</p>
+          )}
+
+          {risk.mitigationAdvice && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <p className="text-xs font-semibold text-blue-800 mb-1">AI Mitigation Advice</p>
+              <p className="text-xs text-blue-700">{risk.mitigationAdvice}</p>
+            </div>
+          )}
+
+          {/* Treatment history */}
+          {(risk.riskTreatments?.length > 0) && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Treatment History</p>
+              <div className="space-y-2">
+                {risk.riskTreatments.map((t) => {
+                  const tcfg = TREATMENT_CONFIG[t.treatmentType];
+                  const TIcon = tcfg?.icon ?? Zap;
+                  return (
+                    <div key={t.id} className={cn('border rounded-lg p-3', tcfg?.color ?? 'border-gray-200')}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2">
+                          <TIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold">{tcfg?.label} — {t.status}</p>
+                            <p className="text-xs mt-0.5 opacity-80">{t.treatmentDescription}</p>
+                            {t.residualRiskAfter && (
+                              <p className="text-xs mt-1 opacity-70">Residual risk: {t.residualRiskAfter}</p>
+                            )}
+                            {t.targetCompletionDate && (
+                              <p className="text-xs mt-0.5 opacity-70 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />Target: {new Date(t.targetCompletionDate).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 shrink-0">
+                          {t.status === 'open' && t.treatmentType === 'accept' && (
+                            <button
+                              className="text-xs px-2 py-0.5 rounded bg-white border border-current font-medium hover:opacity-80 transition-opacity"
+                              onClick={() => acceptTreatment.mutate(t.id)}
+                              disabled={acceptTreatment.isPending}
+                            >
+                              Sign Off
+                            </button>
+                          )}
+                          {t.status === 'open' && t.treatmentType === 'mitigate' && (
+                            <button
+                              className="text-xs px-2 py-0.5 rounded bg-white border border-current font-medium hover:opacity-80 transition-opacity"
+                              onClick={() => completeTreatment.mutate(t.id)}
+                              disabled={completeTreatment.isPending}
+                            >
+                              Mark Complete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Add treatment form */}
+          {showForm ? (
+            <TreatmentForm riskId={risk.id} onClose={() => setShowForm(false)} />
+          ) : (
+            risk.status === 'open' && (
+              <button
+                className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium"
+                onClick={() => setShowForm(true)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Treatment Decision
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function RisksPage() {
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'mitigated' | 'accepted'>('all');
+  const [filterSeverity, setFilterSeverity] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
+
+  const { data = [], isLoading } = useQuery<Risk[]>({
+    queryKey: ['risks'],
+    queryFn: () => api.get('/risks').then((r: any) => r.data),
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ['risk-stats'],
+    queryFn: () => api.get('/risks/stats').then((r: any) => r.data),
+  });
+
+  const filtered = (data as Risk[]).filter((r) => {
+    if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+    if (filterSeverity !== 'all' && r.severity !== filterSeverity) return false;
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => (b.riskScore ?? 0) - (a.riskScore ?? 0));
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Risk Register</h1>
+          <p className="text-sm text-gray-500">Identify, score, treat, and track all compliance risks</p>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: 'Total', value: stats.total, cls: 'text-gray-900' },
+            { label: 'Open', value: stats.open, cls: 'text-red-700' },
+            { label: 'High+', value: stats.highRisks, cls: 'text-orange-700' },
+            { label: 'Mitigated', value: stats.mitigated, cls: 'text-green-700' },
+            { label: 'Accepted', value: stats.accepted, cls: 'text-yellow-700' },
+          ].map((s) => (
+            <div key={s.label} className="card p-4 text-center">
+              <p className="text-xs text-gray-400">{s.label}</p>
+              <p className={cn('text-2xl font-bold mt-1', s.cls)}>{s.value ?? 0}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {(['all', 'open', 'mitigated', 'accepted'] as const).map((s) => (
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={cn('px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize',
+                filterStatus === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {(['all', 'critical', 'high', 'medium', 'low'] as const).map((s) => (
+            <button key={s} onClick={() => setFilterSeverity(s)}
+              className={cn('px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize',
+                filterSeverity === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 self-center">{sorted.length} risks</p>
+      </div>
+
+      {/* Risk list */}
+      {isLoading ? (
+        <div className="space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />)}</div>
+      ) : sorted.length === 0 ? (
+        <div className="card p-12 text-center">
+          <Shield className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm text-gray-500">No risks match the current filter</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {sorted.map((r) => <RiskRow key={r.id} risk={r} />)}
+        </div>
+      )}
+    </div>
+  );
+}

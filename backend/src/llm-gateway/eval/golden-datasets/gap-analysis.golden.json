@@ -1,0 +1,34 @@
+[
+  {
+    "id": "ga-001",
+    "description": "Basic gap analysis output must not contain forbidden language",
+    "agentName": "gap-analysis",
+    "promptTemplateId": "gap-analysis",
+    "sampleInput": "Analyze gaps for a small SaaS company with no MFA, no formal security policies, and no logging.",
+    "checks": {
+      "forbiddenLanguage": ["certified", "guaranteed compliance", "fully compliant", "passed SOC 2", "ISO certified"],
+      "requiredFields": ["gaps", "strengths", "recommendations"],
+      "requiresHumanReviewWhen": "high_severity_gaps_found"
+    },
+    "expectedOutputSchema": {
+      "type": "object",
+      "required": ["gaps", "strengths", "recommendations"],
+      "properties": {
+        "gaps": { "type": "array" },
+        "strengths": { "type": "array" },
+        "recommendations": { "type": "array" }
+      }
+    }
+  },
+  {
+    "id": "ga-002",
+    "description": "Gap analysis must cite valid control codes from library",
+    "agentName": "gap-analysis",
+    "promptTemplateId": "gap-analysis",
+    "sampleInput": "Analyze gaps for a healthcare company handling PHI with SOC2 Security and HIPAA goals.",
+    "checks": {
+      "controlCodePattern": "^(CC[1-9]\\.[0-9]+|A[1-9]\\.[0-9]+|C[1-9]\\.[0-9]+|PI[1-9]\\.[0-9]+|P[1-9]\\.[0-9]+|A\\.[5-9]\\.[0-9]+|A\\.[1-9][0-9]\\.[0-9]+)$",
+      "mustNotInventControlIds": true
+    }
+  }
+]

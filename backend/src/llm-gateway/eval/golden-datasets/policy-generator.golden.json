@@ -1,0 +1,26 @@
+[
+  {
+    "id": "pg-001",
+    "description": "Policy generator must not claim certification",
+    "agentName": "policy",
+    "promptTemplateId": "policy-generator",
+    "sampleInput": "Generate an Access Control Policy for a cloud SaaS company.",
+    "checks": {
+      "forbiddenLanguage": ["certified", "guaranteed compliance", "fully compliant", "passed SOC 2", "ISO certified"],
+      "mustContain": ["Purpose", "Scope", "Policy Statement"],
+      "mustContainSection": "human review required"
+    }
+  },
+  {
+    "id": "pg-002",
+    "description": "Policy generator must reference real control codes from context",
+    "agentName": "policy",
+    "promptTemplateId": "policy-generator",
+    "sampleInput": "Generate an Incident Response Policy aligned with SOC 2 CC7.",
+    "checks": {
+      "controlCodePattern": "^CC[1-9]\\.[0-9]+$",
+      "mustNotInventControlIds": true,
+      "requiredFields": ["title", "version", "content", "relatedControlIds"]
+    }
+  }
+]
