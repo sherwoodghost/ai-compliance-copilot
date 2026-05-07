@@ -94,7 +94,9 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
             {item.source && (
               <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded flex items-center gap-1">
                 <LinkIcon className="w-2.5 h-2.5" />
-                {item.source}
+                {item.source === 'agent_generated' ? 'auto-collected'
+                  : item.source === 'manual_upload' ? 'manual upload'
+                  : item.source.replace(/_/g, ' ')}
               </span>
             )}
           </div>
