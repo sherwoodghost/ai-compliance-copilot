@@ -80,6 +80,15 @@ export class TrustCenterController {
   async passRate(@CurrentUser() user: JwtPayload) {
     return this.trustCenter.getControlPassRate(user.orgId);
   }
+
+  @Get('checks')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'auditor', 'member')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Get trust check items derived from control test results' })
+  async getChecks(@CurrentUser() user: JwtPayload) {
+    return this.trustCenter.getChecks(user.orgId);
+  }
 }
 
 // ─── Public controller (no auth guard) ─────────────────────────────────────

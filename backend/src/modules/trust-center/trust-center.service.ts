@@ -150,6 +150,40 @@ export class TrustCenterService {
     return { total, pass, fail, skipped, passRate };
   }
 
+  async getChecks(orgId: string) {
+    // Pull latest control test results to build trust check list
+    const results = await this.prisma.controlTestResult.findMany({
+      where:   { orgId },
+      orderBy: { testedAt: 'desc' },
+      include: { definition: { select: { name: true, description: true, controlCode: true } } },
+    });
+
+    // Deduplicate: latest per testId
+    const seen   = new Set<string>();
+    const latest = results.filter((r) => { if (seen.has(r.testId)) return false; seen.add(r.testId); return true; });
+
+    return latest.map((r) => {
+      // Derive a category from the control code prefix (e.g. CC1 → Access Control)
+      const code = r.definition?.controlCode ?? r.controlCode ?? '';
+      const category = code.startsWith('CC1') || code.startsWith('CC6') ? 'Access Control'
+        : code.startsWith('CC7') || code.startsWith('A') ? 'Availability'
+        : code.startsWith('CC8') || code.startsWith('CC9') ? 'Data Security'
+        : code.startsWith('CC2') || code.startsWith('CC3') ? 'Compliance'
+        : code.startsWith('P') ? 'Privacy'
+        : 'Monitoring';
+
+      return {
+        id:          r.id,
+        category,
+        title:       r.definition?.name ?? r.testId,
+        description: r.definition?.description ?? 'Automated control verification',
+        status:      r.outcome === 'pass' ? 'passing' : r.outcome === 'fail' ? 'failing' : 'in_progress',
+        public:      true,
+        lastChecked: r.testedAt,
+      };
+    });
+  }
+
   private async getFrameworkSummary(orgId: string) {
     const orgControls = await this.prisma.organizationControl.findMany({
       where:   { orgId },
