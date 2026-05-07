@@ -10,16 +10,33 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 // ─── Global Redis/Upstash error guard ──────────────────────────────────────────
 // When the Upstash free-tier request limit is reached, IORedis throws on every
 // Redis command (including AUTH at connection time). Without these handlers the
-// process exits immediately. We catch those specific errors and log a warning so
+// process exits immediately. We catch Redis-related errors and log a warning so
 // the app keeps serving HTTP traffic even without a working Redis/Bull layer.
-const isRedisLimitError = (err: unknown) => {
-  const msg = (err as any)?.message ?? String(err);
-  return msg.includes('max requests limit exceeded') || msg.includes('ERR max requests');
+const isRedisError = (err: unknown) => {
+  const msg  = ((err as any)?.message ?? String(err)).toLowerCase();
+  const code = (err as any)?.code ?? '';
+  return (
+    // Upstash free-tier request limit messages (several variants)
+    msg.includes('max requests limit exceeded') ||
+    msg.includes('max daily request limit')     ||
+    msg.includes('request limit exceeded')      ||
+    msg.includes('err max requests')            ||
+    // Generic Redis / IORedis connection errors we want to swallow
+    msg.includes('econnrefused')                ||
+    msg.includes('enotfound')                   ||
+    msg.includes('connection is closed')        ||
+    msg.includes('stream isn\'t writeable')     ||
+    msg.includes('enablereadycheck')            ||
+    // Upstash/ioredis stack traces
+    msg.includes('upstash')                     ||
+    code === 'ECONNREFUSED'                     ||
+    code === 'ENOTFOUND'
+  );
 };
 
 process.on('unhandledRejection', (reason) => {
-  if (isRedisLimitError(reason)) {
-    new Logger('Redis').warn('Upstash request limit exceeded — queued jobs are disabled until limit resets');
+  if (isRedisError(reason)) {
+    new Logger('Redis').warn(`Redis unavailable — queued jobs disabled: ${(reason as any)?.message ?? reason}`);
     return;
   }
   // Re-throw genuinely unhandled rejections so they aren't silently swallowed
@@ -27,8 +44,8 @@ process.on('unhandledRejection', (reason) => {
 });
 
 process.on('uncaughtException', (err) => {
-  if (isRedisLimitError(err)) {
-    new Logger('Redis').warn('Upstash request limit exceeded — queued jobs are disabled until limit resets');
+  if (isRedisError(err)) {
+    new Logger('Redis').warn(`Redis unavailable — queued jobs disabled: ${err.message}`);
     return;
   }
   throw err;
