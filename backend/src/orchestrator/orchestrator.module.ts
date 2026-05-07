@@ -37,7 +37,10 @@ const allProcessors = [
           tls: config.get<boolean>('redis.tls') ? {} : undefined,
           enableReadyCheck: false,
           maxRetriesPerRequest: null,
-          retryStrategy: (times: number) => Math.min(times * 2000, 30000),
+          // null = don't retry — when Redis is unavailable (e.g. Upstash free-tier
+          // limit) this prevents ioredis from blocking NestJS startup in retry loops
+          retryStrategy: () => null,
+          lazyConnect: true,
         },
         defaultJobOptions: {
           attempts: 3,
