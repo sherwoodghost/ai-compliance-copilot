@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
 import { HeatmapChart } from '@/components/charts/HeatmapChart';
-import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, ChevronRight } from 'lucide-react';
+import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
+import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, ChevronRight, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -88,7 +89,7 @@ export default function ControlsPage() {
   const qc = useQueryClient();
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showHealthMap, setShowHealthMap] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['controls', status],
@@ -98,11 +99,6 @@ export default function ControlsPage() {
   const { data: stats } = useQuery({
     queryKey: ['control-stats'],
     queryFn: complianceApi.getControlStats,
-  });
-
-  const { data: heatmap } = useQuery({
-    queryKey: ['control-heatmap'],
-    queryFn: complianceApi.getControlHeatmap,
   });
 
   const initControls = useMutation({
@@ -141,10 +137,10 @@ export default function ControlsPage() {
         <div className="flex items-center gap-2">
           <button
             className="btn-secondary flex items-center gap-2"
-            onClick={() => setShowHeatmap((v) => !v)}
+            onClick={() => setShowHealthMap((v) => !v)}
           >
-            <BarChart2 className="w-4 h-4" />
-            {showHeatmap ? 'Hide' : 'Show'} heatmap
+            <Activity className="w-4 h-4" />
+            {showHealthMap ? 'Hide' : 'Live'} health map
           </button>
           {controls.length === 0 && (
             <button
@@ -160,10 +156,9 @@ export default function ControlsPage() {
         </div>
       </div>
 
-      {showHeatmap && heatmap && (
+      {showHealthMap && (
         <div className="card p-5 mb-6">
-          <p className="text-sm font-semibold text-gray-700 mb-4">Category completion</p>
-          <HeatmapChart data={heatmap} />
+          <ControlHealthMap />
         </div>
       )}
 

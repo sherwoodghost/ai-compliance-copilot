@@ -289,6 +289,104 @@ export class ControlsService {
     };
   }
 
+  // ─── Real-Time Control Health Map ──────────────────────────────────────────
+  // Returns per-category green/yellow/red health signals based on:
+  //   🟢 green  — implemented + evidence valid and not expiring within 30 days
+  //   🟡 yellow — in_progress OR overdue due-date OR evidence expiring within 30d
+  //   🔴 red    — not_started OR failed
+  async getHealthMap(orgId: string) {
+    const now = new Date();
+    const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const orgControls = await this.prisma.organizationControl.findMany({
+      where: { orgId },
+      include: {
+        control: { select: { category: true, code: true, title: true } },
+      },
+    });
+
+    // Gather evidence expiry info per control (join on controlId)
+    const controlIds = orgControls.map((oc) => oc.controlId);
+    const evidenceRows = await this.prisma.evidence.findMany({
+      where: { orgId, controlId: { in: controlIds } },
+      select: { controlId: true, expiresAt: true, isValid: true },
+    });
+
+    // Build a map: controlId → { hasExpired, hasExpiringSoon }
+    const evMap: Record<string, { hasExpired: boolean; hasExpiringSoon: boolean }> = {};
+    for (const e of evidenceRows) {
+      if (!e.controlId) continue;
+      if (!evMap[e.controlId]) evMap[e.controlId] = { hasExpired: false, hasExpiringSoon: false };
+      if (!e.isValid || (e.expiresAt && e.expiresAt < now)) evMap[e.controlId].hasExpired = true;
+      if (e.expiresAt && e.expiresAt >= now && e.expiresAt <= soon) evMap[e.controlId].hasExpiringSoon = true;
+    }
+
+    type Signal = 'green' | 'yellow' | 'red';
+
+    function signalFor(oc: (typeof orgControls)[0]): Signal {
+      const s = oc.status as string;
+      if (s === 'not_started' || s === 'failed') return 'red';
+      if (s === 'not_applicable') return 'green'; // N/A counts as not a gap
+
+      const ev = evMap[oc.controlId];
+      const isOverdue = oc.dueDate && oc.dueDate < now && s !== 'implemented';
+      const hasEvidenceIssue = ev?.hasExpired;
+      const hasEvidenceWarning = ev?.hasExpiringSoon;
+
+      if (isOverdue || hasEvidenceIssue) return 'red';
+      if (s === 'in_progress' || hasEvidenceWarning) return 'yellow';
+      // implemented + no issues
+      return 'green';
+    }
+
+    // Aggregate by category
+    type CatEntry = {
+      green: number; yellow: number; red: number; total: number;
+      controls: { controlId: string; code: string; name: string; signal: Signal }[];
+    };
+    const catMap: Record<string, CatEntry> = {};
+
+    for (const oc of orgControls) {
+      const cat = oc.control.category ?? 'Uncategorised';
+      if (!catMap[cat]) catMap[cat] = { green: 0, yellow: 0, red: 0, total: 0, controls: [] };
+      const sig = signalFor(oc);
+      catMap[cat][sig]++;
+      catMap[cat].total++;
+      catMap[cat].controls.push({
+        controlId: oc.controlId,
+        code: oc.control.code,
+        name: oc.control.title,
+        signal: sig,
+      });
+    }
+
+    const categories = Object.entries(catMap)
+      .map(([category, d]) => {
+        const worstSignal: Signal =
+          d.red > 0 ? 'red' : d.yellow > 0 ? 'yellow' : 'green';
+        const healthPct =
+          d.total > 0 ? Math.round(((d.green + d.yellow * 0.5) / d.total) * 100) : 100;
+        return { category, ...d, healthPct, worstSignal };
+      })
+      .sort((a, b) => a.healthPct - b.healthPct); // worst categories first
+
+    const overall = categories.reduce(
+      (acc, c) => ({
+        green: acc.green + c.green,
+        yellow: acc.yellow + c.yellow,
+        red: acc.red + c.red,
+        total: acc.total + c.total,
+      }),
+      { green: 0, yellow: 0, red: 0, total: 0 },
+    );
+
+    return {
+      lastChecked: now.toISOString(),
+      overall,
+      categories,
+    };
+  }
+
   // ─── Get controls by category for heat-map view ─────────────────────────────
   async getHeatmap(orgId: string, frameworkId: string) {
     const controls = await this.prisma.organizationControl.findMany({

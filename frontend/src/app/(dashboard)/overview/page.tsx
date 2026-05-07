@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
 import { complianceApi } from '@/lib/api/compliance';
 import { ScoreGauge } from '@/components/charts/ScoreGauge';
+import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
 import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
@@ -527,6 +528,20 @@ export default function OverviewPage() {
           </div>
         </div>
       )}
+
+      {/* Real-Time Control Health Map */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Control Health Map</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Live status · auto-refreshes every 30s</p>
+          </div>
+          <Link href="/controls" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+            All controls <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <ControlHealthMap />
+      </div>
     </div>
   );
 }

@@ -57,6 +57,12 @@ export class ControlsController {
     return this.controlsService.getHeatmap(user.orgId, frameworkId);
   }
 
+  @Get('health')
+  @ApiOperation({ summary: 'Real-time per-category green/yellow/red health signals' })
+  getHealthMap(@CurrentUser() user: JwtPayload) {
+    return this.controlsService.getHealthMap(user.orgId);
+  }
+
   // ─── Single Control (parameterized — MUST be last) ────────────────────────
 
   @Get(':controlId')
