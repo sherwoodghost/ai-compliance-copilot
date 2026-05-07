@@ -22,27 +22,27 @@ import {
   Target,
   BarChart3,
   Download,
-  Cpu,
+  Globe,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 const NAV = [
-  { href: '/overview', label: 'Overview', icon: LayoutDashboard },
-  { href: '/journey', label: 'Journey', icon: GitBranch },
-  { href: '/controls', label: 'Controls', icon: CheckSquare },
+  { href: '/overview',       label: 'Overview',       icon: LayoutDashboard },
+  { href: '/journey',        label: 'Journey',        icon: GitBranch },
+  { href: '/controls',       label: 'Controls',       icon: CheckSquare },
   { href: '/control-library', label: 'Control Library', icon: Library },
-  { href: '/evidence', label: 'Evidence', icon: FolderOpen },
-  { href: '/policies', label: 'Policies', icon: FileText },
-  { href: '/risks', label: 'Risks', icon: AlertTriangle },
-  { href: '/tasks', label: 'Tasks', icon: ClipboardList },
-  { href: '/scope', label: 'Scope', icon: Target },
-  { href: '/readiness', label: 'Readiness', icon: BarChart3 },
-  { href: '/audit-exports', label: 'Audit Exports', icon: Download },
-  { href: '/vendors', label: 'Vendors', icon: Building2 },
-  { href: '/integrations', label: 'Integrations', icon: Plug },
-  { href: '/llm-gateway', label: 'LLM Gateway', icon: Cpu },
-  { href: '/control-panel', label: 'Control Panel', icon: Zap },
+  { href: '/evidence',       label: 'Evidence',       icon: FolderOpen },
+  { href: '/policies',       label: 'Policies',       icon: FileText },
+  { href: '/risks',          label: 'Risks',          icon: AlertTriangle },
+  { href: '/tasks',          label: 'Tasks',          icon: ClipboardList },
+  { href: '/scope',          label: 'Scope',          icon: Target },
+  { href: '/readiness',      label: 'Readiness',      icon: BarChart3 },
+  { href: '/audit-exports',  label: 'Audit Exports',  icon: Download },
+  { href: '/vendors',        label: 'Vendors',        icon: Building2 },
+  { href: '/integrations',   label: 'Integrations',   icon: Plug },
+  { href: '/trust-center',   label: 'Trust Center',   icon: Globe },
+  { href: '/control-panel',  label: 'Workflows',      icon: Zap },
 ];
 
 export function Sidebar() {

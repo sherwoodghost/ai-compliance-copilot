@@ -265,7 +265,7 @@ function EmptyState({ hasSearch }: { hasSearch: boolean }) {
       <p className="text-xs text-gray-400 max-w-xs mx-auto">
         {hasSearch
           ? 'Try a different risk level or clear the search.'
-          : 'Run a compliance assessment — the Vendor Risk agent evaluates your tech-stack vendors automatically.'}
+          : 'Run a compliance assessment to evaluate your tech-stack vendors and generate a risk posture report.'}
       </p>
     </div>
   );

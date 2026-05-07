@@ -388,7 +388,7 @@ export default function ScopePage() {
           <div className="card p-10 text-center">
             <Target className="w-10 h-10 mx-auto text-gray-300 mb-3" />
             <p className="text-gray-600 font-medium mb-1">No SOC 2 scope defined yet</p>
-            <p className="text-sm text-gray-400">Run the Scoping Agent from the Control Panel to generate your scope</p>
+            <p className="text-sm text-gray-400">Run a compliance assessment to automatically define your system scope</p>
           </div>
         )
       )}
