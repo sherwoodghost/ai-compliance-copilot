@@ -27,7 +27,7 @@ export default () => ({
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
     openrouterApiKey: process.env.OPENROUTER_API_KEY,
-    openrouterDefaultModel: process.env.OPENROUTER_DEFAULT_MODEL ?? 'anthropic/claude-3.5-sonnet',
+    openrouterDefaultModel: process.env.OPENROUTER_DEFAULT_MODEL ?? 'anthropic/claude-sonnet-4.5',
     defaultModel: process.env.DEFAULT_LLM_MODEL ?? 'claude-sonnet-4-6',
   },
 

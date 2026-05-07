@@ -4,10 +4,10 @@ import { LLMProvider, LLMMessage, LLMOptions, LLMResponse, calculateCost } from 
 
 // OpenRouter model name → cost mapping (per 1M tokens, USD)
 const OPENROUTER_MODEL_COSTS: Record<string, { input: number; output: number }> = {
-  'anthropic/claude-3.5-sonnet':   { input: 3.0,  output: 15.0 },
-  'anthropic/claude-3.5-haiku':    { input: 0.80, output: 4.0  },
-  'anthropic/claude-3-haiku':      { input: 0.25, output: 1.25 },
-  'anthropic/claude-3-opus':       { input: 15.0, output: 75.0 },
+  'anthropic/claude-sonnet-4.6':   { input: 3.0,  output: 15.0 },
+  'anthropic/claude-sonnet-4.5':   { input: 3.0,  output: 15.0 },
+  'anthropic/claude-haiku-4.5':    { input: 0.80, output: 4.0  },
+  'anthropic/claude-opus-4':       { input: 15.0, output: 75.0 },
   'openai/gpt-4o':                 { input: 2.5,  output: 10.0 },
   'openai/gpt-4o-mini':            { input: 0.15, output: 0.60 },
   'google/gemini-pro-1.5':         { input: 1.25, output: 5.0  },
@@ -18,27 +18,29 @@ const OPENROUTER_MODEL_COSTS: Record<string, { input: number; output: number }> 
 // The LLM service routes agents with Anthropic-style names (claude-sonnet-4-6,
 // claude-haiku-4-5-20251001, …).  When OpenRouter is the active provider we
 // must convert them before sending to the API.
+// OpenRouter uses dots for version numbers (e.g. claude-sonnet-4.6, not 4-6).
 const ANTHROPIC_TO_OPENROUTER: Record<string, string> = {
   // Sonnet variants
-  'claude-sonnet-4-6':              'anthropic/claude-3.5-sonnet',
-  'claude-sonnet-4-5':              'anthropic/claude-3.5-sonnet',
-  'claude-3-5-sonnet-20241022':     'anthropic/claude-3.5-sonnet',
-  'claude-3-5-sonnet-20240620':     'anthropic/claude-3.5-sonnet',
+  'claude-sonnet-4-6':              'anthropic/claude-sonnet-4.6',
+  'claude-sonnet-4-5':              'anthropic/claude-sonnet-4.5',
+  'claude-3-7-sonnet-20250219':     'anthropic/claude-3.7-sonnet',
+  'claude-3-5-sonnet-20241022':     'anthropic/claude-sonnet-4.5',
+  'claude-3-5-sonnet-20240620':     'anthropic/claude-sonnet-4.5',
   // Haiku variants
-  'claude-haiku-4-5-20251001':      'anthropic/claude-3.5-haiku',
-  'claude-haiku-4-5':               'anthropic/claude-3.5-haiku',
-  'claude-3-5-haiku-20241022':      'anthropic/claude-3.5-haiku',
-  'claude-3-haiku-20240307':        'anthropic/claude-3-haiku',
+  'claude-haiku-4-5-20251001':      'anthropic/claude-haiku-4.5',
+  'claude-haiku-4-5':               'anthropic/claude-haiku-4.5',
+  'claude-3-5-haiku-20241022':      'anthropic/claude-haiku-4.5',
+  'claude-3-haiku-20240307':        'anthropic/claude-haiku-4.5',
   // Opus variants
-  'claude-opus-4':                  'anthropic/claude-3-opus',
-  'claude-opus-4-5':                'anthropic/claude-3-opus',
-  'claude-3-opus-20240229':         'anthropic/claude-3-opus',
+  'claude-opus-4':                  'anthropic/claude-opus-4',
+  'claude-opus-4-5':                'anthropic/claude-opus-4.5',
+  'claude-3-opus-20240229':         'anthropic/claude-opus-4',
 };
 
 function toOpenRouterModel(model: string): string {
   // Already in provider/model format — pass through unchanged
   if (model.includes('/')) return model;
-  return ANTHROPIC_TO_OPENROUTER[model] ?? 'anthropic/claude-3.5-sonnet';
+  return ANTHROPIC_TO_OPENROUTER[model] ?? 'anthropic/claude-sonnet-4.5';
 }
 
 @Injectable()
