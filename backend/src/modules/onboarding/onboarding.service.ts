@@ -271,8 +271,10 @@ export class OnboardingService {
       status: session.status,
       currentState: session.currentState,
       turnCount: session.turnCount,
+      completionScore: 0, // base; overridden client-side from extractedData
       isComplete: session.status === 'completed',
       hasBusinessProfile: profile?.isComplete ?? false,
+      extractedData: (session.extractedData as Record<string, unknown>) ?? {},
       messages: session.messages,
     };
   }

@@ -22,6 +22,18 @@ export interface ChatResponse {
   isComplete: boolean;
 }
 
+export interface OnboardingStatus {
+  hasSession: boolean;
+  status?: string;
+  currentState?: string;
+  turnCount?: number;
+  completionScore?: number;
+  isComplete?: boolean;
+  hasBusinessProfile?: boolean;
+  extractedData?: Record<string, unknown>;
+  messages?: OnboardingMessage[];
+}
+
 export const onboardingApi = {
   getSession: () =>
     apiClient.get<OnboardingSession>('/onboarding/session').then((r) => r.data),
@@ -37,7 +49,7 @@ export const onboardingApi = {
     apiClient.get('/onboarding/profile').then((r) => r.data),
 
   getStatus: () =>
-    apiClient.get('/onboarding/status').then((r) => r.data),
+    apiClient.get<OnboardingStatus>('/onboarding/status').then((r) => r.data),
 
   finalize: () =>
     apiClient.post('/onboarding/finalize').then((r) => r.data),
