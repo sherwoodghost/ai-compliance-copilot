@@ -83,7 +83,7 @@ export class InternalController {
       this.prisma.workflow.count(),
       this.prisma.workflow.count({ where: { status: 'running' } }),
       this.prisma.agentRun.count(),
-      this.prisma.lLMCall.findMany({
+      this.prisma.llmCall.findMany({
         orderBy: { createdAt: 'desc' },
         take: 500,
         select: {
@@ -97,13 +97,20 @@ export class InternalController {
     ]);
 
     const totalCostUsd = recentLlmCalls.reduce(
-      (s, c) => s + parseFloat((c.costUsd as any)?.toString() ?? '0'),
+      (s: number, c: { costUsd: any; latencyMs: number | null; hallucinationDetected: boolean; forbiddenLanguageDetected: boolean }) =>
+        s + parseFloat(c.costUsd?.toString() ?? '0'),
       0,
     );
     const avgLatencyMs = recentLlmCalls.length
-      ? recentLlmCalls.reduce((s, c) => s + (c.latencyMs ?? 0), 0) / recentLlmCalls.length
+      ? recentLlmCalls.reduce(
+          (s: number, c: { costUsd: any; latencyMs: number | null; hallucinationDetected: boolean; forbiddenLanguageDetected: boolean }) =>
+            s + (c.latencyMs ?? 0),
+          0,
+        ) / recentLlmCalls.length
       : 0;
-    const hallucinationsDetected = recentLlmCalls.filter((c) => c.hallucinationDetected).length;
+    const hallucinationsDetected = recentLlmCalls.filter(
+      (c: { hallucinationDetected: boolean }) => c.hallucinationDetected,
+    ).length;
 
     // Error rate from agent runs
     const recentRuns = await this.prisma.agentRun.findMany({
