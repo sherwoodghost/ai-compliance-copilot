@@ -86,12 +86,13 @@ export class ControlsController {
   }
 
   @Post('initialize')
-  @Roles(UserRole.admin)
-  @ApiOperation({ summary: 'Initialize org controls from selected framework IDs (admin only)' })
+  @ApiOperation({ summary: 'Initialize org controls from framework IDs or type strings (e.g. "soc2")' })
   initialize(
     @CurrentUser() user: JwtPayload,
-    @Body() body: { frameworkIds: string[] },
+    @Body() body: { frameworkIds?: string[]; frameworkId?: string },
   ) {
-    return this.controlsService.initializeForOrg(user.orgId, body.frameworkIds);
+    // Accept both { frameworkId: 'soc2' } and { frameworkIds: ['uuid1'] }
+    const ids = body.frameworkIds ?? (body.frameworkId ? [body.frameworkId] : []);
+    return this.controlsService.initializeForOrg(user.orgId, ids);
   }
 }

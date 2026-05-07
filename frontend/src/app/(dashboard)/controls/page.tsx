@@ -4,23 +4,23 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
 import { HeatmapChart } from '@/components/charts/HeatmapChart';
-import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, Info, ChevronRight } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 const STATUS_CONFIG = {
-  implemented: { label: 'Implemented', icon: CheckCircle, cls: 'badge-passed' },
-  in_progress: { label: 'In Progress', icon: Clock, cls: 'badge-partial' },
-  partial: { label: 'Partial', icon: AlertCircle, cls: 'badge-partial' },
-  not_implemented: { label: 'Not implemented', icon: XCircle, cls: 'badge-failed' },
-  not_applicable: { label: 'N/A', icon: Clock, cls: 'badge-pending' },
+  implemented:    { label: 'Implemented',  icon: CheckCircle,  cls: 'badge-passed' },
+  in_progress:    { label: 'In Progress',  icon: Clock,        cls: 'badge-partial' },
+  not_started:    { label: 'Not Started',  icon: XCircle,      cls: 'badge-failed' },
+  failed:         { label: 'Failed',       icon: AlertCircle,  cls: 'badge-failed' },
+  not_applicable: { label: 'N/A',          icon: Clock,        cls: 'badge-pending' },
 } as const;
 
 type Status = keyof typeof STATUS_CONFIG;
 
 function ControlRow({ control }: { control: any }) {
-  const status = (control.status ?? 'not_implemented') as Status;
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_implemented;
+  const status = (control.status ?? 'not_started') as Status;
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_started;
   const Icon = cfg.icon;
 
   // Detect crosswalk-credited controls from the notes field
@@ -132,7 +132,7 @@ export default function ControlsPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Controls</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {stats?.implemented ?? 0} implemented · {stats?.partial ?? 0} partial · {stats?.not_implemented ?? 0} gaps
+            {stats?.byStatus?.implemented ?? 0} implemented · {stats?.byStatus?.in_progress ?? 0} in progress · {(stats?.byStatus?.not_started ?? 0) + (stats?.byStatus?.failed ?? 0)} gaps
             {crosswalkCredited > 0 && (
               <span className="ml-2 text-teal-600">· {crosswalkCredited} auto-credited via crosswalk</span>
             )}

@@ -18,9 +18,34 @@ export class ControlsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ─── Initialize org controls from selected frameworks ──────────────────────
+  // Accepts either a list of framework UUIDs OR a single framework type string (e.g. 'soc2', 'iso27001')
   async initializeForOrg(orgId: string, frameworkIds: string[]): Promise<number> {
+    // If frameworkIds look like type strings (not UUIDs), resolve them to real IDs
+    const TYPE_MAP: Record<string, string> = {
+      soc2: 'SOC2', SOC2: 'SOC2',
+      iso27001: 'ISO27001', ISO27001: 'ISO27001',
+      hipaa: 'HIPAA', HIPAA: 'HIPAA',
+      pci_dss: 'PCI_DSS', PCI_DSS: 'PCI_DSS',
+      gdpr: 'GDPR', GDPR: 'GDPR',
+      fedramp: 'FEDRAMP', FEDRAMP: 'FEDRAMP',
+    };
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const resolvedIds = await Promise.all(
+      frameworkIds.map(async (id) => {
+        if (uuidRegex.test(id)) return id;
+        // Treat as a type string — map to enum value and look up
+        const enumVal = TYPE_MAP[id.toLowerCase()] ?? TYPE_MAP[id] ?? id.toUpperCase();
+        const fw = await this.prisma.framework.findFirst({
+          where: { type: enumVal as any },
+          select: { id: true },
+        });
+        return fw?.id ?? null;
+      }),
+    );
+    const validIds = resolvedIds.filter((id): id is string => id !== null);
+
     const controls = await this.prisma.control.findMany({
-      where: { frameworkId: { in: frameworkIds } },
+      where: { frameworkId: { in: validIds } },
     });
 
     let created = 0;
