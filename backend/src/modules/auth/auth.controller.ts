@@ -81,11 +81,6 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user' })
   async me(@CurrentUser() user: any) {
-    return {
-      id: user.sub,
-      email: user.email,
-      orgId: user.orgId,
-      role: user.role,
-    };
+    return this.authService.getMe(user.sub, user.email, user.orgId, user.role);
   }
 }

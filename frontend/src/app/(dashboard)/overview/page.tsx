@@ -7,7 +7,7 @@ import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
-  XCircle, Activity,
+  XCircle, Activity, Gauge, CalendarDays,
 } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -81,6 +81,77 @@ function RecommendedAction({ action, priority, href, effort }: {
         <Link href={href} className="text-brand-600 hover:text-brand-700 shrink-0">
           <ArrowRight className="w-4 h-4" />
         </Link>
+      )}
+    </div>
+  );
+}
+
+// ─── Velocity Score Widget ────────────────────────────────────────────────────
+
+function VelocityWidget() {
+  const { data: velocity } = useQuery({
+    queryKey: ['readiness-velocity'],
+    queryFn: () => api.get('/readiness/velocity').then((r: any) => r.data),
+    refetchInterval: 60_000,
+  });
+
+  if (!velocity) return null;
+
+  const { forecast, velocity: v, summary } = velocity;
+  const trendColor = v.trend === 'up' ? 'text-emerald-600' : v.trend === 'down' ? 'text-red-500' : 'text-gray-500';
+  const trendLabel = v.trend === 'up' ? '↑ Accelerating' : v.trend === 'down' ? '↓ Slowing' : '→ Steady';
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Gauge className="w-4 h-4 text-brand-600" />
+        <h2 className="text-sm font-semibold text-gray-900">Compliance Velocity</h2>
+        <span className={cn('text-xs font-semibold ml-auto', trendColor)}>{trendLabel}</span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div className="text-center p-3 bg-brand-50 rounded-xl">
+          <p className="text-2xl font-bold text-brand-700">{v.completedLast30Days}</p>
+          <p className="text-xs text-brand-600 mt-0.5">Controls last 30d</p>
+        </div>
+        <div className="text-center p-3 bg-gray-50 rounded-xl">
+          <p className="text-2xl font-bold text-gray-700">{v.dailyRate}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Controls/day</p>
+        </div>
+        <div className="text-center p-3 bg-gray-50 rounded-xl">
+          <p className="text-2xl font-bold text-gray-700">{v.evidenceLast30Days}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Evidence collected</p>
+        </div>
+        <div className="text-center p-3 bg-gray-50 rounded-xl">
+          <p className="text-2xl font-bold text-gray-700">{summary.remainingControls}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Controls remaining</p>
+        </div>
+      </div>
+
+      {forecast.daysToCompletion != null && (
+        <div className="bg-gradient-to-r from-brand-50 to-indigo-50 rounded-xl p-4 flex items-center gap-4">
+          <CalendarDays className="w-8 h-8 text-brand-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-gray-900">
+              {forecast.daysToCompletion === 0
+                ? '🎉 You\'re audit-ready!'
+                : `Audit-ready in ~${forecast.daysToCompletion} days`}
+            </p>
+            {forecast.estimatedCompletionDate && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                Est. {new Date(forecast.estimatedCompletionDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+            )}
+          </div>
+          {forecast.acceleratedScenario?.daysSaved > 0 && (
+            <div className="text-right shrink-0">
+              <p className="text-xs text-emerald-600 font-semibold">
+                Save {forecast.acceleratedScenario.daysSaved}d
+              </p>
+              <p className="text-xs text-gray-400">{forecast.acceleratedScenario.description}</p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -353,6 +424,9 @@ export default function OverviewPage() {
           />
         </div>
       </div>
+
+      {/* Velocity Score & Forecast */}
+      <VelocityWidget />
 
       {/* Compliance Health — live automated test results */}
       <ComplianceHealthWidget />

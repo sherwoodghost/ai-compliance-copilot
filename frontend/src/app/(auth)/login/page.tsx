@@ -21,7 +21,8 @@ export default function LoginPage() {
     try {
       const res = await authApi.login(form.email, form.password);
       setUser(res.user);
-      router.push('/overview');
+      // Route to onboarding if not yet complete, otherwise straight to overview
+      router.push(res.user.onboardingComplete === false ? '/onboarding' : '/overview');
     } catch (err: any) {
       setError(err.response?.data?.message ?? 'Login failed');
     } finally {

@@ -790,8 +790,8 @@ async function main() {
         complianceGoals: 0.95,
       },
       collectedVia: CollectedVia.onboarding_agent,
-      isComplete: true,
-      completedAt: new Date('2026-01-15T10:00:00Z'),
+      isComplete: false,
+      completedAt: null,
     },
     update: {},
   });

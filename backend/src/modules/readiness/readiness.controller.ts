@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Query, UseGuards, Req } from '@nestjs/common';
 import { ReadinessService } from '../../readiness/readiness.service';
+import { VelocityService } from './velocity.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('readiness')
 @UseGuards(JwtAuthGuard)
 export class ReadinessController {
-  constructor(private readonly readinessService: ReadinessService) {}
+  constructor(
+    private readonly readinessService: ReadinessService,
+    private readonly velocityService: VelocityService,
+  ) {}
 
   @Get()
   async getCurrent(@Req() req: any) {
@@ -48,5 +52,10 @@ export class ReadinessController {
       iso27001: result.iso27001?.overall,
       computedAt: result.computedAt,
     };
+  }
+
+  @Get('velocity')
+  async getVelocity(@Req() req: any) {
+    return this.velocityService.getVelocity(req.user.orgId);
   }
 }

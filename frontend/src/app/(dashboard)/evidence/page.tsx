@@ -7,7 +7,7 @@ import { formatDate, formatRelative } from '@/lib/utils';
 import {
   FileCheck, AlertTriangle, Clock, Upload, Search, Trash2,
   Plus, X, ChevronDown, Filter, FolderOpen, Link as LinkIcon,
-  CheckCircle, RefreshCw,
+  CheckCircle, RefreshCw, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +25,7 @@ type Evidence = {
   expiresAt?: string;
   fileUrl?: string;
   controlId?: string;
+  metadata?: { aiConfidence?: number; aiSummary?: string; aiFlags?: string[] };
 };
 
 type StatusFilter = 'all' | 'valid' | 'expiring' | 'expired';
@@ -100,6 +101,22 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
               </span>
             )}
           </div>
+
+          {/* AI Validation badge */}
+          {item.metadata?.aiConfidence != null && (
+            <div className={cn(
+              'flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg mt-2',
+              item.metadata.aiConfidence >= 0.8 ? 'bg-emerald-50 text-emerald-700' :
+              item.metadata.aiConfidence >= 0.5 ? 'bg-amber-50 text-amber-700' :
+              'bg-red-50 text-red-700',
+            )}>
+              <Sparkles className="w-3 h-3 shrink-0" />
+              <span>AI confidence: {Math.round(item.metadata.aiConfidence * 100)}%</span>
+              {item.metadata.aiSummary && (
+                <span className="text-xs opacity-75 truncate">&nbsp;— {item.metadata.aiSummary}</span>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
             <span className="text-xs text-gray-400">

@@ -26,6 +26,8 @@ export default () => ({
     provider: process.env.LLM_PROVIDER ?? 'anthropic',
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_API_KEY,
+    openrouterDefaultModel: process.env.OPENROUTER_DEFAULT_MODEL ?? 'anthropic/claude-3.5-sonnet',
     defaultModel: process.env.DEFAULT_LLM_MODEL ?? 'claude-sonnet-4-6',
   },
 

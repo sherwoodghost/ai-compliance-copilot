@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/Sidebar';
 import { SocketProvider } from '@/components/layout/SocketProvider';
+import { CopilotDrawer } from '@/components/layout/CopilotDrawer';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>
+        <CopilotDrawer />
       </div>
     </SocketProvider>
   );

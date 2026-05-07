@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AnthropicProvider } from './providers/anthropic.provider';
+import { OpenRouterProvider } from './providers/openrouter.provider';
 import { LLMMessage, LLMOptions, LLMResponse, LLMProvider } from './llm.interface';
 
 // Agents that need deep reasoning use Claude; data extraction tasks can use cheaper models
@@ -27,12 +28,22 @@ const AGENT_MODEL_ROUTING: Record<string, string> = {
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly provider: LLMProvider;
+  private readonly fallbackProvider: LLMProvider;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly anthropicProvider: AnthropicProvider,
+    private readonly openRouterProvider: OpenRouterProvider,
   ) {
-    this.provider = this.anthropicProvider;
+    // Use OpenRouter as primary if key is set, Anthropic as fallback
+    const openRouterKey = this.configService.get<string>('llm.openrouterApiKey');
+    if (openRouterKey) {
+      this.provider = this.openRouterProvider;
+      this.fallbackProvider = this.anthropicProvider;
+    } else {
+      this.provider = this.anthropicProvider;
+      this.fallbackProvider = this.anthropicProvider;
+    }
   }
 
   async complete(

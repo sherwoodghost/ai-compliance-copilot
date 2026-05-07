@@ -23,6 +23,8 @@ import {
   BarChart3,
   Download,
   Globe,
+  ShieldAlert,
+  Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -40,9 +42,10 @@ const NAV = [
   { href: '/readiness',      label: 'Readiness',      icon: BarChart3 },
   { href: '/audit-exports',  label: 'Audit Exports',  icon: Download },
   { href: '/vendors',        label: 'Vendors',        icon: Building2 },
-  { href: '/integrations',   label: 'Integrations',   icon: Plug },
-  { href: '/trust-center',   label: 'Trust Center',   icon: Globe },
-  { href: '/control-panel',  label: 'Workflows',      icon: Zap },
+  { href: '/integrations',         label: 'Integrations',     icon: Plug },
+  { href: '/trust-center',         label: 'Trust Center',     icon: Globe },
+  { href: '/control-panel',        label: 'Workflows',        icon: Zap },
+  { href: '/controls/exceptions',  label: 'Exceptions',       icon: ShieldAlert },
 ];
 
 export function Sidebar() {

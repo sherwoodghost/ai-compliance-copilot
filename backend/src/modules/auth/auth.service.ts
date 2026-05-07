@@ -106,6 +106,13 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    // Check if onboarding is complete
+    const businessProfile = await this.prisma.businessProfile.findUnique({
+      where: { orgId: user.orgId },
+      select: { isComplete: true },
+    });
+    const onboardingComplete = businessProfile?.isComplete ?? false;
+
     const tokens = await this.generateTokens(user.id, user.email, user.orgId, user.role);
     await this.createSession(user.id, user.orgId, tokens.refreshToken, ipAddress, userAgent);
 
@@ -121,6 +128,7 @@ export class AuthService {
         fullName: user.fullName,
         role: user.role,
         orgId: user.orgId,
+        onboardingComplete,
       },
     };
   }
@@ -170,6 +178,20 @@ export class AuthService {
       data: { isRevoked: true },
     });
     this.logger.log(`All sessions revoked for user: ${userId}`);
+  }
+
+  async getMe(userId: string, email: string, orgId: string, role: string) {
+    const businessProfile = await this.prisma.businessProfile.findUnique({
+      where: { orgId },
+      select: { isComplete: true },
+    });
+    return {
+      id: userId,
+      email,
+      orgId,
+      role,
+      onboardingComplete: businessProfile?.isComplete ?? false,
+    };
   }
 
   // ─── Private Helpers ────────────────────────────────────────────────────────

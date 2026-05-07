@@ -345,6 +345,10 @@ model Organization {
   // Phase A (Control Test Engine + Trust Center)
   controlTestResults  ControlTestResult[]
   trustCenter         TrustCenter?
+  // Phase B (Exceptions + Auditor Portal)
+  controlExceptions   ControlException[]
+  auditorSessions     AuditorSession[]
+  auditorRfis         AuditorRfi[]
 
   @@map("organizations")
 }
@@ -380,6 +384,11 @@ model User {
   isoScopeApprovals        Iso27001Scope[]        @relation("IsoScopeApprover")
   riskTreatmentsOwned      RiskTreatment[]        @relation("RiskTreatmentOwner")
   riskTreatmentsAccepted   RiskTreatment[]        @relation("RiskTreatmentAcceptor")
+  // Phase B (Exceptions + Auditor Portal)
+  exceptionsOwned          ControlException[]     @relation("ExceptionRiskOwner")
+  exceptionsReviewed       ControlException[]     @relation("ExceptionReviewer")
+  auditorSessionsCreated   AuditorSession[]       @relation("AuditorSessionCreator")
+  rfisResponded            AuditorRfi[]           @relation("RfiResponder")
 
   @@map("users")
 }
@@ -444,6 +453,8 @@ model Control {
   crosswalkTargets     FrameworkCrosswalk[]          @relation("CrosswalkTarget")
   applicability        ControlApplicability[]
   soaEntries           IsoStatementOfApplicability[]
+  exceptions           ControlException[]
+  auditorRfis          AuditorRfi[]
 
   @@unique([frameworkId, code])
   @@map("controls")
@@ -1448,6 +1459,80 @@ model TrustCenterAccessLink {
   trustCenter TrustCenter @relation(fields: [trustCenterId], references: [id], onDelete: Cascade)
 
   @@map("trust_center_access_links")
+}
+
+// ─── Control Exceptions ───────────────────────────────────────────────────────
+
+model ControlException {
+  id                   String    @id @default(uuid())
+  orgId                String    @map("org_id")
+  controlId            String    @map("control_id")
+  title                String
+  justification        String    @db.Text
+  compensatingControl  String?   @db.Text @map("compensating_control")
+  riskOwnerId          String?   @map("risk_owner_id")
+  reviewerId           String?   @map("reviewer_id")
+  status               String    @default("pending") // pending/approved/rejected/expired
+  expiresAt            DateTime? @map("expires_at")
+  approvedAt           DateTime? @map("approved_at")
+  rejectedAt           DateTime? @map("rejected_at")
+  rejectionReason      String?   @db.Text @map("rejection_reason")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control      @relation(fields: [controlId], references: [id])
+  riskOwner    User?        @relation("ExceptionRiskOwner", fields: [riskOwnerId], references: [id])
+  reviewer     User?        @relation("ExceptionReviewer", fields: [reviewerId], references: [id])
+
+  @@index([orgId, status])
+  @@map("control_exceptions")
+}
+
+// ─── Auditor Portal ───────────────────────────────────────────────────────────
+
+model AuditorSession {
+  id          String    @id @default(uuid())
+  orgId       String    @map("org_id")
+  token       String    @unique
+  auditorName String    @map("auditor_name")
+  auditorFirm String?   @map("auditor_firm")
+  auditorEmail String?  @map("auditor_email")
+  expiresAt   DateTime  @map("expires_at")
+  isRevoked   Boolean   @default(false) @map("is_revoked")
+  createdBy   String    @map("created_by")
+  lastAccessAt DateTime? @map("last_access_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator      User         @relation("AuditorSessionCreator", fields: [createdBy], references: [id])
+  rfis         AuditorRfi[]
+
+  @@index([orgId])
+  @@map("auditor_sessions")
+}
+
+model AuditorRfi {
+  id               String    @id @default(uuid())
+  orgId            String    @map("org_id")
+  auditorSessionId String    @map("auditor_session_id")
+  controlId        String?   @map("control_id")
+  question         String    @db.Text
+  status           String    @default("open") // open/in_review/resolved/closed
+  response         String?   @db.Text
+  respondedBy      String?   @map("responded_by")
+  respondedAt      DateTime? @map("responded_at")
+  priority         String    @default("medium") // low/medium/high
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  organization   Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  auditorSession AuditorSession @relation(fields: [auditorSessionId], references: [id], onDelete: Cascade)
+  control        Control?       @relation(fields: [controlId], references: [id])
+  responder      User?          @relation("RfiResponder", fields: [respondedBy], references: [id])
+
+  @@index([orgId, status])
+  @@map("auditor_rfis")
 }
 
 // ─── OAuth State ──────────────────────────────────────────────────────────────

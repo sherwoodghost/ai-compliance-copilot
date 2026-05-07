@@ -42,6 +42,9 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TrustCenterModule } from './modules/trust-center/trust-center.module';
 import { InternalModule } from './internal/internal.module';
+import { ExceptionsModule } from './modules/exceptions/exceptions.module';
+import { AuditorPortalModule } from './modules/auditor-portal/auditor-portal.module';
+import { CopilotModule } from './modules/copilot/copilot.module';
 
 @Module({
   imports: [
@@ -91,6 +94,9 @@ import { InternalModule } from './internal/internal.module';
     NotificationsModule,
     TrustCenterModule,
     InternalModule,
+    ExceptionsModule,
+    AuditorPortalModule,
+    CopilotModule,
   ],
 })
 export class AppModule {}
