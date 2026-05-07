@@ -11,6 +11,7 @@ import { GitLabAdapter } from './adapters/gitlab.adapter';
 import { GcpAdapter } from './adapters/gcp.adapter';
 import { RipplingAdapter } from './adapters/rippling.adapter';
 import { JamfAdapter } from './adapters/jamf.adapter';
+import { AzureAdAdapter } from './adapters/azure-ad.adapter';
 import { GithubOauthController } from './oauth/github-oauth.controller';
 import { IntegrationsCoreModule } from '../../integrations/integrations-core.module';
 import { DatabaseModule } from '../../database/database.module';
@@ -21,7 +22,7 @@ import { DatabaseModule } from '../../database/database.module';
     IntegrationsService,
     GitHubAdapter, AwsAdapter, OktaAdapter,
     JiraAdapter, DatadogAdapter, GoogleWorkspaceAdapter, GitLabAdapter,
-    GcpAdapter, RipplingAdapter, JamfAdapter,
+    GcpAdapter, RipplingAdapter, JamfAdapter, AzureAdAdapter,
   ],
   controllers: [IntegrationsController, GithubOauthController],
   exports: [IntegrationsService],
