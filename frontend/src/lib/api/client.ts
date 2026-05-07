@@ -33,8 +33,12 @@ apiClient.interceptors.response.use(
     const refreshToken = Cookies.get(REFRESH_TOKEN_KEY);
     if (!refreshToken) {
       clearTokens();
-      // Only redirect if not already on the login page (prevents infinite reload loop)
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      // Only redirect if not on login page or internal admin pages
+      if (
+        typeof window !== 'undefined' &&
+        window.location.pathname !== '/login' &&
+        !window.location.pathname.startsWith('/internal')
+      ) {
         window.location.href = '/login';
       }
       return Promise.reject(error);
@@ -69,7 +73,11 @@ apiClient.interceptors.response.use(
       return apiClient(originalRequest);
     } catch {
       clearTokens();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      if (
+        typeof window !== 'undefined' &&
+        window.location.pathname !== '/login' &&
+        !window.location.pathname.startsWith('/internal')
+      ) {
         window.location.href = '/login';
       }
       return Promise.reject(error);

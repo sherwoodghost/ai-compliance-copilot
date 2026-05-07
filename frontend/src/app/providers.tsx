@@ -25,6 +25,9 @@ function AuthInitializer() {
     if (initialized.current) return;
     initialized.current = true;
 
+    // Skip customer auth check on internal admin pages — they use their own token
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/internal')) return;
+
     apiClient.get('/auth/me')
       .then((res) => setUser(res.data))
       .catch(() => clearUser());
