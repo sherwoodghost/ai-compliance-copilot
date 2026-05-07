@@ -280,13 +280,12 @@ function PromptCard({ prompt }: { prompt: PromptTemplate }) {
 export default function PromptLabPage() {
   const [search, setSearch] = useState('');
 
-  const { data: prompts } = useQuery<PromptTemplate[]>({
+  const { data: prompts = [] } = useQuery<PromptTemplate[]>({
     queryKey: ['internal-prompts'],
-    queryFn: () => internalApi.get('/internal/prompts').then((r) => r.data).catch(() => MOCK_PROMPTS),
-    initialData: MOCK_PROMPTS,
+    queryFn: () => internalApi.get('/internal/prompts').then((r) => r.data),
   });
 
-  const all = prompts ?? MOCK_PROMPTS;
+  const all = prompts;
   const filtered = search.trim()
     ? all.filter((p) => p.agentName.toLowerCase().includes(search.toLowerCase()) || p.purpose.toLowerCase().includes(search.toLowerCase()))
     : all;
