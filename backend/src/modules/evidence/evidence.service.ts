@@ -190,25 +190,40 @@ export class EvidenceService {
 
   // ─── AI: Validate evidence quality and assign confidence score ──────────────
   private async validateEvidenceWithAI(orgId: string, evidence: any) {
-    const controlCode = evidence.control?.code ?? '';
+    const controlCode  = evidence.control?.code  ?? '';
     const controlTitle = evidence.control?.title ?? '';
+    const fileName     = (evidence.metadata as any)?.fileName ?? '';
+    const fileSize     = (evidence.metadata as any)?.fileSize ?? 0;
+    const mimeType     = (evidence.metadata as any)?.mimeType ?? '';
 
-    const prompt = `You are a compliance auditor. Analyze this evidence item and assess its quality.
+    const prompt = `You are a SOC 2 / ISO 27001 compliance auditor reviewing an evidence item.
 
-Evidence Title: "${evidence.title}"
-Evidence Type: ${evidence.type}
-Control: ${controlCode} - ${controlTitle}
+Evidence details:
+- Title: "${evidence.title}"
+- Type: ${evidence.type}
+- Source: ${evidence.source ?? 'manual'}
+${fileName ? `- File: ${fileName} (${Math.round(fileSize / 1024)} KB, ${mimeType})` : ''}
+- Control: ${controlCode} — ${controlTitle}
 
-Respond with ONLY valid JSON (no explanation):
+Scoring guide:
+- 90–100: Complete, time-stamped, directly proves the control with no gaps
+- 70–89: Mostly complete, minor gaps or dated content
+- 50–69: Partially relevant, missing key details an auditor would expect
+- 30–49: Weak match, title suggests it might be relevant but major gaps exist
+- 0–29: Irrelevant or clearly insufficient for this control
+
+Respond with ONLY valid JSON, no preamble:
 {
   "confidence": <integer 0-100>,
-  "summary": "<1-2 sentence summary of what this evidence demonstrates>",
-  "flags": ["<concern or gap if any>"]
-}`;
+  "summary": "<1 sentence: what this evidence demonstrates and why it does or doesn't satisfy the control>",
+  "flags": ["<specific auditor concern — e.g. 'No date/timestamp visible', 'Scope unclear — which systems are covered?', 'Missing reviewer signature'>"]
+}
+
+Only include flags for genuine concerns. Return an empty array if the evidence looks complete.`;
 
     const response = await this.llm.complete(
       [{ role: 'user', content: prompt }],
-      { agentName: 'evidence-validator', maxTokens: 300, temperature: 0.1 },
+      { agentName: 'evidence-validator', maxTokens: 400, temperature: 0.1 },
     );
 
     const match = response.content.match(/\{[\s\S]*\}/);
@@ -284,6 +299,23 @@ If no strong matches, return [].`;
       }));
 
     return { evidenceId, currentControlCode: currentCode, suggestions };
+  }
+
+  // ─── Manual re-trigger AI validation ───────────────────────────────────────
+  async revalidate(orgId: string, evidenceId: string) {
+    const evidence = await this.findOne(orgId, evidenceId);
+    // Clear old AI fields so frontend shows "validating" state
+    const existingMeta = ((evidence.metadata as Record<string, unknown>) ?? {});
+    const { aiConfidence: _, aiSummary: __, aiFlags: ___, aiValidatedAt: ____, ...restMeta } = existingMeta as any;
+    await this.prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { metadata: restMeta as any },
+    });
+    // Re-run validation non-blocking — return immediately
+    this.validateEvidenceWithAI(orgId, evidence).catch((err) =>
+      this.logger.warn(`Revalidation failed for evidence ${evidenceId}: ${err.message}`),
+    );
+    return { status: 'revalidation_started', evidenceId };
   }
 
   async getDownloadUrl(orgId: string, evidenceId: string): Promise<{ url: string }> {

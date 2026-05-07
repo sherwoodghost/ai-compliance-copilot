@@ -41,7 +41,7 @@ type Evidence = {
   };
 };
 
-type StatusFilter = 'all' | 'valid' | 'expiring' | 'expired' | 'pending';
+type StatusFilter = 'all' | 'valid' | 'expiring' | 'expired' | 'pending' | 'ai_issues';
 
 // ─── Evidence type config ─────────────────────────────────────────────────────
 
@@ -61,15 +61,29 @@ interface MappingSuggestion { controlId: string; code: string; title: string }
 function EvidenceCard({
   item,
   onDelete,
+  onRevalidate,
   onUploadForControl,
 }: {
   item: Evidence;
   onDelete: () => void;
+  onRevalidate: () => void;
   onUploadForControl?: (controlId: string) => void;
 }) {
   const [showMappings, setShowMappings] = useState(false);
   const [suggestions, setSuggestions] = useState<MappingSuggestion[] | null>(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
+
+  async function triggerRevalidate() {
+    setRevalidating(true);
+    try {
+      await apiClient.post(`/evidence/${item.id}/revalidate`);
+      // Poll for updated result after 4 seconds
+      setTimeout(() => { onRevalidate(); setRevalidating(false); }, 4000);
+    } catch {
+      setRevalidating(false);
+    }
+  }
 
   const isPending = item.metadata?.isPendingSuggestion === true;
 
@@ -209,20 +223,66 @@ function EvidenceCard({
             )}
           </div>
 
-          {/* AI Validation badge */}
-          {item.metadata?.aiConfidence != null && (
-            <div className={cn(
-              'flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg mt-2',
-              item.metadata.aiConfidence >= 80 ? 'bg-emerald-50 text-emerald-700' :
-              item.metadata.aiConfidence >= 50 ? 'bg-amber-50 text-amber-700' :
-              'bg-red-50 text-red-700',
-            )}>
-              <Sparkles className="w-3 h-3 shrink-0" />
-              <span>AI confidence: {item.metadata.aiConfidence}%</span>
+          {/* AI Validation section */}
+          {item.metadata?.aiConfidence != null ? (
+            <div className="mt-2 space-y-1.5">
+              {/* Confidence badge + summary */}
+              <div className={cn(
+                'flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg',
+                item.metadata.aiConfidence >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                item.metadata.aiConfidence >= 50 ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                'bg-red-50 text-red-700 border border-red-100',
+              )}>
+                <Sparkles className="w-3 h-3 shrink-0" />
+                <span className="font-medium">
+                  {item.metadata.aiConfidence >= 80 ? 'High' :
+                   item.metadata.aiConfidence >= 50 ? 'Medium' : 'Low'} confidence
+                </span>
+                <span className="opacity-60">({item.metadata.aiConfidence}%)</span>
+                {item.metadata.aiSummary && (
+                  <span className="opacity-75 truncate hidden sm:inline">&nbsp;— {item.metadata.aiSummary}</span>
+                )}
+              </div>
+              {/* Summary on its own line for mobile / long summaries */}
               {item.metadata.aiSummary && (
-                <span className="text-xs opacity-75 truncate">&nbsp;— {item.metadata.aiSummary}</span>
+                <p className="text-xs text-gray-500 leading-relaxed sm:hidden px-0.5">{item.metadata.aiSummary}</p>
+              )}
+              {/* AI Flags — the key differentiator */}
+              {(item.metadata.aiFlags?.length ?? 0) > 0 && (
+                <div className="bg-red-50 border border-red-100 rounded-lg px-2.5 py-2">
+                  <p className="text-xs font-semibold text-red-700 mb-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Concerns found
+                  </p>
+                  <ul className="space-y-0.5">
+                    {item.metadata.aiFlags!.map((flag, i) => (
+                      <li key={i} className="text-xs text-red-600 flex items-start gap-1.5">
+                        <span className="mt-0.5 shrink-0">•</span>
+                        <span>{flag}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
+          ) : item.source === 'manual_upload' || item.source === 'manual' ? (
+            // Show "validating" state for recently uploaded evidence that hasn't been checked yet
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-400 px-2 py-1 bg-gray-50 rounded-lg border border-gray-100">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span>AI validation in progress…</span>
+            </div>
+          ) : null}
+
+          {/* Re-validate button — only for validated evidence */}
+          {item.metadata?.aiConfidence != null && (
+            <button
+              onClick={triggerRevalidate}
+              disabled={revalidating}
+              className="mt-1.5 text-xs text-gray-400 hover:text-brand-600 flex items-center gap-1 transition-colors"
+            >
+              <RefreshCw className={cn('w-3 h-3', revalidating && 'animate-spin')} />
+              {revalidating ? 'Re-validating…' : 'Re-validate'}
+            </button>
           )}
 
           {/* Suggest additional mappings — only for valid evidence */}
@@ -501,17 +561,29 @@ export default function EvidencePage() {
   const expiredCount      = expiryReport?.expired?.length ?? 0;
   const expiringSoonCount = expiryReport?.expiringSoon?.length ?? 0;
   const pendingCount      = evidence.filter((e) => e.metadata?.isPendingSuggestion).length;
+  const aiIssuesCount     = evidence.filter((e) =>
+    !e.metadata?.isPendingSuggestion &&
+    (
+      (e.metadata?.aiConfidence != null && e.metadata.aiConfidence < 50) ||
+      (e.metadata?.aiFlags?.length ?? 0) > 0
+    )
+  ).length;
 
   const filtered = evidence.filter((item) => {
-    const isPending   = item.metadata?.isPendingSuggestion === true;
-    const isExpired   = !isPending && item.expiresAt && new Date(item.expiresAt) < new Date();
+    const isPending    = item.metadata?.isPendingSuggestion === true;
+    const isExpired    = !isPending && item.expiresAt && new Date(item.expiresAt) < new Date();
     const expiringSoon = !isPending && item.expiresAt && !isExpired &&
       new Date(item.expiresAt) < new Date(Date.now() + 30 * 86400_000);
+    const hasAiIssues  = !isPending && (
+      (item.metadata?.aiConfidence != null && item.metadata.aiConfidence < 50) ||
+      (item.metadata?.aiFlags?.length ?? 0) > 0
+    );
 
-    if (statusFilter === 'expired'  && !isExpired)    return false;
-    if (statusFilter === 'expiring' && !expiringSoon)  return false;
-    if (statusFilter === 'valid'    && (isExpired || expiringSoon || isPending)) return false;
-    if (statusFilter === 'pending'  && !isPending)     return false;
+    if (statusFilter === 'expired'   && !isExpired)    return false;
+    if (statusFilter === 'expiring'  && !expiringSoon)  return false;
+    if (statusFilter === 'valid'     && (isExpired || expiringSoon || isPending)) return false;
+    if (statusFilter === 'pending'   && !isPending)     return false;
+    if (statusFilter === 'ai_issues' && !hasAiIssues)   return false;
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -526,11 +598,12 @@ export default function EvidencePage() {
   });
 
   const STATUS_TABS = [
-    { key: 'all'      as StatusFilter, label: `All (${evidence.length})` },
-    { key: 'valid'    as StatusFilter, label: 'Valid' },
-    { key: 'pending'  as StatusFilter, label: `Needs Upload${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
-    { key: 'expiring' as StatusFilter, label: `Expiring${expiringSoonCount > 0 ? ` (${expiringSoonCount})` : ''}` },
-    { key: 'expired'  as StatusFilter, label: `Expired${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
+    { key: 'all'       as StatusFilter, label: `All (${evidence.length})` },
+    { key: 'valid'     as StatusFilter, label: 'Valid' },
+    { key: 'pending'   as StatusFilter, label: `Needs Upload${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
+    { key: 'expiring'  as StatusFilter, label: `Expiring${expiringSoonCount > 0 ? ` (${expiringSoonCount})` : ''}` },
+    { key: 'expired'   as StatusFilter, label: `Expired${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
+    { key: 'ai_issues' as StatusFilter, label: `AI Issues${aiIssuesCount > 0 ? ` (${aiIssuesCount})` : ''}` },
   ];
 
   return (
@@ -543,6 +616,7 @@ export default function EvidencePage() {
             {evidence.length} items collected
             {expiredCount > 0 && <span className="text-red-600"> · {expiredCount} expired</span>}
             {expiringSoonCount > 0 && <span className="text-amber-600"> · {expiringSoonCount} expiring soon</span>}
+            {aiIssuesCount > 0 && <span className="text-red-600"> · {aiIssuesCount} AI flagged</span>}
           </p>
         </div>
         <button
@@ -638,6 +712,7 @@ export default function EvidencePage() {
               key={item.id}
               item={item}
               onDelete={() => deleteEvidence.mutate(item.id)}
+              onRevalidate={() => qc.invalidateQueries({ queryKey: ['evidence'] })}
               onUploadForControl={(cId) => openUpload(cId)}
             />
           ))}

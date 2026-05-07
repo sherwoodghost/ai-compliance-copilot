@@ -134,6 +134,15 @@ export class EvidenceController {
     return this.evidenceService.markInvalid(user.orgId, evidenceId, user.sub);
   }
 
+  @Post(':evidenceId/revalidate')
+  @ApiOperation({ summary: 'Re-trigger AI validation for this evidence item' })
+  revalidate(
+    @CurrentUser() user: JwtPayload,
+    @Param('evidenceId', ParseUUIDPipe) evidenceId: string,
+  ) {
+    return this.evidenceService.revalidate(user.orgId, evidenceId);
+  }
+
   @Get(':evidenceId/suggest-mappings')
   @ApiOperation({ summary: 'AI-suggest additional controls this evidence might satisfy' })
   suggestMappings(
