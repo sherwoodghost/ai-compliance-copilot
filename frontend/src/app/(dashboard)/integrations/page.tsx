@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { integrationsApi } from '@/lib/api/integrations';
@@ -471,7 +471,7 @@ function ProviderCard({ provider, onConnect }: {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function IntegrationsPage() {
+function IntegrationsContent() {
   const [connectingProvider, setConnectingProvider] = useState<Provider | null>(null);
   const [requestingProvider, setRequestingProvider] = useState<Provider | null>(null);
   const [search, setSearch] = useState('');
@@ -646,5 +646,17 @@ export default function IntegrationsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function IntegrationsPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 flex items-center justify-center h-48">
+        <div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <IntegrationsContent />
+    </Suspense>
   );
 }
