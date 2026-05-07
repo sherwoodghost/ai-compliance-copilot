@@ -1,15 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { integrationsApi } from '@/lib/api/integrations';
+import { getAccessToken } from '@/lib/api/client';
 import {
   CheckCircle, XCircle, RefreshCw, Trash2, Plus, X,
   Mail, Lock, Shield, Cloud, Code, Monitor, Users,
   Laptop, Ticket, Activity, ChevronRight, Search,
-  AlertTriangle, Zap,
+  AlertTriangle, Zap, ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// NEXT_PUBLIC_API_URL is like https://host/api/v1 — strip /api/v1 for OAuth redirects
+const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'https://ai-compliance-copilot-production.up.railway.app/api/v1').replace(/\/api\/v1\/?$/, '');
 
 // ─── Provider Registry ────────────────────────────────────────────────────────
 
@@ -85,13 +90,10 @@ const PROVIDERS: Provider[] = [
   // ── Code
   {
     key: 'github', label: 'GitHub', category: 'Code', status: 'available',
+    authType: 'oauth',
     description: 'Branch protection, secret scanning, Dependabot, code review',
     controlsCovered: ['CC8.1', 'A.12.6'],
     evidenceTypes: ['branch_protection', 'secret_scan', 'dependabot_alerts'],
-    fields: [
-      { name: 'token', label: 'Personal Access Token', type: 'password' },
-      { name: 'org', label: 'Organization', type: 'text' },
-    ],
   },
   {
     key: 'gitlab', label: 'GitLab', category: 'Code', status: 'available',
@@ -327,7 +329,7 @@ function ConnectedCard({ integration }: { integration: any }) {
   const qc = useQueryClient();
   const providerMeta = PROVIDERS.find((p) => p.key === integration.provider);
   const CategoryIcon = providerMeta ? (CATEGORY_ICONS[providerMeta.category] ?? Shield) : Shield;
-  const isActive = integration.status === 'active';
+  const isActive = ['active', 'connected'].includes(integration.status);
 
   const sync = useMutation({
     mutationFn: () => integrationsApi.sync(integration.id),
@@ -437,25 +439,32 @@ function ProviderCard({ provider, onConnect }: {
         </div>
       </div>
 
-      <button
-        className={cn(
-          'shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-colors',
-          provider.status === 'available'
-            ? 'bg-brand-600 text-white hover:bg-brand-700'
-            : 'border border-gray-200 text-gray-600 hover:bg-gray-50',
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        {provider.authType === 'oauth' && (
+          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+            <ExternalLink className="w-2.5 h-2.5" /> OAuth
+          </span>
         )}
-        onClick={() => onConnect(provider)}
-      >
-        {provider.status === 'available' ? (
-          <>
-            <Plus className="w-3 h-3" /> Connect
-          </>
-        ) : (
-          <>
-            <ChevronRight className="w-3 h-3" /> Request
-          </>
-        )}
-      </button>
+        <button
+          className={cn(
+            'text-xs px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-colors',
+            provider.status === 'available'
+              ? 'bg-brand-600 text-white hover:bg-brand-700'
+              : 'border border-gray-200 text-gray-600 hover:bg-gray-50',
+          )}
+          onClick={() => onConnect(provider)}
+        >
+          {provider.status === 'available' ? (
+            <>
+              <Plus className="w-3 h-3" /> Connect
+            </>
+          ) : (
+            <>
+              <ChevronRight className="w-3 h-3" /> Request
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -466,6 +475,25 @@ export default function IntegrationsPage() {
   const [connectingProvider, setConnectingProvider] = useState<Provider | null>(null);
   const [requestingProvider, setRequestingProvider] = useState<Provider | null>(null);
   const [search, setSearch] = useState('');
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const searchParams = useSearchParams();
+  const qcPage = useQueryClient();
+
+  // Handle OAuth callbacks
+  useEffect(() => {
+    const connected = searchParams.get('connected');
+    const error = searchParams.get('error');
+    if (connected) {
+      setToast({ type: 'success', message: `${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully via OAuth!` });
+      qcPage.invalidateQueries({ queryKey: ['integrations'] });
+      window.history.replaceState({}, '', '/integrations');
+      setTimeout(() => setToast(null), 5000);
+    } else if (error) {
+      setToast({ type: 'error', message: `OAuth error: ${error.replace(/_/g, ' ')}` });
+      window.history.replaceState({}, '', '/integrations');
+      setTimeout(() => setToast(null), 6000);
+    }
+  }, [searchParams]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['integrations'],
@@ -487,15 +515,38 @@ export default function IntegrationsPage() {
   const categories = [...new Set(filteredAvailable.map((p) => p.category))];
 
   function handleConnect(p: Provider) {
-    if (p.status === 'available') {
-      setConnectingProvider(p);
-    } else {
+    if (p.status !== 'available') {
       setRequestingProvider(p);
+      return;
+    }
+    if (p.authType === 'oauth') {
+      // OAuth redirect flow — pass JWT as query param
+      const accessToken = getAccessToken() ?? '';
+      const oauthUrl = `${RAW_API_URL}/api/v1/integrations/oauth/${p.key}?token=${encodeURIComponent(accessToken)}`;
+      window.location.href = oauthUrl;
+    } else {
+      setConnectingProvider(p);
     }
   }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Toast notification */}
+      {toast && (
+        <div className={cn(
+          'fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all',
+          toast.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-red-50 border-red-200 text-red-800',
+        )}>
+          {toast.type === 'success' ? <CheckCircle className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
+          {toast.message}
+          <button onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

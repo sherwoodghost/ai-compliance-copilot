@@ -4,14 +4,14 @@ import {
   Query,
   Res,
   BadRequestException,
-  UseGuards,
+  UnauthorizedException,
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
+import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../../database/prisma.service';
 import { SecretManagerService } from '../../../integrations/secret-manager.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../../common/decorators/current-user.decorator';
+import { JwtPayload } from '../../../common/decorators/current-user.decorator';
 
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL     = 'https://github.com/login/oauth/access_token';
@@ -28,14 +28,27 @@ export class GithubOauthController {
 
   /**
    * Step 1 — redirect user to GitHub authorization page.
-   * Requires JWT auth so we know which org/user initiated the flow.
+   * Accepts JWT via ?token= query param so the browser redirect works.
    */
   @Get()
-  @UseGuards(JwtAuthGuard)
   async initiateOAuth(
-    @Res()         res:  Response,
-    @CurrentUser() user: JwtPayload,
+    @Query('token') token: string,
+    @Res()          res:   Response,
   ) {
+    if (!token) {
+      throw new BadRequestException('Missing token query parameter');
+    }
+
+    // Manually verify JWT (same secret used by JwtStrategy)
+    let user: JwtPayload;
+    try {
+      const secret = process.env['JWT_ACCESS_SECRET'] ?? '';
+      user = jwt.verify(token, secret) as JwtPayload;
+      if ((user as any)['type'] !== 'access') throw new Error('Wrong token type');
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
     const orgId = user.orgId;
     const clientId    = process.env['GITHUB_CLIENT_ID'];
     const redirectUri = this.callbackUrl();
@@ -52,8 +65,8 @@ export class GithubOauthController {
       data: {
         state,
         orgId,
-        userId:   user.sub,
-        provider: 'github',
+        userId:    user.sub,
+        provider:  'github',
         expiresAt,
       },
     });
