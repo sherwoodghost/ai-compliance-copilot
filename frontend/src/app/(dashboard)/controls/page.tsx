@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
 import { HeatmapChart } from '@/components/charts/HeatmapChart';
-import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, Info } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, Info, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 const STATUS_CONFIG = {
@@ -29,14 +30,25 @@ function ControlRow({ control }: { control: any }) {
     ? (control.notes?.includes('equivalent') ? 'Equivalent' : 'Partial')
     : null;
 
+  const controlId = control.controlId ?? control.control?.id;
+
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors group">
       <td className="px-4 py-3 text-xs font-mono text-gray-500 whitespace-nowrap">
         {control.control?.code}
       </td>
       <td className="px-4 py-3">
-        <p className="text-sm font-medium text-gray-900 line-clamp-1">{control.control?.name}</p>
-        <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{control.control?.category}</p>
+        {controlId ? (
+          <Link href={`/controls/${controlId}`} className="group-hover:text-brand-600 transition-colors">
+            <p className="text-sm font-medium text-gray-900 group-hover:text-brand-700 line-clamp-1">{control.control?.name ?? control.control?.title}</p>
+            <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{control.control?.category}</p>
+          </Link>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-gray-900 line-clamp-1">{control.control?.name ?? control.control?.title}</p>
+            <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{control.control?.category}</p>
+          </>
+        )}
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col gap-1">
@@ -60,6 +72,13 @@ function ControlRow({ control }: { control: any }) {
       </td>
       <td className="px-4 py-3 text-xs text-gray-500">
         {control.assignee?.fullName ?? '—'}
+      </td>
+      <td className="px-4 py-3 text-right">
+        {controlId && (
+          <Link href={`/controls/${controlId}`} className="text-gray-300 hover:text-brand-600 transition-colors">
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        )}
       </td>
     </tr>
   );
