@@ -3,6 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient as api } from '@/lib/api/client';
+import { pdf } from '@react-pdf/renderer';
+import { Soc2ReadinessPdf, ControlMatrixPdf, IsoSoaPdf } from '@/components/pdf/ComplianceReportPdf';
 import {
   Download, Shield, FileText, Table, Plus, CheckCircle, Clock,
   Calendar, Package, AlertTriangle, ChevronDown, ArrowUpDown, Filter,
@@ -236,7 +238,7 @@ function ExportRow({ exp, onDownload }: { exp: AuditExport; onDownload: () => vo
           onClick={onDownload}
         >
           <Download className="w-3.5 h-3.5" />
-          Download JSON
+          Download PDF
         </button>
       </td>
     </tr>
@@ -271,16 +273,48 @@ export default function AuditExportsPage() {
     generate.mutate(et.endpoint);
   }
 
-  function downloadExport(exp: AuditExport) {
-    api.get(`/audit-exports/${exp.id}`).then((r) => {
-      const blob = new Blob([JSON.stringify((r.data as any).content, null, 2)], { type: 'application/json' });
+  async function downloadExport(exp: AuditExport) {
+    const r = await api.get(`/audit-exports/${exp.id}`);
+    const content = (r.data as any).content;
+    const dateStr = new Date(exp.createdAt).toISOString().split('T')[0];
+
+    try {
+      let pdfDoc;
+      if (exp.exportType === 'soc2_readiness') {
+        pdfDoc = <Soc2ReadinessPdf data={content} />;
+      } else if (exp.exportType === 'control_matrix') {
+        pdfDoc = <ControlMatrixPdf data={content} />;
+      } else if (exp.exportType === 'iso_soa') {
+        pdfDoc = <IsoSoaPdf data={content} />;
+      } else {
+        // Fallback to JSON
+        const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${exp.exportType}-${dateStr}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const blob = await pdf(pdfDoc).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${exp.exportType}-${new Date(exp.createdAt).toISOString().split('T')[0]}.json`;
+      a.download = `${exp.exportType}-${dateStr}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    });
+    } catch (err) {
+      // Fallback to JSON on PDF error
+      const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${exp.exportType}-${dateStr}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   }
 
   function toggleSort(field: SortField) {
