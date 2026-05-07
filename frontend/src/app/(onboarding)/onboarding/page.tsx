@@ -105,29 +105,32 @@ const CHIP_GROUPS: Record<string, ChipGroup> = {
 
 function detectChipGroup(message: string): ChipGroup | null {
   const m = message.toLowerCase();
+  // Company name question — never show chips (avoid false positives)
+  if (/what.*(?:company|organization).*name|name.*(?:company|org)|what.*your.*company|what's.*name/i.test(m)) return null;
+  // Phase-specific chips — ordered from most specific to least
   if (/startup|smb|enterprise|company type|type of company/i.test(m))            return CHIP_GROUPS.companyType;
-  if (/industry|sector|type of business|what.*do you/i.test(m))                   return CHIP_GROUPS.industry;
+  if (/industry|sector|type of business|what.*do you do/i.test(m))                return CHIP_GROUPS.industry;
   if (/employee|team size|how many people|staff|headcount/i.test(m))              return CHIP_GROUPS.employeeCount;
-  if (/region|geograph|where.*operat|which countries|serve|users.*based/i.test(m)) return CHIP_GROUPS.regions;
-  if (/remote|hybrid|on-site|workforce|work model/i.test(m))                      return CHIP_GROUPS.workforceModel;
-  if (/cloud|aws|gcp|azure|infrastructure|hosting|deploy/i.test(m))               return CHIP_GROUPS.cloudProviders;
-  if (/data.*handle|store|process.*data|data type|sensitive data/i.test(m))       return CHIP_GROUPS.dataTypes;
-  if (/framework|soc|iso|hipaa|gdpr|pci|compliance.*target/i.test(m))             return CHIP_GROUPS.targetFrameworks;
-  if (/type 1|type 2|audit type|gap assessment/i.test(m))                         return CHIP_GROUPS.auditType;
-  if (/why.*compliance|compliance.*reason|driver|motivat|what.*driving/i.test(m)) return CHIP_GROUPS.complianceDriver;
-  if (/mfa|multi-factor|two-factor|2fa|authenticat/i.test(m))                     return CHIP_GROUPS.mfaStatus;
-  if (/identity provider|sso|okta|azure ad|jumpcloud|idp/i.test(m))               return CHIP_GROUPS.identityProvider;
-  if (/log|logging|siem|monitoring|splunk|datadog.*log/i.test(m))                 return CHIP_GROUPS.loggingMaturity;
-  if (/endpoint|edr|mdm|laptop|device management/i.test(m))                       return CHIP_GROUPS.endpointManagement;
-  if (/vulnerability|vuln|scan|pentest/i.test(m))                                 return CHIP_GROUPS.vulnerabilityScanning;
+  if (/region|geograph|where.*operat|which countries|users.*based|based out of/i.test(m)) return CHIP_GROUPS.regions;
+  if (/remote|hybrid|on-site|workforce model|work model|work.*arrangement/i.test(m)) return CHIP_GROUPS.workforceModel;
+  if (/which cloud|what cloud|cloud provider|aws|gcp|azure|how.*hosted|where.*hosted|which.*hosting/i.test(m)) return CHIP_GROUPS.cloudProviders;
+  if (/data.*handle|data.*store|process.*data|data type|sensitive data|what.*data/i.test(m)) return CHIP_GROUPS.dataTypes;
+  if (/framework|soc 2|iso 27001|hipaa|gdpr|pci.dss|compliance.*target|which.*framework/i.test(m)) return CHIP_GROUPS.targetFrameworks;
+  if (/type 1|type 2|audit type|gap assessment|period of time|point.in.time/i.test(m)) return CHIP_GROUPS.auditType;
+  if (/why.*compliance|driving.*compliance|compliance.*reason|what.*motivat|what.*driving/i.test(m)) return CHIP_GROUPS.complianceDriver;
+  if (/mfa|multi.factor|two.factor|2fa|authenticat/i.test(m))                    return CHIP_GROUPS.mfaStatus;
+  if (/identity provider|which.*sso|okta|azure ad|jumpcloud|idp\b/i.test(m))     return CHIP_GROUPS.identityProvider;
+  if (/logging|log management|centralized.*log|siem\b/i.test(m))                 return CHIP_GROUPS.loggingMaturity;
+  if (/endpoint.*manag|edr\b|mdm\b|device management/i.test(m))                  return CHIP_GROUPS.endpointManagement;
+  if (/vulnerability.*scan|vuln.*scan|pentest/i.test(m))                          return CHIP_GROUPS.vulnerabilityScanning;
   if (/incident response|ir plan|incident.*plan/i.test(m))                        return CHIP_GROUPS.incidentResponsePlan;
   if (/backup|disaster recovery|data recovery/i.test(m))                          return CHIP_GROUPS.backupStatus;
-  if (/security.*team|security.*staff|ciso|who.*owns.*security/i.test(m))         return CHIP_GROUPS.teamStructure;
-  if (/document|policies|written|policy.*maturity/i.test(m))                      return CHIP_GROUPS.documentationMaturity;
-  if (/access review|user.*review|periodic.*review/i.test(m))                     return CHIP_GROUPS.accessReviewCadence;
-  if (/vendor review|third.?party|supplier|subprocessor/i.test(m))                return CHIP_GROUPS.vendorReviewCadence;
-  if (/gdpr|eu.*user|european/i.test(m))                                           return CHIP_GROUPS.gdprExposure;
-  if (/how many.*vendor|subprocessor|third.?party.*receiv/i.test(m))              return CHIP_GROUPS.subprocessorCount;
+  if (/security.*team|dedicated.*security|ciso|who.*owns.*security/i.test(m))     return CHIP_GROUPS.teamStructure;
+  if (/documentation|policies.*written|policy.*maturity|how.*documented/i.test(m)) return CHIP_GROUPS.documentationMaturity;
+  if (/access review|user.*review|periodic.*review|who.*has access/i.test(m))     return CHIP_GROUPS.accessReviewCadence;
+  if (/vendor review|third.party.*review|supplier.*review/i.test(m))              return CHIP_GROUPS.vendorReviewCadence;
+  if (/gdpr|eu.*user|european.*user|eu.*data/i.test(m))                           return CHIP_GROUPS.gdprExposure;
+  if (/how many.*vendor|how many.*subprocessor|third.party.*receiv/i.test(m))     return CHIP_GROUPS.subprocessorCount;
   return null;
 }
 
