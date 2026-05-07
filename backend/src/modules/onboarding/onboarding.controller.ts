@@ -9,6 +9,10 @@ class SendMessageDto {
   @IsString() @IsNotEmpty() message: string;
 }
 
+class ChatDto {
+  @IsString() @IsOptional() message?: string;
+}
+
 class UpdateProfileDto {
   @IsObject() updates: Record<string, unknown>;
 }
@@ -36,6 +40,12 @@ export class OnboardingController {
   @ApiOperation({ summary: 'Send a message to the onboarding agent' })
   async sendMessage(@CurrentUser() user: JwtPayload, @Body() dto: SendMessageDto) {
     return this.onboardingService.sendMessage(user.orgId, user.sub, dto.message);
+  }
+
+  @Post('chat')
+  @ApiOperation({ summary: 'Synchronous onboarding chat — bypasses queue, returns AI response directly in the HTTP response' })
+  async chat(@CurrentUser() user: JwtPayload, @Body() dto: ChatDto) {
+    return this.onboardingService.chatSync(user.orgId, user.sub, dto.message ?? null);
   }
 
   @Get('profile')

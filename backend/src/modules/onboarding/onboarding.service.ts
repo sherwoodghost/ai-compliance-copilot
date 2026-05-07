@@ -4,9 +4,51 @@ import { Queue } from 'bull';
 import { PrismaService } from '../../database/prisma.service';
 import { QUEUE_NAMES, DEFAULT_JOB_OPTIONS } from '../../orchestrator/queue.config';
 import { DialogueManagerService } from '../../agents/onboarding/dialogue-manager.service';
+import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 
 /** Minimum completeness fraction (0–1) required to allow finalize */
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
+
+// ─── Inline system prompt for sync chat ──────────────────────────────────────
+// Mirrors the 'onboarding-agent' seed prompt; used when calling the LLM
+// directly without going through the job queue.
+const ONBOARDING_SYSTEM_PROMPT = `You are a compliance onboarding specialist guiding a new client through their first GRC conversation. You are warm, precise, and efficient. Your goal is to collect the information needed to build their business profile so the platform can generate a tailored compliance plan.
+
+CONVERSATION HISTORY:
+{{conversationHistory}}
+
+EXISTING PROFILE DATA COLLECTED SO FAR:
+{{existingProfile}}
+
+USER'S LATEST MESSAGE:
+{{message}}
+
+━━━ FIELDS TO COLLECT (priority order) ━━━
+1. companyName — the company's name
+2. companyType — startup / smb / enterprise / nonprofit
+3. industry — saas / fintech / healthcare / ecommerce / real_estate / professional_services / other
+4. employeeCount — number of employees
+5. cloudProviders — aws / gcp / azure / self-hosted (array)
+6. dataTypes — pii / phi / pci_data / ip / public (array)
+7. targetFrameworks — SOC2 / ISO27001 / HIPAA / GDPR / PCI-DSS (array)
+8. complianceDriver — customer_requirement / investor / internal / regulatory
+9. targetDate — optional ISO date string for audit target
+
+━━━ RULES ━━━
+- Ask ONE question at a time — the most critical missing field.
+- Acknowledge the user's previous answer before asking the next question.
+- Extract structured data from casual language.
+- Never re-ask about fields already collected.
+- When completionScore reaches 85+, summarize what you know and confirm.
+- Mirror the user's communication style.
+
+━━━ OUTPUT FORMAT (return ONLY valid JSON, no other text) ━━━
+{
+  "nextMessage": "string — warm, conversational, ONE question",
+  "extractedFields": { "fieldName": "value" },
+  "completionScore": number (0-100),
+  "isComplete": boolean (true when score >= 85)
+}`;
 
 @Injectable()
 export class OnboardingService {
@@ -16,6 +58,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_NAMES.AGENT_ONBOARDING) private readonly onboardingQueue: Queue,
     private readonly dialogueManager: DialogueManagerService,
+    private readonly gateway: LlmGatewayService,
   ) {}
 
   async getOrCreateSession(orgId: string, userId: string) {
@@ -63,6 +106,148 @@ export class OnboardingService {
     // Add to queue and return jobId for WebSocket tracking
     const job = await this.enqueueMessage(session.id, orgId, message, userId);
     return { sessionId: session.id, jobId: job.id };
+  }
+
+  // ─── Synchronous chat endpoint (no queue, no WebSocket) ─────────────────────
+  // Called by POST /onboarding/chat. Processes the message inline and returns
+  // the AI response directly in the HTTP response.
+  // Pass userMessage=null for the initial greeting.
+  async chatSync(orgId: string, userId: string, userMessage: string | null) {
+    // 1. Ensure session exists
+    let session = await this.prisma.onboardingSession.findFirst({
+      where: { orgId },
+      include: { messages: { orderBy: { turnIndex: 'asc' } } },
+    });
+
+    if (!session) {
+      session = await this.prisma.onboardingSession.create({
+        data: { orgId, userId, status: 'in_progress', currentState: 'GREETING' },
+        include: { messages: { orderBy: { turnIndex: 'asc' } } },
+      }) as any;
+    }
+
+    const sessionId = session!.id;
+    const existingMessages: { role: string; content: string }[] = (session as any).messages ?? [];
+    const turnIndex = existingMessages.length;
+
+    // 2. Save user message
+    if (userMessage?.trim()) {
+      await this.prisma.onboardingMessage.create({
+        data: {
+          sessionId,
+          turnIndex,
+          role: 'user',
+          content: userMessage.trim(),
+          extractedFields: {} as any,
+          stateAtTime: (session as any).currentState ?? 'GREETING',
+        },
+      });
+    }
+
+    // 3. Build conversation history string
+    const historyLines = existingMessages
+      .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n');
+
+    // 4. Get extracted profile so far
+    const extractedSoFar = (session as any).extractedData as Record<string, unknown> ?? {};
+
+    // 5. Build the full system prompt with context
+    const systemPrompt = ONBOARDING_SYSTEM_PROMPT
+      .replace('{{conversationHistory}}', historyLines || '(no messages yet)')
+      .replace('{{existingProfile}}', Object.keys(extractedSoFar).length
+        ? JSON.stringify(extractedSoFar, null, 2)
+        : '(none yet)')
+      .replace('{{message}}', userMessage?.trim() || '(start of conversation — send your greeting)');
+
+    // 6. Call LLM
+    let assistantContent = '';
+    let extractedFields: Record<string, unknown> = {};
+    let completionScore = 0;
+    let isComplete = false;
+
+    const llmUserMessage = userMessage?.trim() || 'Please start the onboarding conversation with a warm greeting.';
+
+    try {
+      const response = await this.gateway.callRaw(
+        systemPrompt,
+        llmUserMessage,
+        {
+          taskType: 'onboarding',
+          orgId,
+          agentName: 'OnboardingAgent',
+          maxTokens: 512,
+          temperature: 0.4,
+        },
+      );
+
+      const raw = response.content?.trim() ?? '';
+
+      // Parse JSON response
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          assistantContent = parsed.nextMessage ?? '';
+          extractedFields = parsed.extractedFields ?? {};
+          completionScore = parsed.completionScore ?? 0;
+          isComplete = parsed.isComplete ?? false;
+        } catch {
+          // fallback: treat entire response as the message
+          assistantContent = raw;
+        }
+      } else {
+        assistantContent = raw;
+      }
+    } catch (err: any) {
+      this.logger.error(`chatSync LLM call failed: ${err.message}`);
+      // Graceful fallback messages
+      const fallbacks: Record<string, string> = {
+        GREETING: "Hi! I'm your Compliance Copilot. I'll help you get set up for your SOC 2 or compliance journey. To get started — what's your company name and what do you do?",
+        COMPANY_BASICS: "Could you tell me a bit more about your company — how many employees do you have, and what industry are you in?",
+        TECH_STACK: "What cloud providers or infrastructure does your company use? (e.g. AWS, GCP, Azure)",
+        COMPLIANCE_GOALS: "What compliance framework are you targeting — SOC 2, ISO 27001, HIPAA, or something else?",
+      };
+      const state = (session as any).currentState ?? 'GREETING';
+      assistantContent = fallbacks[state] ?? "Thanks for that! Can you tell me more about your compliance goals?";
+    }
+
+    // 7. Save assistant message
+    const newTurnIndex = userMessage?.trim() ? turnIndex + 1 : turnIndex;
+    await this.prisma.onboardingMessage.create({
+      data: {
+        sessionId,
+        turnIndex: newTurnIndex,
+        role: 'assistant',
+        content: assistantContent,
+        extractedFields: extractedFields as any,
+        stateAtTime: (session as any).currentState ?? 'GREETING',
+      },
+    });
+
+    // 8. Merge extracted data + update session
+    const mergedData = { ...extractedSoFar };
+    for (const [k, v] of Object.entries(extractedFields)) {
+      if (v !== null && v !== undefined && v !== '') mergedData[k] = v;
+    }
+
+    const finalStatus = isComplete ? 'completed' : 'in_progress';
+    await this.prisma.onboardingSession.update({
+      where: { id: sessionId },
+      data: {
+        extractedData: mergedData as any,
+        turnCount: { increment: userMessage?.trim() ? 2 : 1 },
+        status: finalStatus as any,
+        completedAt: isComplete ? new Date() : undefined,
+      },
+    });
+
+    return {
+      message: assistantContent,
+      extractedFields,
+      completionScore,
+      isComplete,
+    };
   }
 
   async getSessionStatus(orgId: string) {
