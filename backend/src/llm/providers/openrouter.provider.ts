@@ -5,12 +5,41 @@ import { LLMProvider, LLMMessage, LLMOptions, LLMResponse, calculateCost } from 
 // OpenRouter model name → cost mapping (per 1M tokens, USD)
 const OPENROUTER_MODEL_COSTS: Record<string, { input: number; output: number }> = {
   'anthropic/claude-3.5-sonnet':   { input: 3.0,  output: 15.0 },
+  'anthropic/claude-3.5-haiku':    { input: 0.80, output: 4.0  },
   'anthropic/claude-3-haiku':      { input: 0.25, output: 1.25 },
+  'anthropic/claude-3-opus':       { input: 15.0, output: 75.0 },
   'openai/gpt-4o':                 { input: 2.5,  output: 10.0 },
   'openai/gpt-4o-mini':            { input: 0.15, output: 0.60 },
   'google/gemini-pro-1.5':         { input: 1.25, output: 5.0  },
   'meta-llama/llama-3.1-70b-instruct': { input: 0.52, output: 0.75 },
 };
+
+// Translate Anthropic SDK model IDs → OpenRouter namespaced IDs.
+// The LLM service routes agents with Anthropic-style names (claude-sonnet-4-6,
+// claude-haiku-4-5-20251001, …).  When OpenRouter is the active provider we
+// must convert them before sending to the API.
+const ANTHROPIC_TO_OPENROUTER: Record<string, string> = {
+  // Sonnet variants
+  'claude-sonnet-4-6':              'anthropic/claude-3.5-sonnet',
+  'claude-sonnet-4-5':              'anthropic/claude-3.5-sonnet',
+  'claude-3-5-sonnet-20241022':     'anthropic/claude-3.5-sonnet',
+  'claude-3-5-sonnet-20240620':     'anthropic/claude-3.5-sonnet',
+  // Haiku variants
+  'claude-haiku-4-5-20251001':      'anthropic/claude-3.5-haiku',
+  'claude-haiku-4-5':               'anthropic/claude-3.5-haiku',
+  'claude-3-5-haiku-20241022':      'anthropic/claude-3.5-haiku',
+  'claude-3-haiku-20240307':        'anthropic/claude-3-haiku',
+  // Opus variants
+  'claude-opus-4':                  'anthropic/claude-3-opus',
+  'claude-opus-4-5':                'anthropic/claude-3-opus',
+  'claude-3-opus-20240229':         'anthropic/claude-3-opus',
+};
+
+function toOpenRouterModel(model: string): string {
+  // Already in provider/model format — pass through unchanged
+  if (model.includes('/')) return model;
+  return ANTHROPIC_TO_OPENROUTER[model] ?? 'anthropic/claude-3.5-sonnet';
+}
 
 @Injectable()
 export class OpenRouterProvider implements LLMProvider {
@@ -31,7 +60,8 @@ export class OpenRouterProvider implements LLMProvider {
       throw new InternalServerErrorException('OpenRouter API key not configured');
     }
 
-    const model = options.model ?? this.defaultModel;
+    // Normalize model ID: agents use Anthropic-style names; OpenRouter needs "anthropic/..."
+    const model = toOpenRouterModel(options.model ?? this.defaultModel);
     const maxTokens = options.maxTokens ?? 4096;
 
     // Build messages in OpenAI format (OpenRouter is OpenAI-compatible)
