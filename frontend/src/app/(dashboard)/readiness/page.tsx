@@ -5,6 +5,7 @@ import { apiClient as api } from '@/lib/api/client';
 import {
   BarChart3, RefreshCw, TrendingUp, TrendingDown, Minus,
   Shield, FileText, FolderOpen, Zap, AlertTriangle, Calendar, Rocket,
+  Users, Award, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -237,6 +238,141 @@ function VelocityWidget({ data }: { data: VelocityData }) {
   );
 }
 
+// ─── Benchmark types ─────────────────────────────────────────────────────────
+
+type BenchmarkData = {
+  orgScore: number;
+  framework: string;
+  cohort: {
+    industry: string;
+    sizeBucket: string;
+    peerCount: number;
+    averageScore: number;
+    medianScore: number;
+    topQuartile: number;
+    bottomQuartile: number;
+  };
+  percentile: number;
+  percentileLabel: string;
+  topPerformerScore: number;
+  distribution: Array<{ range: string; count: number; label: string }>;
+  commonGaps: string[];
+  improvementTip: string;
+};
+
+function BenchmarkWidget({ data }: { data: BenchmarkData }) {
+  const { orgScore, cohort, percentile, percentileLabel, commonGaps, improvementTip, topPerformerScore } = data;
+  const abovePeer = orgScore >= cohort.averageScore;
+  const maxCount = Math.max(...data.distribution.map((d) => d.count));
+
+  return (
+    <div className="card p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <Users className="w-4 h-4 text-brand-500" />
+          Peer Benchmark
+        </h2>
+        <span className="text-xs text-gray-400">{cohort.industry} · {cohort.sizeBucket} employees · {cohort.peerCount.toLocaleString()} peers</span>
+      </div>
+
+      {/* Percentile badge */}
+      <div className="flex items-center gap-4">
+        <div className={cn(
+          'flex flex-col items-center justify-center w-24 h-24 rounded-2xl border-2 shrink-0',
+          percentile >= 75 ? 'bg-emerald-50 border-emerald-200' :
+          percentile >= 50 ? 'bg-blue-50 border-blue-200' :
+          'bg-amber-50 border-amber-200',
+        )}>
+          <span className={cn(
+            'text-2xl font-black',
+            percentile >= 75 ? 'text-emerald-700' : percentile >= 50 ? 'text-blue-700' : 'text-amber-700',
+          )}>
+            {percentile}
+            <span className="text-sm font-bold">th</span>
+          </span>
+          <span className="text-xs text-gray-500 mt-0.5">percentile</span>
+        </div>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn(
+              'text-sm font-bold px-2.5 py-1 rounded-full',
+              percentile >= 75 ? 'bg-emerald-100 text-emerald-800' : percentile >= 50 ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800',
+            )}>
+              <Award className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
+              {percentileLabel}
+            </span>
+            <span className="text-xs text-gray-500">
+              of {cohort.industry} companies
+            </span>
+          </div>
+          <p className="text-xs text-gray-600">{improvementTip}</p>
+          <div className="flex items-center gap-4 text-xs">
+            <div>
+              <span className="text-gray-400">Peer avg </span>
+              <span className={cn('font-bold', abovePeer ? 'text-emerald-600' : 'text-amber-600')}>
+                {cohort.averageScore}%
+              </span>
+              <span className={cn('ml-1', abovePeer ? 'text-emerald-600' : 'text-amber-600')}>
+                {abovePeer ? `↑ you're +${orgScore - cohort.averageScore}` : `↓ you're -${cohort.averageScore - orgScore}`}
+              </span>
+            </div>
+            <div>
+              <span className="text-gray-400">Top performer </span>
+              <span className="font-bold text-gray-700">{topPerformerScore}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Distribution bar chart */}
+      <div>
+        <p className="text-xs font-medium text-gray-500 mb-2">Score distribution across {cohort.peerCount.toLocaleString()} peers</p>
+        <div className="flex items-end gap-1 h-14">
+          {data.distribution.map((bucket) => {
+            const height = maxCount > 0 ? Math.max(4, Math.round((bucket.count / maxCount) * 100)) : 4;
+            const [low, high] = bucket.range.split('-').map(Number);
+            const isOrgBucket = orgScore >= low && orgScore <= high;
+            return (
+              <div key={bucket.range} className="flex flex-col items-center flex-1" title={`${bucket.label}: ~${bucket.count} companies`}>
+                <div
+                  className={cn(
+                    'w-full rounded-sm transition-all duration-500',
+                    isOrgBucket
+                      ? 'bg-brand-600 ring-2 ring-brand-300'
+                      : 'bg-gray-200 hover:bg-gray-300',
+                  )}
+                  style={{ height: `${height}%` }}
+                />
+                <span className="text-[9px] text-gray-400 mt-0.5 leading-none">{bucket.range.split('-')[0]}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-gray-400 mt-1 text-center">
+          <span className="inline-block w-2 h-2 bg-brand-600 rounded-sm mr-1" />
+          Your score ({orgScore}%) highlighted
+        </p>
+      </div>
+
+      {/* Common gaps */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Most common gaps in your cohort
+        </p>
+        <div className="space-y-1.5">
+          {commonGaps.map((gap, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+              <ChevronRight className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+              {gap}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReadinessPage() {
   const qc = useQueryClient();
 
@@ -255,12 +391,19 @@ export default function ReadinessPage() {
     queryFn: () => api.get('/readiness/velocity').then((r: any) => r.data),
   });
 
+  const { data: benchmark } = useQuery<BenchmarkData>({
+    queryKey: ['readiness-benchmark'],
+    queryFn: () => api.get('/readiness/benchmark').then((r: any) => r.data),
+    staleTime: 10 * 60 * 1000, // 10 minutes — benchmark data is stable
+  });
+
   const recalculate = useMutation({
     mutationFn: () => api.post('/readiness/recalculate').then((r: any) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['readiness-breakdown'] });
       qc.invalidateQueries({ queryKey: ['readiness-history'] });
       qc.invalidateQueries({ queryKey: ['readiness-velocity'] });
+      qc.invalidateQueries({ queryKey: ['readiness-benchmark'] });
     },
   });
 
@@ -306,6 +449,9 @@ export default function ReadinessPage() {
 
           {/* Velocity & Forecast */}
           {velocityData && <VelocityWidget data={velocityData} />}
+
+          {/* Peer Benchmark */}
+          {benchmark && benchmark.cohort && <BenchmarkWidget data={benchmark} />}
 
           {/* Detailed breakdown */}
           <div className="card p-6 space-y-5">
