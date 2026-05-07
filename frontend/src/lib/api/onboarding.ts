@@ -53,4 +53,7 @@ export const onboardingApi = {
 
   finalize: () =>
     apiClient.post('/onboarding/finalize').then((r) => r.data),
+
+  reset: () =>
+    apiClient.post('/onboarding/reset').then((r) => r.data),
 };

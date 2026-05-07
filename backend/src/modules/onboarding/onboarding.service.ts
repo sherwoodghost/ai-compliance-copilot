@@ -169,9 +169,10 @@ export class OnboardingService {
   // the AI response directly in the HTTP response.
   // Pass userMessage=null for the initial greeting.
   async chatSync(orgId: string, userId: string, userMessage: string | null) {
-    // 1. Ensure session exists
+    // 1. Ensure session exists (ignore abandoned sessions — they belong to a previous run)
     let session = await this.prisma.onboardingSession.findFirst({
-      where: { orgId },
+      where: { orgId, status: { not: 'abandoned' as any } },
+      orderBy: { startedAt: 'desc' },
       include: { messages: { orderBy: { turnIndex: 'asc' } } },
     });
 
@@ -410,7 +411,7 @@ export class OnboardingService {
 
   async getSessionStatus(orgId: string) {
     const session = await this.prisma.onboardingSession.findFirst({
-      where: { orgId },
+      where: { orgId, status: { not: 'abandoned' as any } },
       orderBy: { startedAt: 'desc' },
       include: {
         messages: { orderBy: { turnIndex: 'asc' } },
@@ -519,13 +520,28 @@ export class OnboardingService {
   }
 
   /**
+   * Reset the onboarding session for the org.
+   * Marks all existing sessions as 'abandoned' and clears extractedData
+   * so the next POST /onboarding/chat starts fresh from the greeting.
+   */
+  async resetSession(orgId: string): Promise<{ reset: boolean }> {
+    await this.prisma.onboardingSession.updateMany({
+      where: { orgId, status: { in: ['in_progress', 'completed'] } },
+      data: { status: 'abandoned' as any, extractedData: {} as any },
+    });
+    this.logger.log(`Onboarding session reset for org=${orgId}`);
+    return { reset: true };
+  }
+
+  /**
    * Returns current completeness score (0–100) from session extractedData.
    * Falls back to DialogueManager (BusinessProfile) if no session data found.
    */
   async getCompleteness(orgId: string) {
     // Primary: read from session extractedData (populated by chatSync)
+    // Skip abandoned sessions — they belong to a previous/reset run
     const session = await this.prisma.onboardingSession.findFirst({
-      where: { orgId },
+      where: { orgId, status: { not: 'abandoned' as any } },
       orderBy: { startedAt: 'desc' },
     });
 
@@ -565,9 +581,13 @@ export class OnboardingService {
    * Finalize onboarding — marks the profile complete and triggers the inference pipeline.
    * Reads completeness directly from session extractedData (not BusinessProfile)
    * to avoid the 0% bug when BusinessProfile hasn't been populated yet.
+   *
+   * The pipeline kick-off (workflow / journey / queue) is best-effort and NON-FATAL.
+   * The user always gets redirected to the dashboard — a background failure cannot
+   * block them from accessing their compliance workspace.
    */
   async finalizeOnboarding(orgId: string, userId: string): Promise<{ workflowId: string; journeyId: string }> {
-    // Gate: completeness check from session data
+    // ── Step 1: Completeness gate ──────────────────────────────────────────────
     const completeness = await this.getCompleteness(orgId);
     if (!completeness.canFinalize) {
       throw new BadRequestException(
@@ -576,73 +596,113 @@ export class OnboardingService {
       );
     }
 
-    // Ensure the business profile exists and is marked complete.
-    // The upsert in chatSync should have populated it, but handle the case where it hasn't.
+    // ── Step 2: Ensure BusinessProfile exists and is marked complete ───────────
     let profile = await this.prisma.businessProfile.findUnique({ where: { orgId } });
     if (!profile) {
-      // Last resort: build from session data
+      // Last resort: build from session extractedData
       const session = await this.prisma.onboardingSession.findFirst({
         where: { orgId }, orderBy: { startedAt: 'desc' },
       });
       const data = (session?.extractedData as Record<string, unknown>) ?? {};
-      await this.upsertBusinessProfile(orgId, userId, data);
+      // Non-fatal: if upsert fails (e.g. enum mismatch), we continue anyway
+      await this.upsertBusinessProfile(orgId, userId, data).catch((err) => {
+        this.logger.warn(`finalizeOnboarding: BusinessProfile upsert failed (non-fatal): ${err.message}`);
+      });
       profile = await this.prisma.businessProfile.findUnique({ where: { orgId } });
     }
 
+    // If still null after upsert attempt, create a minimal placeholder so the user
+    // can access the dashboard. Compliance assessment will fill in details later.
     if (!profile) {
-      throw new NotFoundException('Business profile could not be created — please complete the onboarding chat');
+      this.logger.warn(`finalizeOnboarding: creating minimal BusinessProfile placeholder for org=${orgId}`);
+      try {
+        profile = await this.prisma.businessProfile.create({
+          data: {
+            orgId,
+            companyName: 'My Company',
+            companyType: 'startup' as any,
+            industry: 'other' as any,
+            employeeCount: '1-10',
+            infrastructure: {} as any,
+            dataHandling: {} as any,
+            complianceGoals: {} as any,
+            collectedVia: 'onboarding_agent' as any,
+            isComplete: true,
+            completedAt: new Date(),
+          },
+        });
+      } catch (createErr: any) {
+        this.logger.error(`finalizeOnboarding: could not create placeholder BusinessProfile: ${createErr.message}`);
+        // Don't throw — continue so user can reach dashboard
+      }
     }
 
-    if (!profile.isComplete) {
+    if (profile && !profile.isComplete) {
       await this.prisma.businessProfile.update({
         where: { orgId },
         data: { isComplete: true, completedAt: new Date() },
-      });
+      }).catch(() => {/* non-fatal */});
     }
 
-    // Mark session as completed
+    // ── Step 3: Mark all in-progress sessions as completed ─────────────────────
     await this.prisma.onboardingSession.updateMany({
       where: { orgId, status: 'in_progress' },
       data: { status: 'completed', completedAt: new Date() },
-    });
+    }).catch(() => {/* non-fatal */});
 
-    // Create a workflow + trigger inference pipeline
-    const workflow = await this.prisma.workflow.create({
-      data: {
-        orgId,
-        name: `Compliance Assessment — ${new Date().toLocaleDateString()}`,
-        type: 'full_assessment',
-        status: 'running',
-        inputPayload: { orgId, triggeredBy: 'onboarding_finalize' } as any,
-        triggeredBy: userId,
-        startedAt: new Date(),
-      },
-    });
+    // ── Step 4: Kick off inference pipeline (best-effort, non-fatal) ──────────
+    let workflowId = 'pending';
+    let journeyId = 'pending';
 
-    const journey = await this.prisma.complianceJourney.create({
-      data: {
-        orgId,
-        workflowId: workflow.id,
-        status: 'active',
-        currentStage: 'planning',
-      },
-    });
+    try {
+      const workflow = await this.prisma.workflow.create({
+        data: {
+          orgId,
+          name: `Compliance Assessment — ${new Date().toLocaleDateString()}`,
+          type: 'full_assessment',
+          status: 'running',
+          inputPayload: { orgId, triggeredBy: 'onboarding_finalize' } as any,
+          triggeredBy: userId,
+          startedAt: new Date(),
+        },
+      });
 
-    // Fire inference agent (first pipeline stage)
-    await this.onboardingQueue.add(
-      'run',
-      {
-        workflowId: workflow.id,
-        journeyId: journey.id,
-        orgId,
-        businessProfile: profile as any,
-        inputPayload: { onboardingVersion: profile.version ?? 1, triggeredBy: 'onboarding_finalize' },
-      },
-      { ...DEFAULT_JOB_OPTIONS, priority: 1 },
-    );
+      const journey = await this.prisma.complianceJourney.create({
+        data: {
+          orgId,
+          workflowId: workflow.id,
+          status: 'active',
+          currentStage: 'planning',
+        },
+      });
 
-    this.logger.log(`Onboarding finalized: org=${orgId} workflow=${workflow.id}`);
-    return { workflowId: workflow.id, journeyId: journey.id };
+      workflowId = workflow.id;
+      journeyId = journey.id;
+
+      // Fire inference agent (first pipeline stage)
+      await this.onboardingQueue.add(
+        'run',
+        {
+          workflowId: workflow.id,
+          journeyId: journey.id,
+          orgId,
+          businessProfile: profile as any,
+          inputPayload: { onboardingVersion: (profile as any)?.version ?? 1, triggeredBy: 'onboarding_finalize' },
+        },
+        { ...DEFAULT_JOB_OPTIONS, priority: 1 },
+      );
+
+      this.logger.log(`Onboarding finalized + pipeline started: org=${orgId} workflow=${workflowId}`);
+    } catch (pipelineErr: any) {
+      // Pipeline failure is NON-FATAL — user still gets to the dashboard.
+      // Operators can re-trigger from the Workflows page.
+      this.logger.error(
+        `finalizeOnboarding: pipeline kick-off failed (non-fatal) for org=${orgId}: ${pipelineErr.message}`,
+        pipelineErr.stack,
+      );
+    }
+
+    return { workflowId, journeyId };
   }
 
   private async enqueueMessage(sessionId: string, orgId: string, userMessage: string | null, userId: string) {

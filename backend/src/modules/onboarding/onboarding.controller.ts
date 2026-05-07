@@ -86,4 +86,10 @@ export class OnboardingController {
   async finalizeOnboarding(@CurrentUser() user: JwtPayload) {
     return this.onboardingService.finalizeOnboarding(user.orgId, user.sub);
   }
+
+  @Post('reset')
+  @ApiOperation({ summary: 'Reset onboarding session — marks existing session as abandoned and clears extracted data so the user can start fresh' })
+  async resetSession(@CurrentUser() user: JwtPayload) {
+    return this.onboardingService.resetSession(user.orgId);
+  }
 }

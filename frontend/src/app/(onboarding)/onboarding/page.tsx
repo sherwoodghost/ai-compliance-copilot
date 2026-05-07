@@ -309,6 +309,7 @@ export default function OnboardingPage() {
   const [completionScore, setCompletionScore] = useState(0); // 0–100
   const [isComplete, setIsComplete]     = useState(false);
   const [finalizing, setFinalizing]     = useState(false);
+  const [resetting, setResetting]       = useState(false);
   const [chipGroup, setChipGroup]       = useState<ChipGroup | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -461,6 +462,39 @@ export default function OnboardingPage() {
     }
   }
 
+  // ── Reset session (start fresh) ─────────────────────────────────────────────
+  async function handleReset() {
+    if (resetting) return;
+    setResetting(true);
+    try {
+      await onboardingApi.reset();
+      // Clear local state
+      setMessages([]);
+      setProfile({});
+      setCompletionScore(0);
+      setIsComplete(false);
+      setChipGroup(null);
+      setLoading(true);
+      // Request a fresh greeting
+      const res: ChatResponse = await onboardingApi.chat(null);
+      setMessages([{
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: res.message,
+        createdAt: new Date().toISOString(),
+      }]);
+      setProfile(res.extractedFields ?? {});
+      setCompletionScore(res.completionScore ?? 0);
+      setIsComplete(res.isComplete ?? false);
+      setChipGroup(detectChipGroup(res.message));
+    } catch (err) {
+      console.error('Reset error:', err);
+    } finally {
+      setResetting(false);
+      setLoading(false);
+    }
+  }
+
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   }
@@ -487,6 +521,20 @@ export default function OnboardingPage() {
               <CheckCircle className="w-3.5 h-3.5" />
               Profile complete
             </div>
+          )}
+          {/* Start fresh button — always visible once messages exist */}
+          {messages.length > 0 && (
+            <button
+              onClick={handleReset}
+              disabled={resetting || sending}
+              title="Start a new onboarding session"
+              className="ml-1 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+            >
+              {resetting
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <RotateCcw className="w-4 h-4" />
+              }
+            </button>
           )}
         </div>
 
