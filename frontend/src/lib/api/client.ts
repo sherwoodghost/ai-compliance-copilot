@@ -33,7 +33,10 @@ apiClient.interceptors.response.use(
     const refreshToken = Cookies.get(REFRESH_TOKEN_KEY);
     if (!refreshToken) {
       clearTokens();
-      window.location.href = '/login';
+      // Only redirect if not already on the login page (prevents infinite reload loop)
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
       return Promise.reject(error);
     }
 
@@ -66,7 +69,9 @@ apiClient.interceptors.response.use(
       return apiClient(originalRequest);
     } catch {
       clearTokens();
-      window.location.href = '/login';
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
       return Promise.reject(error);
     } finally {
       isRefreshing = false;
