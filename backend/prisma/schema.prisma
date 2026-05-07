@@ -213,6 +213,8 @@ enum Industry {
   legal
   manufacturing
   logistics
+  real_estate
+  professional_services
   media
   other
 }

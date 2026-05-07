@@ -10,9 +10,7 @@ import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
 
 // ─── System prompt for the synchronous onboarding chat ───────────────────────
-// This prompt is injected directly into the LLM — it bypasses the template
-// registry. Placeholders are replaced at runtime in chatSync().
-const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an expert GRC onboarding assistant. Your job is to collect 9 specific fields about the user's company through friendly, natural conversation. You ask exactly ONE question per turn.
+const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an expert GRC onboarding assistant. You collect information about a company to build their compliance profile through friendly, natural conversation. You ask exactly ONE question per turn.
 
 ━━━ CONVERSATION SO FAR ━━━
 {{conversationHistory}}
@@ -23,42 +21,90 @@ const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an expert G
 ━━━ USER'S LATEST MESSAGE ━━━
 {{userMessage}}
 
-━━━ THE 9 FIELDS YOU MUST COLLECT (in priority order) ━━━
-1. companyName       — the company's legal or trading name
-2. companyType       — one of: startup, smb, enterprise, nonprofit
-3. industry          — one of: saas, fintech, healthcare, ecommerce, real_estate, professional_services, other
-4. employeeCount     — one of: 1-10, 11-50, 51-200, 201-1000, 1000+
-5. cloudProviders    — array, any of: aws, gcp, azure, self-hosted, on-premise
-6. dataTypes         — array, any of: pii, phi, pci, ip, public
-7. targetFrameworks  — array, any of: SOC2, ISO27001, HIPAA, GDPR, PCI-DSS
-8. complianceDriver  — one of: customer_requirement, investor, internal, regulatory
-9. targetDate        — optional ISO date string (e.g. "2025-12-01") — skip if not mentioned
+━━━ THE 9 FIELDS YOU MUST COLLECT (priority order) ━━━
+1. companyName       — the company's name (e.g. "Acme Corp", "RASTEC"). ONLY extract an actual company name — never a description like "we're a startup" or "it's a tech company"
+2. companyType       — exactly one of: startup, smb, enterprise, nonprofit, government
+3. industry          — exactly one of: saas, fintech, healthcare, ecommerce, edtech, legal, manufacturing, logistics, real_estate, media, other
+4. employeeCount     — exactly one of: 1-10, 11-50, 51-200, 201-1000, 1000+
+5. cloudProviders    — array of any: aws, gcp, azure, self-hosted, on-premise
+6. dataTypes         — array of any: pii, phi, pci, ip, public
+7. targetFrameworks  — array of any: SOC2, ISO27001, HIPAA, GDPR, PCI-DSS
+8. complianceDriver  — exactly one of: customer_requirement, investor, internal, regulatory
+9. targetDate        — ISO date string like "2025-12-01" — only if the user mentions a target date, otherwise omit
 
-━━━ HOW TO BEHAVE ━━━
-- Look at PROFILE DATA ALREADY COLLECTED. Never ask about a field that already has a value.
-- Look at CONVERSATION SO FAR to understand what was discussed. Never repeat a question.
-- Acknowledge the user's latest message warmly before asking the next question.
-- Extract data from casual language (e.g. "we use Amazon cloud" → cloudProviders: ["aws"]).
-- Ask ONE question at a time — always the first missing field in priority order.
-- Keep messages short: 1–3 sentences. Be warm, professional, encouraging.
-- If the user's message contains multiple pieces of information, extract all of them but still ask only ONE follow-up question.
-- If this is the very first message (no conversation history), greet the user and ask for their company name.
-- Do NOT say things like "Great!", "Awesome!", "Perfect!" on every turn — vary your acknowledgements.
+━━━ EXTRACTION RULES ━━━
+- Extract ALL information from the user's message, even if they answer multiple fields at once
+- "we use Amazon" → cloudProviders: ["aws"] | "Google Cloud" → ["gcp"] | "Microsoft Azure" → ["azure"]
+- "we handle client data and payments" → dataTypes: ["pii", "pci"]
+- "SOC 2" or "soc2" or "SOC2" → targetFrameworks: ["SOC2"]
+- "building trust with customers" or "customers require it" → complianceDriver: "customer_requirement"
+- "real estate company" or "property" → industry: "real_estate"
+- "startup" or "early stage" → companyType: "startup" | "small company" or "SMB" → companyType: "smb"
+- Never infer companyName from a description. If user says "it's a real estate company", that's industry info, NOT the company name
+- If user says "I'm RASTEC" or "Company is RASTEC" or just "RASTEC", extract companyName: "RASTEC"
 
-━━━ COMPLETION ━━━
-- completionScore = count of collected fields out of 9, multiplied by 100/9 (round to integer)
-- isComplete = true when completionScore >= 85 (i.e. at least 8 of 9 fields collected)
-- When isComplete becomes true, provide a brief summary of what you collected and congratulate them.
+━━━ CONVERSATION STYLE ━━━
+- NEVER greet the company name as if it's a person. Don't say "Nice to meet you, RASTEC!" — the company name is not a person. Instead say "Great, thanks! So RASTEC is..." or "Perfect, we'll set up RASTEC's compliance profile."
+- Look at PROFILE DATA ALREADY COLLECTED — never ask about fields that already have values
+- Look at CONVERSATION SO FAR — never repeat a question you or the user already covered
+- Acknowledge what the user said naturally, then ask the next missing field
+- Keep replies to 2–3 sentences max. Be warm and professional
+- Vary your acknowledgements — don't start every message with "Great!" or "Perfect!"
+- If they give you multiple answers in one message, extract all of them and ask only one follow-up
+- If this is the first turn (no conversation history), greet warmly and ask for the company name
 
-━━━ OUTPUT — RETURN ONLY THIS EXACT JSON, NOTHING ELSE ━━━
+━━━ COMPLETENESS ━━━
+- completionScore = (number of collected fields / 9) × 100, rounded to nearest integer
+- isComplete = true when completionScore ≥ 89 (8 or more of the 9 fields collected)
+- When isComplete is true, write a brief upbeat summary of the collected profile and tell them they're ready to start
+
+━━━ OUTPUT — RETURN ONLY VALID JSON, NOTHING ELSE ━━━
 {
-  "nextMessage": "<your warm conversational reply, acknowledging their answer + ONE question>",
-  "extractedFields": { "<fieldName>": "<value>" },
-  "completionScore": <integer 0-100>,
-  "isComplete": <true|false>
+  "nextMessage": "<2-3 sentence reply: acknowledge answer + ask ONE question for next missing field>",
+  "extractedFields": { "<fieldName>": <value> },
+  "completionScore": <integer 0–100>,
+  "isComplete": <true or false>
 }
 
-CRITICAL: Your entire response must be valid JSON matching the schema above. Do not add any text before or after the JSON. Do not wrap it in markdown code blocks.`;
+CRITICAL: Your entire response MUST be a single valid JSON object. No text before or after it. No markdown code fences. No explanations outside the JSON.`;
+
+// ─── Required fields for completeness gate ───────────────────────────────────
+const REQUIRED_FIELDS_FOR_FINALIZE = [
+  'companyName', 'companyType', 'industry', 'employeeCount',
+  'cloudProviders', 'dataTypes', 'targetFrameworks', 'complianceDriver',
+] as const;
+
+// ─── Mapping helpers — extracted values → Prisma enum values ─────────────────
+function toCompanyType(raw: unknown): string {
+  const v = String(raw ?? '').toLowerCase().trim();
+  if (['startup', 'start-up', 'early stage'].some((x) => v.includes(x))) return 'startup';
+  if (['smb', 'small', 'medium', 'sme'].some((x) => v.includes(x))) return 'smb';
+  if (v.includes('enterprise')) return 'enterprise';
+  if (v.includes('nonprofit') || v.includes('non-profit')) return 'nonprofit';
+  if (v.includes('government') || v.includes('govt')) return 'government';
+  return 'smb'; // safe default
+}
+
+function toIndustry(raw: unknown): string {
+  const v = String(raw ?? '').toLowerCase().trim();
+  const MAP: Record<string, string> = {
+    saas: 'saas', 'software as a service': 'saas',
+    fintech: 'fintech', 'financial technology': 'fintech', finance: 'fintech',
+    healthcare: 'healthcare', health: 'healthcare', medical: 'healthcare',
+    ecommerce: 'ecommerce', 'e-commerce': 'ecommerce', retail: 'ecommerce',
+    edtech: 'edtech', education: 'edtech',
+    legal: 'legal', law: 'legal',
+    manufacturing: 'manufacturing',
+    logistics: 'logistics', supply: 'logistics',
+    real_estate: 'real_estate', 'real estate': 'real_estate', property: 'real_estate', realestate: 'real_estate',
+    professional_services: 'professional_services', 'professional services': 'professional_services', consulting: 'professional_services',
+    media: 'media',
+  };
+  for (const [k, mapped] of Object.entries(MAP)) {
+    if (v.includes(k)) return mapped;
+  }
+  return 'other';
+}
 
 @Injectable()
 export class OnboardingService {
@@ -267,26 +313,99 @@ export class OnboardingService {
     // 8. Merge extracted data + update session
     const mergedData = { ...extractedSoFar };
     for (const [k, v] of Object.entries(extractedFields)) {
-      if (v !== null && v !== undefined && v !== '') mergedData[k] = v;
+      if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)) {
+        mergedData[k] = v;
+      }
     }
 
-    const finalStatus = isComplete ? 'completed' : 'in_progress';
+    // Recompute completionScore from merged data (authoritative)
+    const collectedCount = REQUIRED_FIELDS_FOR_FINALIZE.filter((f) => {
+      const v = mergedData[f];
+      if (v == null || v === '') return false;
+      if (Array.isArray(v) && v.length === 0) return false;
+      return true;
+    }).length;
+    const actualScore = Math.round((collectedCount / REQUIRED_FIELDS_FOR_FINALIZE.length) * 100);
+    const actualComplete = actualScore >= 89;
+
+    const finalStatus = actualComplete ? 'completed' : 'in_progress';
     await this.prisma.onboardingSession.update({
       where: { id: sessionId },
       data: {
         extractedData: mergedData as any,
         turnCount: { increment: userMessage?.trim() ? 2 : 1 },
         status: finalStatus as any,
-        completedAt: isComplete ? new Date() : undefined,
+        completedAt: actualComplete ? new Date() : undefined,
       },
+    });
+
+    // 9. Upsert BusinessProfile so getCompleteness() / finalizeOnboarding() can read it
+    await this.upsertBusinessProfile(orgId, userId, mergedData).catch((err) => {
+      this.logger.warn(`BusinessProfile upsert failed (non-fatal): ${err.message}`);
     });
 
     return {
       message: assistantContent,
       extractedFields,
-      completionScore,
-      isComplete,
+      completionScore: actualScore,
+      isComplete: actualComplete,
     };
+  }
+
+  /**
+   * Upsert BusinessProfile from the session's extractedData.
+   * Only writes fields that have been collected; required fields get safe defaults.
+   * This ensures getCompleteness() always reflects live chat progress.
+   */
+  private async upsertBusinessProfile(
+    orgId: string,
+    userId: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    // Only upsert if we have at least a company name
+    if (!data.companyName) return;
+
+    const companyName = String(data.companyName);
+    const companyType = toCompanyType(data.companyType ?? 'smb') as any;
+    const industry    = toIndustry(data.industry ?? 'other') as any;
+    const employeeCount = data.employeeCount ? String(data.employeeCount) : '1-10';
+
+    const infrastructure = {
+      cloudProviders: Array.isArray(data.cloudProviders) ? data.cloudProviders : [],
+    };
+    const dataHandling = {
+      dataTypes: Array.isArray(data.dataTypes) ? data.dataTypes : [],
+    };
+    const complianceGoals = {
+      targetFrameworks: Array.isArray(data.targetFrameworks) ? data.targetFrameworks : [],
+      complianceDriver: data.complianceDriver ?? null,
+      targetDate: data.targetDate ?? null,
+    };
+
+    await this.prisma.businessProfile.upsert({
+      where: { orgId },
+      create: {
+        orgId,
+        companyName,
+        companyType,
+        industry,
+        employeeCount,
+        infrastructure: infrastructure as any,
+        dataHandling: dataHandling as any,
+        complianceGoals: complianceGoals as any,
+        collectedVia: 'onboarding_agent' as any,
+        isComplete: false,
+      },
+      update: {
+        companyName,
+        companyType,
+        industry,
+        employeeCount,
+        infrastructure: infrastructure as any,
+        dataHandling: dataHandling as any,
+        complianceGoals: complianceGoals as any,
+      },
+    });
   }
 
   async getSessionStatus(orgId: string) {
@@ -400,10 +519,37 @@ export class OnboardingService {
   }
 
   /**
-   * Returns current completeness score (0–100) and the list of missing required fields.
-   * Uses the DialogueManagerService as the single source of truth.
+   * Returns current completeness score (0–100) from session extractedData.
+   * Falls back to DialogueManager (BusinessProfile) if no session data found.
    */
   async getCompleteness(orgId: string) {
+    // Primary: read from session extractedData (populated by chatSync)
+    const session = await this.prisma.onboardingSession.findFirst({
+      where: { orgId },
+      orderBy: { startedAt: 'desc' },
+    });
+
+    if (session?.extractedData) {
+      const data = session.extractedData as Record<string, unknown>;
+      const missingFields = REQUIRED_FIELDS_FOR_FINALIZE.filter((f) => {
+        const v = data[f];
+        if (v == null || v === '') return true;
+        if (Array.isArray(v) && v.length === 0) return true;
+        return false;
+      });
+      const collectedCount = REQUIRED_FIELDS_FOR_FINALIZE.length - missingFields.length;
+      const completionPct = Math.round((collectedCount / REQUIRED_FIELDS_FOR_FINALIZE.length) * 100);
+      return {
+        completionPct,
+        completionScore: completionPct / 100,
+        isComplete: completionPct >= 89,
+        missingFields: [...missingFields],
+        canFinalize: completionPct >= Math.round(FINALIZE_COMPLETENESS_THRESHOLD * 100),
+        finalizeThreshold: FINALIZE_COMPLETENESS_THRESHOLD,
+      };
+    }
+
+    // Fallback: dialogue manager reads from BusinessProfile table
     const status = await this.dialogueManager.getCompletionStatus(orgId);
     return {
       completionPct: status.completionPct,
@@ -417,10 +563,11 @@ export class OnboardingService {
 
   /**
    * Finalize onboarding — marks the profile complete and triggers the inference pipeline.
-   * Blocked if completeness_score < FINALIZE_COMPLETENESS_THRESHOLD (0.85).
+   * Reads completeness directly from session extractedData (not BusinessProfile)
+   * to avoid the 0% bug when BusinessProfile hasn't been populated yet.
    */
   async finalizeOnboarding(orgId: string, userId: string): Promise<{ workflowId: string; journeyId: string }> {
-    // Gate: completeness check
+    // Gate: completeness check from session data
     const completeness = await this.getCompleteness(orgId);
     if (!completeness.canFinalize) {
       throw new BadRequestException(
@@ -429,10 +576,21 @@ export class OnboardingService {
       );
     }
 
-    // Ensure the business profile is marked complete
-    const profile = await this.prisma.businessProfile.findUnique({ where: { orgId } });
+    // Ensure the business profile exists and is marked complete.
+    // The upsert in chatSync should have populated it, but handle the case where it hasn't.
+    let profile = await this.prisma.businessProfile.findUnique({ where: { orgId } });
     if (!profile) {
-      throw new NotFoundException('Business profile not found — complete the onboarding chat first');
+      // Last resort: build from session data
+      const session = await this.prisma.onboardingSession.findFirst({
+        where: { orgId }, orderBy: { startedAt: 'desc' },
+      });
+      const data = (session?.extractedData as Record<string, unknown>) ?? {};
+      await this.upsertBusinessProfile(orgId, userId, data);
+      profile = await this.prisma.businessProfile.findUnique({ where: { orgId } });
+    }
+
+    if (!profile) {
+      throw new NotFoundException('Business profile could not be created — please complete the onboarding chat');
     }
 
     if (!profile.isComplete) {
