@@ -6,6 +6,7 @@ export class AuthUserDto {
   @ApiProperty() fullName: string;
   @ApiProperty() role: string;
   @ApiProperty() orgId: string;
+  @ApiProperty({ required: false }) onboardingComplete?: boolean;
 }
 
 export class AuthResponseDto {
