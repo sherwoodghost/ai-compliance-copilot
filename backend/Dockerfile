@@ -13,6 +13,9 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 ENV NODE_ENV=production
 
+# openssl is required by Prisma on Alpine Linux
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
