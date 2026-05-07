@@ -63,12 +63,21 @@ Answer questions concisely and accurately based on the data above. When asked to
       { role: 'user' as const, content: message },
     ];
 
+    // Resolve per-org BYOK key from org settings
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { settings: true },
+    });
+    const orgSettings = (org?.settings ?? {}) as Record<string, unknown>;
+    const orgApiKey = orgSettings['openRouterKey'] as string | undefined;
+
     const response = await this.llm.complete(messages, {
       systemPrompt,
       agentName: 'copilot',
       maxTokens: 1024,
       temperature: 0.3,
-    });
+      ...(orgApiKey ? { orgApiKey } : {}),
+    } as any);
 
     return {
       message: response.content,
