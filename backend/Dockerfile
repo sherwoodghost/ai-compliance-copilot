@@ -23,4 +23,4 @@ EXPOSE 3001
 
 # db push syncs schema without requiring migration files (safe for first deploy on a fresh DB)
 # Seed is run manually once: railway run npm run prisma:seed
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss || true && node dist/main"]

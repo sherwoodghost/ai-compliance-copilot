@@ -6,7 +6,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://your-railway-backend.up.railway.app/api/:path*"
+      "destination": "https://ai-compliance-copilot-production.up.railway.app/api/:path*"
     }
   ]
 }
