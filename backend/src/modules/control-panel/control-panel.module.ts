@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ControlPanelService } from './control-panel.service';
 import { ControlPanelController } from './control-panel.controller';
-import { ComplianceGateway } from '../../gateways/compliance.gateway';
+import { GatewaysModule } from '../../gateways/gateways.module';
 
 @Module({
-  providers: [ControlPanelService, ComplianceGateway],
+  imports: [GatewaysModule],
+  providers: [ControlPanelService],
   controllers: [ControlPanelController],
-  exports: [ControlPanelService, ComplianceGateway],
+  exports: [ControlPanelService, GatewaysModule],
 })
 export class ControlPanelModule {}
