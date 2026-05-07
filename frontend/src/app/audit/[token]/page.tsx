@@ -312,8 +312,8 @@ export default function AuditorPortalPage({ params }: { params: Promise<{ token:
                       <p className="text-sm text-gray-800 truncate">{p.title}</p>
                       <p className="text-xs text-gray-400">v{p.version} · Approved {p.approvedAt ? new Date(p.approvedAt).toLocaleDateString() : '—'}</p>
                     </div>
-                    <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium shrink-0 capitalize">
-                      {p.type?.replace('_', ' ')}
+                    <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium shrink-0">
+                      Approved
                     </span>
                   </div>
                 ))}

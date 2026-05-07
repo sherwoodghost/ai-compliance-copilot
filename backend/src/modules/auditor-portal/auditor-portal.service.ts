@@ -115,7 +115,7 @@ export class AuditorPortalService {
       }),
       this.prisma.policy.findMany({
         where: { orgId, status: 'approved' },
-        select: { id: true, title: true, type: true, version: true, approvedAt: true },
+        select: { id: true, title: true, version: true, approvedAt: true },
         orderBy: { approvedAt: 'desc' },
       }),
       this.prisma.auditorRfi.findMany({

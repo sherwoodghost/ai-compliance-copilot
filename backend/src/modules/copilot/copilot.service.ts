@@ -102,10 +102,9 @@ Answer questions concisely and accurately based on the data above. When asked to
         select: { status: true, dueDate: true, updatedAt: true },
       }),
       // Risks
-      this.prisma.riskItem.groupBy({
-        by: ['status', 'severity'],
+      this.prisma.riskItem.findMany({
         where: { orgId },
-        _count: { id: true },
+        select: { status: true, severity: true },
       }),
       // Policies
       this.prisma.policy.groupBy({
@@ -141,20 +140,20 @@ Answer questions concisely and accurately based on the data above. When asked to
     };
 
     const taskCounts = {
-      open: tasks.filter((t) => !['done', 'cancelled'].includes(t.status)).length,
+      open: tasks.filter((t) => !['done'].includes(t.status as string)).length,
       overdue: tasks.filter((t) => t.dueDate && new Date(t.dueDate) < now && t.status !== 'done').length,
       completedThisMonth: tasks.filter((t) => t.status === 'done' && t.updatedAt >= startOfMonth).length,
     };
 
     const riskCounts = {
-      total: risks.reduce((sum, r) => sum + r._count.id, 0),
-      critical: risks.filter((r) => ['critical', 'high'].includes(r.severity ?? '') && r.status !== 'accepted').reduce((sum, r) => sum + r._count.id, 0),
-      accepted: risks.filter((r) => r.status === 'accepted').reduce((sum, r) => sum + r._count.id, 0),
+      total: (risks as any[]).length,
+      critical: (risks as any[]).filter((r) => ['critical', 'high'].includes(r.severity ?? '') && r.status !== 'accepted').length,
+      accepted: (risks as any[]).filter((r) => r.status === 'accepted').length,
     };
 
     const policyCounts = {
-      approved: policies.find((p) => p.status === 'approved')?._count.id ?? 0,
-      draft: policies.find((p) => p.status === 'draft')?._count.id ?? 0,
+      approved: (policies as any[]).find((p: any) => p.status === 'approved')?._count?.id ?? 0,
+      draft: (policies as any[]).find((p: any) => p.status === 'draft')?._count?.id ?? 0,
       expired: 0,
     };
 

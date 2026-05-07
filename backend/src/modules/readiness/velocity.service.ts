@@ -18,22 +18,22 @@ export class VelocityService {
 
     const totalControls = allControls.length;
     const implementedControls = allControls.filter((c) =>
-      ['implemented', 'in_review'].includes(c.status),
+      ['implemented'].includes(c.status as string),
     ).length;
-    const inProgressControls = allControls.filter((c) => c.status === 'in_progress').length;
+    const inProgressControls = allControls.filter((c) => (c.status as string) === 'in_progress').length;
     const remainingControls = totalControls - implementedControls;
 
     // Controls completed in last 30 days
     const completedLast30 = allControls.filter(
       (c) =>
-        ['implemented', 'in_review'].includes(c.status) &&
+        (c.status as string) === 'implemented' &&
         c.updatedAt >= thirtyDaysAgo,
     ).length;
 
     // Controls completed in the 30 days before that (days 31-60)
     const completedPrev30 = allControls.filter(
       (c) =>
-        ['implemented', 'in_review'].includes(c.status) &&
+        (c.status as string) === 'implemented' &&
         c.updatedAt >= sixtyDaysAgo &&
         c.updatedAt < thirtyDaysAgo,
     ).length;
