@@ -188,7 +188,7 @@ function CostChart({ nodes }: { nodes: any[] }) {
 
   return (
     <div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cost per Agent</p>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cost Breakdown</p>
       <div style={{ height: 90 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -295,7 +295,7 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
           <p className="text-sm font-bold text-gray-900 mt-0.5">{formatMs(totalDurationMs ?? 0)}</p>
         </div>
         <div className="card p-3 text-center">
-          <p className="text-xs text-gray-400">Agents</p>
+          <p className="text-xs text-gray-400">Steps</p>
           <p className="text-sm font-bold text-gray-900 mt-0.5">{nodes.length}</p>
         </div>
       </div>
@@ -304,7 +304,7 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
       <div className="card p-4">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Pipeline</p>
         <PipelineCanvas nodes={nodes} onReplay={(n) => replay.mutate(n)} replaying={replay.isPending} />
-        <p className="text-xs text-gray-400 mt-2">Click any node to replay from that agent</p>
+        <p className="text-xs text-gray-400 mt-2">Click any node to replay from that step</p>
       </div>
 
       {/* Cost bar chart */}
@@ -318,7 +318,7 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
       {nodes.filter((n: any) => n.errorMessage).map((n: any) => (
         <div key={n.id} className="rounded-xl bg-danger-50 border border-danger-200 px-4 py-3 flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-danger-800">{n.agentName} failed</p>
+            <p className="text-xs font-semibold text-danger-800">{n.agentName?.replace(/-agent$/i, '')} step failed</p>
             <p className="text-xs text-danger-600 mt-0.5">{n.errorMessage}</p>
           </div>
           <button
@@ -370,7 +370,7 @@ function WorkflowRow({ workflow, isSelected, onSelect }: { workflow: any; isSele
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{workflow.name}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-gray-400">{workflow.agentRunCount} agents</span>
+          <span className="text-xs text-gray-400">{workflow.agentRunCount} steps</span>
           <span className="text-xs text-gray-400">{formatCurrency(Number(workflow.totalCostUsd ?? 0))}</span>
           {workflow.totalDurationMs && (
             <span className="text-xs text-gray-400">{formatMs(workflow.totalDurationMs)}</span>
@@ -416,8 +416,8 @@ export default function ControlPanelPage() {
     <div className="p-8 max-w-6xl">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Control Panel</h1>
-        <p className="text-sm text-gray-500 mt-1">Agent pipeline observability &amp; replay</p>
+        <h1 className="text-2xl font-bold text-gray-900">Workflows</h1>
+        <p className="text-sm text-gray-500 mt-1">Compliance workflow runs, step history &amp; replay</p>
       </div>
 
       {/* System stats */}
@@ -426,7 +426,7 @@ export default function ControlPanelPage() {
           {[
             { label: 'Total Runs',  value: systemStats.totalAgentRuns, color: 'text-gray-900' },
             { label: 'Total Steps', value: systemStats.totalSteps,     color: 'text-gray-900' },
-            { label: 'LLM Cost',    value: `$${systemStats.totalLlmCostUsd}`, color: 'text-gray-900' },
+            { label: 'Processing Cost', value: `$${systemStats.totalLlmCostUsd}`, color: 'text-gray-900' },
             { label: 'Open Risks',  value: systemStats.openRisks,      color: 'text-danger-600' },
           ].map((s) => (
             <div key={s.label} className="card p-4 text-center">

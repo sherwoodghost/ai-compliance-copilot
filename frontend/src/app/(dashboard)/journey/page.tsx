@@ -362,7 +362,7 @@ export default function JourneyPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Compliance Journey</h1>
           <p className="text-sm text-gray-500 mt-1">
-            End-to-end agent pipeline state — all decisions traceable and replayable
+            End-to-end compliance workflow — all decisions traceable and replayable
           </p>
         </div>
         {totalPending > 0 && (
