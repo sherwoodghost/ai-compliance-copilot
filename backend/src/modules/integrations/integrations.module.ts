@@ -7,6 +7,7 @@ import { OktaAdapter } from './adapters/okta.adapter';
 import { JiraAdapter } from './adapters/jira.adapter';
 import { DatadogAdapter } from './adapters/datadog.adapter';
 import { GoogleWorkspaceAdapter } from './adapters/google-workspace.adapter';
+import { GitLabAdapter } from './adapters/gitlab.adapter';
 import { GithubOauthController } from './oauth/github-oauth.controller';
 import { IntegrationsCoreModule } from '../../integrations/integrations-core.module';
 import { DatabaseModule } from '../../database/database.module';
@@ -16,7 +17,7 @@ import { DatabaseModule } from '../../database/database.module';
   providers: [
     IntegrationsService,
     GitHubAdapter, AwsAdapter, OktaAdapter,
-    JiraAdapter, DatadogAdapter, GoogleWorkspaceAdapter,
+    JiraAdapter, DatadogAdapter, GoogleWorkspaceAdapter, GitLabAdapter,
   ],
   controllers: [IntegrationsController, GithubOauthController],
   exports: [IntegrationsService],

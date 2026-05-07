@@ -46,12 +46,14 @@ const PROVIDERS: Provider[] = [
   },
   {
     key: 'google_workspace', label: 'Google Workspace', category: 'Identity', status: 'available',
-    description: '2-Step Verification, admin activity logs, device policies',
-    controlsCovered: ['CC6.1', 'CC6.3', 'A.8.2'],
-    evidenceTypes: ['2sv_config', 'admin_activity_log', 'device_policy'],
+    description: '2-Step Verification, user provisioning, admin role assignments',
+    controlsCovered: ['CC6.1', 'CC6.2', 'CC6.3'],
+    evidenceTypes: ['2sv_enrollment', 'user_list', 'admin_roles'],
     fields: [
-      { name: 'serviceAccountJson', label: 'Service Account JSON', type: 'password' },
-      { name: 'adminEmail', label: 'Admin Email', type: 'text' },
+      { name: 'accessToken', label: 'OAuth Access Token', type: 'password',
+        placeholder: 'Obtain from Google OAuth Playground (Admin SDK scope)' },
+      { name: 'customerId', label: 'Customer ID', type: 'text',
+        placeholder: 'my_customer  or  C01234abc (from Admin Console)' },
     ],
   },
   {
