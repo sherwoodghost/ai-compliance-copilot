@@ -218,4 +218,58 @@ export class InternalController {
       isActive: t.isActive,
     }));
   }
+
+  @Get('customers')
+  @ApiOperation({ summary: 'All customer orgs with readiness and usage data' })
+  async getCustomers() {
+    const orgs = await this.prisma.organization.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: { select: { users: true } },
+      },
+    });
+
+    // Collect per-org data in parallel
+    const enriched = await Promise.all(
+      orgs.map(async (org) => {
+        // Control counts
+        const controlCount = await this.prisma.organizationControl.count({ where: { orgId: org.id } });
+
+        // Readiness: latest ReadinessScore row
+        const latestScore = await this.prisma.readinessScore.findFirst({
+          where:   { orgId: org.id },
+          orderBy: { snapshotAt: 'desc' },
+          select:  { overallScore: true, snapshotAt: true },
+        }).catch(() => null);
+
+        // Frameworks from org controls
+        const orgControls = await this.prisma.organizationControl.findMany({
+          where:   { orgId: org.id },
+          include: { control: { include: { framework: { select: { name: true } } } } },
+          take: 200,
+        }).catch(() => [] as Array<{ control: { framework: { name: string } } }>);
+
+        const frameworkSet = new Set<string>();
+        for (const oc of orgControls) {
+          if (oc.control?.framework?.name) frameworkSet.add(oc.control.framework.name);
+        }
+
+        return {
+          id:             org.id,
+          name:           org.name,
+          slug:           org.slug,
+          plan:           org.plan as string,
+          status:         'active', // no subscription model yet; all orgs default active
+          frameworks:     Array.from(frameworkSet),
+          userCount:      org._count.users,
+          controlCount,
+          readinessScore: latestScore?.overallScore ?? 0,
+          lastAssessment: latestScore?.snapshotAt?.toISOString() ?? null,
+          createdAt:      org.createdAt.toISOString(),
+        };
+      }),
+    );
+
+    return enriched;
+  }
 }
