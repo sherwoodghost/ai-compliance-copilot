@@ -50,7 +50,7 @@ const PROVIDERS: Provider[] = [
     ],
   },
   {
-    key: 'azure_ad', label: 'Azure AD', category: 'Identity', status: 'available',
+    key: 'azure', label: 'Azure AD', category: 'Identity', status: 'available',
     description: 'Conditional access, MFA status, privileged identity management',
     controlsCovered: ['CC6.1', 'CC6.2', 'A.8.2', 'A.8.3'],
     evidenceTypes: ['conditional_access', 'mfa_status', 'pim_config'],
