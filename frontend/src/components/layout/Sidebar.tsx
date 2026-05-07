@@ -123,7 +123,9 @@ export function Sidebar() {
             href={href}
             className={cn(
               'sidebar-link',
-              pathname.startsWith(href) && 'active',
+              (href === '/controls'
+                ? pathname === '/controls' || /^\/controls\/[0-9a-f-]{36}/.test(pathname)
+                : pathname.startsWith(href)) && 'active',
             )}
           >
             <Icon className="w-4 h-4 shrink-0" />
