@@ -4,6 +4,10 @@ import { AgentJobData, AgentOutput } from '../base/agent.interfaces';
 import { InferenceService } from '../../inference/inference.service';
 import { AgentMemoryService } from '../../agent-memory/agent-memory.service';
 import { AUDIT_DISCLAIMER } from '../base/agent-contract.interfaces';
+import { PrismaService } from '../../database/prisma.service';
+import { LlmService } from '../../llm/llm.service';
+import { ComplianceJourneyService } from '../../compliance-journey/compliance-journey.service';
+import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 
 /**
  * InferenceAgent
@@ -25,9 +29,12 @@ export class InferenceAgent extends BaseAgent {
   constructor(
     private readonly inferenceService: InferenceService,
     private readonly memory: AgentMemoryService,
-    ...args: ConstructorParameters<typeof BaseAgent>
+    prisma: PrismaService,
+    llm: LlmService,
+    journeyService: ComplianceJourneyService,
+    gateway: LlmGatewayService,
   ) {
-    super(...args);
+    super(prisma, llm, journeyService, gateway);
   }
 
   protected async process(jobData: AgentJobData, runId: string): Promise<AgentOutput> {
