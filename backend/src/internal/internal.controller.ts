@@ -107,9 +107,65 @@ export class InternalController {
   ) {}
 
   @Get('agents')
-  @ApiOperation({ summary: 'Full agent registry with configuration and runtime stats' })
-  getAgents() {
-    return AGENT_REGISTRY;
+  @ApiOperation({ summary: 'Full agent registry with live runtime stats from DB' })
+  async getAgents() {
+    // Pull real stats from the AgentRun table
+    const runs = await this.prisma.agentRun.findMany({
+      select: {
+        agentName: true,
+        status: true,
+        llmCostUsd: true,
+        durationMs: true,
+        startedAt: true,
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 10000,
+    });
+
+    // Group by agentName
+    const statsByAgent = new Map<string, {
+      total: number;
+      success: number;
+      totalCost: number;
+      totalMs: number;
+      lastRun?: Date;
+      lastStatus?: string;
+    }>();
+
+    for (const run of runs) {
+      const key = run.agentName;
+      if (!statsByAgent.has(key)) {
+        statsByAgent.set(key, { total: 0, success: 0, totalCost: 0, totalMs: 0 });
+      }
+      const s = statsByAgent.get(key)!;
+      s.total++;
+      if (run.status === 'completed') s.success++;
+      s.totalCost += parseFloat(run.llmCostUsd?.toString() ?? '0');
+      s.totalMs += run.durationMs ?? 0;
+      if (!s.lastRun || (run.startedAt && run.startedAt > s.lastRun)) {
+        s.lastRun = run.startedAt ?? undefined;
+        s.lastStatus = run.status;
+      }
+    }
+
+    // Merge real stats into registry, falling back to defaults for agents with no runs yet
+    return AGENT_REGISTRY.map((agent) => {
+      // Try to match by agent name (e.g. ScopingAgent → "scoping" in DB)
+      const dbKey = agent.name.replace('Agent', '').toLowerCase();
+      const stats = statsByAgent.get(dbKey) ?? statsByAgent.get(agent.name) ?? null;
+
+      if (!stats) return agent; // No runs yet — return static config as-is
+
+      return {
+        ...agent,
+        totalRuns:     stats.total,
+        successRate:   stats.total > 0 ? parseFloat(((stats.success / stats.total) * 100).toFixed(1)) : 0,
+        avgCostUsd:    stats.total > 0 ? parseFloat((stats.totalCost / stats.total).toFixed(4)) : 0,
+        avgLatencyMs:  stats.total > 0 ? Math.round(stats.totalMs / stats.total) : 0,
+        lastRunAt:     stats.lastRun?.toISOString() ?? undefined,
+        lastRunStatus: stats.lastStatus as any ?? undefined,
+      };
+    });
   }
 
   @Get('stats')
