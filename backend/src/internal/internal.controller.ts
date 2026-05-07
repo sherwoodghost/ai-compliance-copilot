@@ -238,15 +238,31 @@ export class InternalController {
   }
 
   @Get('prompts')
-  @ApiOperation({ summary: 'Active prompt templates' })
+  @ApiOperation({ summary: 'Active prompt templates with usage analytics' })
   async getPrompts() {
     const templates = await this.prisma.promptTemplate.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {
         _count: { select: { llmCalls: true } },
+        llmCalls: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { createdAt: true, costUsd: true },
+        },
       },
     });
+
+    // For avg cost, fetch aggregate per template in one query
+    const templateIds = templates.map((t) => t.id);
+    const costAggregates = templateIds.length
+      ? await this.prisma.llmCall.groupBy({
+          by: ['promptTemplateId'],
+          where: { promptTemplateId: { in: templateIds } },
+          _avg: { costUsd: true },
+        })
+      : [];
+    const costMap = new Map(costAggregates.map((c) => [c.promptTemplateId, c._avg.costUsd ?? 0]));
 
     return templates.map((t) => ({
       id: t.id,
@@ -255,8 +271,11 @@ export class InternalController {
       version: t.version,
       purpose: t.purpose,
       content: t.systemPrompt,
+      userPromptTemplate: t.userPromptTemplate ?? null,
       inputVariables: Array.isArray(t.inputVariables) ? t.inputVariables : [],
       usageCount: t._count.llmCalls,
+      lastUsedAt: t.llmCalls[0]?.createdAt ?? null,
+      avgCostUsd: parseFloat((costMap.get(t.id) ?? 0).toString()),
       isActive: t.isActive,
     }));
   }
