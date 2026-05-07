@@ -8,6 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { GitHubAdapter } from './adapters/github.adapter';
 import { AwsAdapter } from './adapters/aws.adapter';
 import { OktaAdapter } from './adapters/okta.adapter';
+import { JiraAdapter } from './adapters/jira.adapter';
 import { IntegrationAdapter } from './adapters/integration.interface';
 import { IntegrationProvider } from '@prisma/client';
 import { SecretManagerService } from '../../integrations/secret-manager.service';
@@ -22,12 +23,14 @@ export class IntegrationsService {
     private readonly githubAdapter: GitHubAdapter,
     private readonly awsAdapter: AwsAdapter,
     private readonly oktaAdapter: OktaAdapter,
+    private readonly jiraAdapter: JiraAdapter,
     private readonly secretManager: SecretManagerService,
   ) {
     this.adapterMap = {
       github: this.githubAdapter,
       aws: this.awsAdapter,
       okta: this.oktaAdapter,
+      jira: this.jiraAdapter,
     };
   }
 
