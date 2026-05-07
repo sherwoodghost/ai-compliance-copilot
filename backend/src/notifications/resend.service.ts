@@ -4,10 +4,16 @@ import { Resend } from 'resend';
 @Injectable()
 export class ResendService {
   private readonly logger = new Logger(ResendService.name);
-  private readonly resend: Resend;
+  private readonly resend: Resend | null;
 
   constructor() {
-    this.resend = new Resend(process.env['RESEND_API_KEY'] ?? '');
+    const apiKey = process.env['RESEND_API_KEY'];
+    if (apiKey) {
+      this.resend = new Resend(apiKey);
+    } else {
+      this.resend = null;
+      this.logger.warn('RESEND_API_KEY not set — email notifications are disabled');
+    }
   }
 
   private get from(): string {
@@ -143,6 +149,10 @@ export class ResendService {
   // ─── Private helper ───────────────────────────────────────────────────────
 
   private async send(opts: { to: string; subject: string; html: string }): Promise<void> {
+    if (!this.resend) {
+      this.logger.warn(`Email skipped (no API key): ${opts.subject}`);
+      return;
+    }
     try {
       const result = await this.resend.emails.send({
         from:    this.from,
