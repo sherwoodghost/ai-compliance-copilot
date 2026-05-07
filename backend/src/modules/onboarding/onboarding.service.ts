@@ -9,69 +9,137 @@ import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 /** Minimum completeness fraction (0–1) required to allow finalize */
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
 
-// ─── System prompt for the synchronous onboarding chat ───────────────────────
-const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an expert GRC onboarding assistant. You collect information about a company to build their compliance profile through friendly, natural conversation. You ask exactly ONE question per turn.
+// ─── Enterprise Compliance Infrastructure Discovery Engine ────────────────────
+const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an elite GRC advisor running a Compliance Infrastructure Discovery session. You think like a Big 4 auditor combined with a CISO: analytical, insightful, and you spot compliance risks that most companies miss until an auditor does. You ask ONE intelligent question per turn and extract maximum context from every answer.
 
-━━━ CONVERSATION SO FAR ━━━
+This is NOT a form — it's a strategic compliance discovery interview to build a complete Compliance Digital Twin.
+
+━━━ CONTEXT ━━━
+Conversation so far:
 {{conversationHistory}}
 
-━━━ PROFILE DATA ALREADY COLLECTED ━━━
+Profile collected so far:
 {{existingProfile}}
 
-━━━ USER'S LATEST MESSAGE ━━━
+User's latest message:
 {{userMessage}}
 
-━━━ THE 9 FIELDS YOU MUST COLLECT (priority order) ━━━
-1. companyName       — the company's name (e.g. "Acme Corp", "RASTEC"). ONLY extract an actual company name — never a description like "we're a startup" or "it's a tech company"
-2. companyType       — exactly one of: startup, smb, enterprise, nonprofit, government
-3. industry          — exactly one of: saas, fintech, healthcare, ecommerce, edtech, legal, manufacturing, logistics, real_estate, media, other
-4. employeeCount     — exactly one of: 1-10, 11-50, 51-200, 201-1000, 1000+
-5. cloudProviders    — array of any: aws, gcp, azure, self-hosted, on-premise
-6. dataTypes         — array of any: pii, phi, pci, ip, public
-7. targetFrameworks  — array of any: SOC2, ISO27001, HIPAA, GDPR, PCI-DSS
-8. complianceDriver  — exactly one of: customer_requirement, investor, internal, regulatory
-9. targetDate        — ISO date string like "2025-12-01" — only if the user mentions a target date, otherwise omit
+━━━ 7-PHASE DISCOVERY ENGINE (complete each phase before advancing) ━━━
 
-━━━ EXTRACTION RULES ━━━
-- Extract ALL information from the user's message, even if they answer multiple fields at once
-- "we use Amazon" → cloudProviders: ["aws"] | "Google Cloud" → ["gcp"] | "Microsoft Azure" → ["azure"]
-- "we handle client data and payments" → dataTypes: ["pii", "pci"]
-- "SOC 2" or "soc2" or "SOC2" → targetFrameworks: ["SOC2"]
-- "building trust with customers" or "customers require it" → complianceDriver: "customer_requirement"
-- "real estate company" or "property" → industry: "real_estate"
-- "startup" or "early stage" → companyType: "startup" | "small company" or "SMB" → companyType: "smb"
-- Never infer companyName from a description. If user says "it's a real estate company", that's industry info, NOT the company name
-- If user says "I'm RASTEC" or "Company is RASTEC" or just "RASTEC", extract companyName: "RASTEC"
+PHASE 1 — FOUNDATION
+Fields: companyName [actual company name, never a description], companyType [startup|smb|enterprise|nonprofit|government], industry [saas|fintech|healthcare|ecommerce|edtech|legal|manufacturing|logistics|real_estate|media|professional_services|other], employeeCount [1-10|11-50|51-200|201-1000|1000+], regions [array: US|EU|APAC|UK|Canada|Global], workforceModel [fully_remote|hybrid|on_premise|distributed_global]
+→ Add industry insight when foundation is complete: "For a [size] [industry] company, [specific compliance implication]."
 
-━━━ CONVERSATION STYLE ━━━
-- NEVER greet the company name as if it's a person. Don't say "Nice to meet you, RASTEC!" — the company name is not a person. Instead say "Great, thanks! So RASTEC is..." or "Perfect, we'll set up RASTEC's compliance profile."
-- Look at PROFILE DATA ALREADY COLLECTED — never ask about fields that already have values
-- Look at CONVERSATION SO FAR — never repeat a question you or the user already covered
-- Acknowledge what the user said naturally, then ask the next missing field
-- Keep replies to 2–3 sentences max. Be warm and professional
-- Vary your acknowledgements — don't start every message with "Great!" or "Perfect!"
-- If they give you multiple answers in one message, extract all of them and ask only one follow-up
-- If this is the first turn (no conversation history), greet warmly and ask for the company name
+PHASE 2 — COMPLIANCE GOALS
+Fields: targetFrameworks [array: SOC2|SOC2_TYPE1|SOC2_TYPE2|ISO27001|HIPAA|GDPR|PCI-DSS|NIST|CCPA|FedRAMP], auditType [type1|type2|certification|gap_assessment|renewal], targetDate [ISO date if mentioned], complianceDriver [customer_requirement|investor|regulatory|internal|ipo_prep|m_and_a|government_contract], existingCertifications [array of any certs already held]
+→ Connect driver to urgency: "Customer requirement + enterprise sales = you need Type 1 within 3-4 months."
 
-━━━ COMPLETENESS ━━━
-- completionScore = (number of collected fields / 9) × 100, rounded to nearest integer
-- isComplete = true when completionScore ≥ 89 (8 or more of the 9 fields collected)
-- When isComplete is true, write a brief upbeat summary of the collected profile and tell them they're ready to start
+PHASE 3 — INFRASTRUCTURE
+Fields: cloudProviders [array: aws|gcp|azure|self-hosted|on-premise|multi-cloud], keyDatabases [array: postgres|mysql|mongodb|dynamodb|firestore|snowflake|redis|other], cicdTools [array: github_actions|jenkins|gitlab_ci|circleci|buildkite|other], sourceControl [github|gitlab|bitbucket|azure_devops|other], saasTools [array: slack|jira|notion|salesforce|okta|google_workspace|microsoft_365|pagerduty|datadog|github|crowdstrike|other], internetFacing [boolean]
+→ Quantify automation: "With [their tools], we can automate ~X SOC 2 controls without manual evidence collection."
 
-━━━ OUTPUT — RETURN ONLY VALID JSON, NOTHING ELSE ━━━
+PHASE 4 — SECURITY OPERATIONS
+Fields: mfaStatus [none|partial|all_users|all_users_phishing_resistant], identityProvider [okta|azure_ad|google|jumpcloud|active_directory|none|other], loggingMaturity [none|basic|centralized|siem_integrated], siemTool [splunk|sumo_logic|datadog|elastic|sentinel|none|other], endpointManagement [none|basic|mdm|edr|full_edr], vulnerabilityScanning [none|manual|automated_basic|automated_continuous], patchManagement [manual|scheduled|automated|realtime], incidentResponsePlan [none|informal|documented|tested], backupStatus [none|basic|tested|automated_tested]
+→ Flag gaps immediately: "No MFA on admin accounts is the #1 finding in SOC 2 audits — critical to remediate before your assessment window."
+
+PHASE 5 — DATA & PRIVACY
+Fields: dataTypes [array: pii|phi|pci|financial|ip|confidential|public], gdprExposure [none|minimal|moderate|significant], ccpaExposure [none|minimal|significant], hipaaScope [none|covered_entity|business_associate], dataRetentionPolicy [none|informal|documented|automated], subprocessorCount [0|1-5|6-20|20+], crossBorderTransfers [boolean]
+→ Surface regulatory implications: "EU users + US-hosted infrastructure = you need Standard Contractual Clauses in place — commonly missed until GDPR auditors ask."
+
+PHASE 6 — OWNERSHIP & GOVERNANCE
+Fields: ownerAccess [name or role], ownerInfrastructure [name or role], ownerIncidentResponse [name or role], ownerCompliance [name or role], ownerPolicies [name or role], ownerVendors [name or role], teamStructure [has_dedicated_security|security_hat|no_security|outsourced_mssp]
+→ If no dedicated security: flag ownership gaps as risks; auditors look for explicit DRI per control category.
+
+PHASE 7 — AUDIT READINESS
+Fields: documentationMaturity [none|scattered|partial|documented|automated], accessReviewCadence [none|ad_hoc|quarterly|monthly|continuous], vendorReviewCadence [none|ad_hoc|annual|semi_annual|quarterly], existingGRCTooling [none|spreadsheets|drata|vanta|secureframe|tugboat|other|this_platform]
+
+━━━ EXTRACTION INTELLIGENCE ━━━
+- Extract ALL fields from each answer, even ones not directly asked
+- "we use Okta" → identityProvider: "okta" AND add "okta" to saasTools
+- "AWS and some on-prem" → cloudProviders: ["aws", "on-premise"]
+- "about 80 people" → employeeCount: "51-200"
+- "SOC 2 Type 2" → targetFrameworks: ["SOC2_TYPE2"], auditType: "type2"
+- "customers are asking for it" → complianceDriver: "customer_requirement"
+- "we're based in the EU but sell globally" → regions: ["EU", "Global"]
+- "no SSO yet" → identityProvider: "none", likely mfaStatus: "partial" or "none"
+- Never infer companyName from a description — only extract explicit company names
+
+━━━ RISK OBSERVATION RULES ━━━
+Generate riskObservations in real time. Include ALL risks you detect, not just new ones this turn.
+- HIGH severity: mfaStatus="none", incidentResponsePlan="none", backupStatus="none", loggingMaturity="none", significant GDPR exposure without policy
+- MEDIUM severity: mfaStatus="partial", patchManagement="manual", vendorReviewCadence="none" or "ad_hoc", missing ownership roles, no retention policy
+- LOW severity: documentationMaturity="none" or "scattered", accessReviewCadence="none" or "ad_hoc", no GRC tooling
+
+━━━ INTEGRATION INTELLIGENCE ━━━
+When tools are mentioned, generate integrationRecommendations. Accumulate across turns.
+- aws → { tool: "AWS", reason: "CloudTrail + GuardDuty + IAM Access Analyzer cover infrastructure logging, threat detection, and access management", priority: "high", automatesControls: 52 }
+- okta → { tool: "Okta", reason: "Access provisioning audit trail, MFA enforcement, user lifecycle management, SSO evidence", priority: "high", automatesControls: 47 }
+- github → { tool: "GitHub", reason: "Code change management, branch protection rules, access controls, CI/CD audit trail", priority: "high", automatesControls: 23 }
+- datadog → { tool: "Datadog", reason: "Infrastructure monitoring, log management, alerting, availability metrics", priority: "medium", automatesControls: 31 }
+- google_workspace → { tool: "Google Workspace", reason: "Email retention, access policies, admin audit logs, DLP controls", priority: "medium", automatesControls: 18 }
+- microsoft_365 → { tool: "Microsoft 365", reason: "Conditional access, DLP, email retention, compliance center", priority: "medium", automatesControls: 22 }
+- crowdstrike → { tool: "CrowdStrike", reason: "EDR, threat detection, endpoint compliance monitoring", priority: "high", automatesControls: 28 }
+- pagerduty → { tool: "PagerDuty", reason: "Incident management records, on-call documentation, response evidence", priority: "medium", automatesControls: 12 }
+
+━━━ CONVERSATION INTELLIGENCE ━━━
+1. Never ask about fields already in the profile — check PROFILE COLLECTED SO FAR every turn
+2. Never repeat a question from conversation history
+3. Use peer benchmarks: "Most Series B SaaS companies at 100 employees already have..."
+4. When isComplete becomes true: write a compelling summary of what you discovered and the key next steps, mentioning the automation potential from their stack
+5. Keep replies to 2-3 sentences — intelligence is in WHAT you ask, not how much you say
+6. First turn (no history): greet warmly, explain what you'll discover together, ask for company name
+7. Adapt language: executives get business implications, engineers get technical precision
+
+━━━ REQUIRED FIELDS (must collect 8 of 9 to enable finalization) ━━━
+companyName, companyType, industry, employeeCount (Phase 1)
+targetFrameworks, complianceDriver (Phase 2)
+cloudProviders (Phase 3)
+mfaStatus (Phase 4)
+dataTypes (Phase 5)
+
+Enrichment fields (improve profile depth — not required for finalization):
+regions, workforceModel, auditType, targetDate, existingCertifications, keyDatabases, cicdTools, sourceControl, saasTools, internetFacing, identityProvider, loggingMaturity, siemTool, endpointManagement, vulnerabilityScanning, patchManagement, incidentResponsePlan, backupStatus, gdprExposure, ccpaExposure, hipaaScope, dataRetentionPolicy, subprocessorCount, crossBorderTransfers, ownerAccess, ownerInfrastructure, ownerIncidentResponse, ownerCompliance, ownerPolicies, ownerVendors, teamStructure, documentationMaturity, accessReviewCadence, vendorReviewCadence, existingGRCTooling
+
+━━━ COMPLETENESS SCORING ━━━
+requiredCollected = count of required fields with values
+enrichmentCollected = count of enrichment fields with values
+completionScore = min(100, round((requiredCollected / 9 × 70) + (enrichmentCollected / 35 × 30)))
+isComplete = requiredCollected >= 8
+
+phaseCompletion = percent of fields collected per phase (0-100 each)
+
+━━━ OUTPUT — RETURN ONLY VALID JSON ━━━
 {
-  "nextMessage": "<2-3 sentence reply: acknowledge answer + ask ONE question for next missing field>",
+  "nextMessage": "<2-3 sentence intelligent reply: acknowledge + add insight/risk if relevant + ask ONE question for next uncollected field>",
+  "currentPhase": "<foundation|compliance_goals|infrastructure|security_ops|data_privacy|ownership|readiness>",
   "extractedFields": { "<fieldName>": <value> },
-  "completionScore": <integer 0–100>,
-  "isComplete": <true or false>
+  "riskObservations": [{ "area": "<security area>", "severity": "<high|medium|low>", "observation": "<specific actionable finding>" }],
+  "integrationRecommendations": [{ "tool": "<tool name>", "reason": "<why valuable for their compliance>", "priority": "<high|medium|low>", "automatesControls": <number> }],
+  "phaseCompletion": { "foundation": <0-100>, "compliance_goals": <0-100>, "infrastructure": <0-100>, "security_ops": <0-100>, "data_privacy": <0-100>, "ownership": <0-100>, "readiness": <0-100> },
+  "completionScore": <0-100>,
+  "isComplete": <true|false>
 }
 
-CRITICAL: Your entire response MUST be a single valid JSON object. No text before or after it. No markdown code fences. No explanations outside the JSON.`;
+CRITICAL: Your entire response MUST be a single valid JSON object. No text before or after it. No markdown code fences.`;
 
-// ─── Required fields for completeness gate ───────────────────────────────────
+// ─── Required fields for the finalize completeness gate ──────────────────────
 const REQUIRED_FIELDS_FOR_FINALIZE = [
   'companyName', 'companyType', 'industry', 'employeeCount',
-  'cloudProviders', 'dataTypes', 'targetFrameworks', 'complianceDriver',
+  'targetFrameworks', 'complianceDriver',
+  'cloudProviders', 'mfaStatus', 'dataTypes',
+] as const;
+
+// ─── Enrichment fields (bonus completeness points, not required) ──────────────
+const ENRICHMENT_FIELDS = [
+  'regions', 'workforceModel', 'auditType', 'targetDate', 'existingCertifications',
+  'keyDatabases', 'cicdTools', 'sourceControl', 'saasTools', 'internetFacing',
+  'identityProvider', 'loggingMaturity', 'siemTool', 'endpointManagement',
+  'vulnerabilityScanning', 'patchManagement', 'incidentResponsePlan', 'backupStatus',
+  'gdprExposure', 'ccpaExposure', 'hipaaScope', 'dataRetentionPolicy',
+  'subprocessorCount', 'crossBorderTransfers',
+  'ownerAccess', 'ownerInfrastructure', 'ownerIncidentResponse', 'ownerCompliance',
+  'ownerPolicies', 'ownerVendors', 'teamStructure',
+  'documentationMaturity', 'accessReviewCadence', 'vendorReviewCadence', 'existingGRCTooling',
 ] as const;
 
 // ─── Mapping helpers — extracted values → Prisma enum values ─────────────────
@@ -184,8 +252,10 @@ export class OnboardingService {
     }
 
     const sessionId = session!.id;
-    const existingMessages: { role: string; content: string }[] = (session as any).messages ?? [];
-    const turnIndex = existingMessages.length;
+    // Limit history to last 20 messages to avoid context overflow with long conversations
+    const allMessages: { role: string; content: string }[] = (session as any).messages ?? [];
+    const existingMessages = allMessages.slice(-20);
+    const turnIndex = allMessages.length;
 
     // 2. Save user message
     if (userMessage?.trim()) {
@@ -196,27 +266,31 @@ export class OnboardingService {
           role: 'user',
           content: userMessage.trim(),
           extractedFields: {} as any,
-          stateAtTime: (session as any).currentState ?? 'GREETING',
+          stateAtTime: (session as any).currentState ?? 'FOUNDATION',
         },
       });
     }
 
-    // 3. Build conversation history string (all turns BEFORE this one)
+    // 3. Build conversation history string (last 20 turns BEFORE this one)
     const historyLines = existingMessages.length > 0
       ? existingMessages
           .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
           .join('\n')
       : '(this is the very start of the conversation — no messages yet)';
 
-    // 4. Get extracted profile so far
+    // 4. Get extracted profile so far (omit internal meta keys when sending to LLM)
     const extractedSoFar = (session as any).extractedData as Record<string, unknown> ?? {};
-    const profileSummary = Object.keys(extractedSoFar).length > 0
-      ? JSON.stringify(extractedSoFar, null, 2)
+    const profileForLLM: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(extractedSoFar)) {
+      if (!k.startsWith('_')) profileForLLM[k] = v;
+    }
+    const profileSummary = Object.keys(profileForLLM).length > 0
+      ? JSON.stringify(profileForLLM)
       : '(nothing collected yet)';
 
     // 5. Build the current user turn context
     const currentUserMessage = userMessage?.trim()
-      || '(no user message — this is the opening greeting, introduce yourself and ask for the company name)';
+      || '(no user message — this is the opening greeting, introduce yourself and explain the discovery process, then ask for the company name)';
 
     // 6. Inject context into system prompt
     const systemPrompt = ONBOARDING_SYSTEM_PROMPT
@@ -229,10 +303,13 @@ export class OnboardingService {
     let extractedFields: Record<string, unknown> = {};
     let completionScore = 0;
     let isComplete = false;
+    let currentPhase = 'foundation';
+    let riskObservations: Array<{ area: string; severity: string; observation: string }> = [];
+    let integrationRecommendations: Array<{ tool: string; reason: string; priority: string; automatesControls: number }> = [];
+    let phaseCompletion: Record<string, number> = {};
 
-    // The user message sent to the LLM (brief — the full context is in the system prompt)
     const llmUserMessage = userMessage?.trim()
-      || 'Please start the onboarding. Greet the user and ask for their company name.';
+      || 'Please begin the compliance discovery session. Greet the user, briefly explain what you will discover together, and ask for their company name.';
 
     try {
       const response = await this.gateway.callRaw(
@@ -242,13 +319,13 @@ export class OnboardingService {
           taskType: 'onboarding',
           orgId,
           agentName: 'OnboardingAgent',
-          maxTokens: 600,
-          temperature: 0.5,
+          maxTokens: 1400,
+          temperature: 0.4,
         },
       );
 
       const raw = response.content?.trim() ?? '';
-      this.logger.debug(`chatSync raw LLM response: ${raw.slice(0, 200)}`);
+      this.logger.debug(`chatSync raw LLM response: ${raw.slice(0, 300)}`);
 
       // Strip markdown code fences if the model wrapped the JSON
       const cleaned = raw
@@ -262,43 +339,48 @@ export class OnboardingService {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
           assistantContent = (parsed.nextMessage ?? '').trim();
-          extractedFields = parsed.extractedFields ?? {};
+          extractedFields = typeof parsed.extractedFields === 'object' ? (parsed.extractedFields ?? {}) : {};
           completionScore = typeof parsed.completionScore === 'number' ? parsed.completionScore : 0;
           isComplete = parsed.isComplete === true;
+          currentPhase = typeof parsed.currentPhase === 'string' ? parsed.currentPhase : 'foundation';
+          riskObservations = Array.isArray(parsed.riskObservations) ? parsed.riskObservations : [];
+          integrationRecommendations = Array.isArray(parsed.integrationRecommendations) ? parsed.integrationRecommendations : [];
+          phaseCompletion = typeof parsed.phaseCompletion === 'object' && parsed.phaseCompletion ? parsed.phaseCompletion : {};
         } catch (parseErr: any) {
           this.logger.warn(`chatSync JSON parse failed: ${parseErr.message} — raw: ${raw.slice(0, 300)}`);
-          assistantContent = cleaned; // fallback: show raw text
+          assistantContent = cleaned;
         }
       } else {
-        // Model returned plain text instead of JSON — use it as-is
         assistantContent = cleaned;
       }
 
-      // Safety: if nextMessage is empty but we got JSON, provide a generic prompt
       if (!assistantContent) {
-        assistantContent = "Thanks for that! What else can you tell me about your compliance goals?";
+        assistantContent = "Thanks for that! Let's continue building your compliance profile — what else can you tell me?";
       }
 
     } catch (err: any) {
       this.logger.error(`chatSync LLM call failed: ${err.message}`, err.stack);
-      // Context-aware fallback based on what's already been collected
-      const collected = Object.keys(extractedSoFar);
+      const collected = Object.keys(profileForLLM);
       if (!collected.includes('companyName')) {
-        assistantContent = "Hi! I'm your Compliance Copilot 👋 I'll help you build your compliance profile. What's your company name?";
+        assistantContent = "Hi! I'm your Compliance Copilot 👋 I'll run a deep discovery session to map your entire compliance infrastructure. Let's start — what's your company name?";
       } else if (!collected.includes('industry')) {
-        assistantContent = `Great, ${extractedSoFar.companyName}! What industry are you in? (e.g. SaaS, FinTech, Healthcare)`;
+        assistantContent = `Got it! What industry is ${profileForLLM.companyName} in? (e.g. SaaS, FinTech, Healthcare)`;
       } else if (!collected.includes('employeeCount')) {
         assistantContent = "How many employees does your company have?";
-      } else if (!collected.includes('cloudProviders')) {
-        assistantContent = "What cloud infrastructure do you use? (e.g. AWS, GCP, Azure, self-hosted)";
       } else if (!collected.includes('targetFrameworks')) {
         assistantContent = "Which compliance framework are you targeting? (SOC 2, ISO 27001, HIPAA, GDPR…)";
+      } else if (!collected.includes('cloudProviders')) {
+        assistantContent = "What cloud infrastructure do you use? (e.g. AWS, GCP, Azure)";
+      } else if (!collected.includes('mfaStatus')) {
+        assistantContent = "Does your team use multi-factor authentication (MFA)? Is it enforced for all users, just some, or not yet deployed?";
+      } else if (!collected.includes('dataTypes')) {
+        assistantContent = "What types of sensitive data does your platform handle? (e.g. personal data/PII, payment data/PCI, health data/PHI)";
       } else {
-        assistantContent = "Thanks for that! What's driving your compliance initiative — is it a customer requirement, investor due diligence, or something else?";
+        assistantContent = "Thanks for that! What's driving your compliance initiative — customer requirement, investor due diligence, or regulatory pressure?";
       }
     }
 
-    // 7. Save assistant message
+    // 8. Save assistant message
     const newTurnIndex = userMessage?.trim() ? turnIndex + 1 : turnIndex;
     await this.prisma.onboardingMessage.create({
       data: {
@@ -307,11 +389,11 @@ export class OnboardingService {
         role: 'assistant',
         content: assistantContent,
         extractedFields: extractedFields as any,
-        stateAtTime: (session as any).currentState ?? 'GREETING',
+        stateAtTime: currentPhase.toUpperCase(),
       },
     });
 
-    // 8. Merge extracted data + update session
+    // 9. Merge extracted data
     const mergedData = { ...extractedSoFar };
     for (const [k, v] of Object.entries(extractedFields)) {
       if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)) {
@@ -319,15 +401,50 @@ export class OnboardingService {
       }
     }
 
-    // Recompute completionScore from merged data (authoritative)
-    const collectedCount = REQUIRED_FIELDS_FOR_FINALIZE.filter((f) => {
+    // 9a. Accumulate risk observations (deduplicated by area+observation)
+    const existingRisks = Array.isArray(mergedData._riskObservations) ? mergedData._riskObservations as any[] : [];
+    const mergedRisks = [...existingRisks];
+    for (const r of riskObservations) {
+      if (r.area && r.observation && !mergedRisks.some((e) => e.area === r.area && e.observation === r.observation)) {
+        mergedRisks.push(r);
+      }
+    }
+    mergedData._riskObservations = mergedRisks;
+
+    // 9b. Accumulate integration recommendations (deduplicated by tool)
+    const existingIntegrations = Array.isArray(mergedData._integrationRecommendations) ? mergedData._integrationRecommendations as any[] : [];
+    const mergedIntegrations = [...existingIntegrations];
+    for (const i of integrationRecommendations) {
+      if (i.tool && !mergedIntegrations.some((e) => e.tool === i.tool)) {
+        mergedIntegrations.push(i);
+      }
+    }
+    mergedData._integrationRecommendations = mergedIntegrations;
+
+    // 9c. Store phase completion + current phase
+    if (Object.keys(phaseCompletion).length > 0) {
+      mergedData._phaseCompletion = phaseCompletion;
+    }
+    mergedData._currentPhase = currentPhase;
+
+    // 10. Recompute completion score server-side (authoritative weighted scoring)
+    const requiredCollected = REQUIRED_FIELDS_FOR_FINALIZE.filter((f) => {
       const v = mergedData[f];
       if (v == null || v === '') return false;
       if (Array.isArray(v) && v.length === 0) return false;
       return true;
     }).length;
-    const actualScore = Math.round((collectedCount / REQUIRED_FIELDS_FOR_FINALIZE.length) * 100);
-    const actualComplete = actualScore >= 89;
+    const enrichmentCollected = ENRICHMENT_FIELDS.filter((f) => {
+      const v = mergedData[f];
+      if (v == null || v === '') return false;
+      if (Array.isArray(v) && v.length === 0) return false;
+      return true;
+    }).length;
+    const actualScore = Math.min(100, Math.round(
+      (requiredCollected / REQUIRED_FIELDS_FOR_FINALIZE.length) * 70 +
+      (enrichmentCollected / ENRICHMENT_FIELDS.length) * 30,
+    ));
+    const actualComplete = requiredCollected >= 8;
 
     const finalStatus = actualComplete ? 'completed' : 'in_progress';
     await this.prisma.onboardingSession.update({
@@ -336,11 +453,12 @@ export class OnboardingService {
         extractedData: mergedData as any,
         turnCount: { increment: userMessage?.trim() ? 2 : 1 },
         status: finalStatus as any,
+        currentState: currentPhase.toUpperCase(),
         completedAt: actualComplete ? new Date() : undefined,
       },
     });
 
-    // 9. Upsert BusinessProfile so getCompleteness() / finalizeOnboarding() can read it
+    // 11. Upsert BusinessProfile so getCompleteness() / finalizeOnboarding() can read it
     await this.upsertBusinessProfile(orgId, userId, mergedData).catch((err) => {
       this.logger.warn(`BusinessProfile upsert failed (non-fatal): ${err.message}`);
     });
@@ -350,6 +468,10 @@ export class OnboardingService {
       extractedFields,
       completionScore: actualScore,
       isComplete: actualComplete,
+      currentPhase,
+      riskObservations: mergedRisks,
+      integrationRecommendations: mergedIntegrations,
+      phaseCompletion: (mergedData._phaseCompletion as Record<string, number>) ?? {},
     };
   }
 
@@ -366,21 +488,71 @@ export class OnboardingService {
     // Only upsert if we have at least a company name
     if (!data.companyName) return;
 
-    const companyName = String(data.companyName);
-    const companyType = toCompanyType(data.companyType ?? 'smb') as any;
-    const industry    = toIndustry(data.industry ?? 'other') as any;
+    const companyName   = String(data.companyName);
+    const companyType   = toCompanyType(data.companyType ?? 'smb') as any;
+    const industry      = toIndustry(data.industry ?? 'other') as any;
     const employeeCount = data.employeeCount ? String(data.employeeCount) : '1-10';
 
+    // ─── Infrastructure ────────────────────────────────────────────────────────
     const infrastructure = {
-      cloudProviders: Array.isArray(data.cloudProviders) ? data.cloudProviders : [],
+      cloudProviders:  Array.isArray(data.cloudProviders) ? data.cloudProviders : [],
+      keyDatabases:    Array.isArray(data.keyDatabases) ? data.keyDatabases : [],
+      cicdTools:       Array.isArray(data.cicdTools) ? data.cicdTools : [],
+      sourceControl:   data.sourceControl ?? null,
+      saasTools:       Array.isArray(data.saasTools) ? data.saasTools : [],
+      internetFacing:  data.internetFacing ?? null,
     };
+
+    // ─── Data handling & privacy ───────────────────────────────────────────────
     const dataHandling = {
-      dataTypes: Array.isArray(data.dataTypes) ? data.dataTypes : [],
+      dataTypes:           Array.isArray(data.dataTypes) ? data.dataTypes : [],
+      gdprExposure:        data.gdprExposure ?? null,
+      ccpaExposure:        data.ccpaExposure ?? null,
+      hipaaScope:          data.hipaaScope ?? null,
+      dataRetentionPolicy: data.dataRetentionPolicy ?? null,
+      subprocessorCount:   data.subprocessorCount ?? null,
+      crossBorderTransfers: data.crossBorderTransfers ?? null,
     };
+
+    // ─── Compliance goals ──────────────────────────────────────────────────────
     const complianceGoals = {
-      targetFrameworks: Array.isArray(data.targetFrameworks) ? data.targetFrameworks : [],
-      complianceDriver: data.complianceDriver ?? null,
-      targetDate: data.targetDate ?? null,
+      targetFrameworks:       Array.isArray(data.targetFrameworks) ? data.targetFrameworks : [],
+      auditType:              data.auditType ?? null,
+      complianceDriver:       data.complianceDriver ?? null,
+      targetDate:             data.targetDate ?? null,
+      existingCertifications: Array.isArray(data.existingCertifications) ? data.existingCertifications : [],
+    };
+
+    // ─── Current security posture ──────────────────────────────────────────────
+    const currentPosture = {
+      mfaStatus:             data.mfaStatus ?? null,
+      identityProvider:      data.identityProvider ?? null,
+      loggingMaturity:       data.loggingMaturity ?? null,
+      siemTool:              data.siemTool ?? null,
+      endpointManagement:    data.endpointManagement ?? null,
+      vulnerabilityScanning: data.vulnerabilityScanning ?? null,
+      patchManagement:       data.patchManagement ?? null,
+      incidentResponsePlan:  data.incidentResponsePlan ?? null,
+      backupStatus:          data.backupStatus ?? null,
+      documentationMaturity: data.documentationMaturity ?? null,
+      accessReviewCadence:   data.accessReviewCadence ?? null,
+      vendorReviewCadence:   data.vendorReviewCadence ?? null,
+      existingGRCTooling:    data.existingGRCTooling ?? null,
+    };
+
+    // ─── Risk profile + org context ────────────────────────────────────────────
+    const riskProfile = {
+      riskObservations:  Array.isArray(data._riskObservations) ? data._riskObservations : [],
+      integrationRecs:   Array.isArray(data._integrationRecommendations) ? data._integrationRecommendations : [],
+      teamStructure:     data.teamStructure ?? null,
+      regions:           Array.isArray(data.regions) ? data.regions : [],
+      workforceModel:    data.workforceModel ?? null,
+      ownerAccess:       data.ownerAccess ?? null,
+      ownerInfrastructure: data.ownerInfrastructure ?? null,
+      ownerIncidentResponse: data.ownerIncidentResponse ?? null,
+      ownerCompliance:   data.ownerCompliance ?? null,
+      ownerPolicies:     data.ownerPolicies ?? null,
+      ownerVendors:      data.ownerVendors ?? null,
     };
 
     await this.prisma.businessProfile.upsert({
@@ -391,20 +563,24 @@ export class OnboardingService {
         companyType,
         industry,
         employeeCount,
-        infrastructure: infrastructure as any,
-        dataHandling: dataHandling as any,
+        infrastructure:  infrastructure as any,
+        dataHandling:    dataHandling as any,
         complianceGoals: complianceGoals as any,
-        collectedVia: 'onboarding_agent' as any,
-        isComplete: false,
+        currentPosture:  currentPosture as any,
+        riskProfile:     riskProfile as any,
+        collectedVia:    'onboarding_agent' as any,
+        isComplete:      false,
       },
       update: {
         companyName,
         companyType,
         industry,
         employeeCount,
-        infrastructure: infrastructure as any,
-        dataHandling: dataHandling as any,
+        infrastructure:  infrastructure as any,
+        dataHandling:    dataHandling as any,
         complianceGoals: complianceGoals as any,
+        currentPosture:  currentPosture as any,
+        riskProfile:     riskProfile as any,
       },
     });
   }
@@ -425,16 +601,23 @@ export class OnboardingService {
       select: { isComplete: true, industry: true, companyType: true, riskProfile: true },
     });
 
+    const extractedData = (session.extractedData as Record<string, unknown>) ?? {};
+
     return {
       hasSession: true,
       status: session.status,
       currentState: session.currentState,
       turnCount: session.turnCount,
-      completionScore: 0, // base; overridden client-side from extractedData
+      completionScore: 0, // overridden client-side from extractedData
       isComplete: session.status === 'completed',
       hasBusinessProfile: profile?.isComplete ?? false,
-      extractedData: (session.extractedData as Record<string, unknown>) ?? {},
+      extractedData,
       messages: session.messages,
+      // Expose accumulated discovery meta for frontend restore
+      riskObservations: Array.isArray(extractedData._riskObservations) ? extractedData._riskObservations : [],
+      integrationRecommendations: Array.isArray(extractedData._integrationRecommendations) ? extractedData._integrationRecommendations : [],
+      phaseCompletion: (extractedData._phaseCompletion as Record<string, number>) ?? {},
+      currentPhase: (extractedData._currentPhase as string) ?? 'foundation',
     };
   }
 
@@ -535,11 +718,10 @@ export class OnboardingService {
 
   /**
    * Returns current completeness score (0–100) from session extractedData.
+   * Uses a weighted formula: 70% required fields + 30% enrichment fields.
    * Falls back to DialogueManager (BusinessProfile) if no session data found.
    */
   async getCompleteness(orgId: string) {
-    // Primary: read from session extractedData (populated by chatSync)
-    // Skip abandoned sessions — they belong to a previous/reset run
     const session = await this.prisma.onboardingSession.findFirst({
       where: { orgId, status: { not: 'abandoned' as any } },
       orderBy: { startedAt: 'desc' },
@@ -547,21 +729,38 @@ export class OnboardingService {
 
     if (session?.extractedData) {
       const data = session.extractedData as Record<string, unknown>;
-      const missingFields = REQUIRED_FIELDS_FOR_FINALIZE.filter((f) => {
+
+      const missingRequired = REQUIRED_FIELDS_FOR_FINALIZE.filter((f) => {
         const v = data[f];
         if (v == null || v === '') return true;
         if (Array.isArray(v) && v.length === 0) return true;
         return false;
       });
-      const collectedCount = REQUIRED_FIELDS_FOR_FINALIZE.length - missingFields.length;
-      const completionPct = Math.round((collectedCount / REQUIRED_FIELDS_FOR_FINALIZE.length) * 100);
+      const requiredCollected = REQUIRED_FIELDS_FOR_FINALIZE.length - missingRequired.length;
+
+      const enrichmentCollected = ENRICHMENT_FIELDS.filter((f) => {
+        const v = data[f];
+        if (v == null || v === '') return false;
+        if (Array.isArray(v) && v.length === 0) return false;
+        return true;
+      }).length;
+
+      const completionPct = Math.min(100, Math.round(
+        (requiredCollected / REQUIRED_FIELDS_FOR_FINALIZE.length) * 70 +
+        (enrichmentCollected / ENRICHMENT_FIELDS.length) * 30,
+      ));
+
       return {
         completionPct,
         completionScore: completionPct / 100,
-        isComplete: completionPct >= 89,
-        missingFields: [...missingFields],
-        canFinalize: completionPct >= Math.round(FINALIZE_COMPLETENESS_THRESHOLD * 100),
+        isComplete: requiredCollected >= 8,
+        missingFields: [...missingRequired],
+        canFinalize: requiredCollected >= Math.ceil(REQUIRED_FIELDS_FOR_FINALIZE.length * FINALIZE_COMPLETENESS_THRESHOLD),
         finalizeThreshold: FINALIZE_COMPLETENESS_THRESHOLD,
+        requiredCollected,
+        enrichmentCollected,
+        phaseCompletion: (data._phaseCompletion as Record<string, number>) ?? {},
+        riskObservationsCount: Array.isArray(data._riskObservations) ? (data._riskObservations as any[]).length : 0,
       };
     }
 

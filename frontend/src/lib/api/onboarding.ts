@@ -15,11 +15,28 @@ export interface OnboardingSession {
   completeness_score?: number;
 }
 
+export interface RiskObservation {
+  area: string;
+  severity: 'high' | 'medium' | 'low';
+  observation: string;
+}
+
+export interface IntegrationRecommendation {
+  tool: string;
+  reason: string;
+  priority: 'high' | 'medium' | 'low';
+  automatesControls: number;
+}
+
 export interface ChatResponse {
   message: string;
   extractedFields: Record<string, unknown>;
   completionScore: number;
   isComplete: boolean;
+  currentPhase?: string;
+  riskObservations?: RiskObservation[];
+  integrationRecommendations?: IntegrationRecommendation[];
+  phaseCompletion?: Record<string, number>;
 }
 
 export interface OnboardingStatus {
@@ -32,6 +49,10 @@ export interface OnboardingStatus {
   hasBusinessProfile?: boolean;
   extractedData?: Record<string, unknown>;
   messages?: OnboardingMessage[];
+  riskObservations?: RiskObservation[];
+  integrationRecommendations?: IntegrationRecommendation[];
+  phaseCompletion?: Record<string, number>;
+  currentPhase?: string;
 }
 
 export const onboardingApi = {
