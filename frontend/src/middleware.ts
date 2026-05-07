@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/register', '/trust', '/public', '/audit'];
+const PUBLIC_PATHS = ['/login', '/register', '/trust', '/public', '/audit/'];
 const INTERNAL_PATHS = ['/internal'];
 const ONBOARDING_PATH = '/onboarding';
 
