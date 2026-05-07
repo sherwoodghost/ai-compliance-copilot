@@ -49,6 +49,26 @@ export class TasksService {
     return task;
   }
 
+  async createManual(orgId: string, dto: { title: string; description?: string; priority?: TaskPriority; assignedTo?: string; controlId?: string; dueDate?: string }) {
+    return this.prisma.task.create({
+      data: {
+        orgId,
+        title: dto.title,
+        description: dto.description ?? null,
+        priority: dto.priority ?? 'medium',
+        assignedTo: dto.assignedTo ?? null,
+        controlId: dto.controlId ?? null,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        source: 'manual',
+        status: 'open',
+      },
+      include: {
+        assignee: { select: { id: true, fullName: true, email: true } },
+        control:  { select: { id: true, code: true, title: true } },
+      },
+    });
+  }
+
   async update(orgId: string, taskId: string, dto: UpdateTaskDto) {
     const existing = await this.findOne(orgId, taskId);
 

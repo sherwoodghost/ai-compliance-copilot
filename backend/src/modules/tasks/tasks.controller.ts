@@ -1,9 +1,20 @@
-import { Controller, Get, Patch, Param, Body, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString, IsUUID, IsDateString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TaskStatus, TaskPriority } from '@prisma/client';
 import { TasksService, UpdateTaskDto } from './tasks.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+
+class CreateTaskDto {
+  @ApiProperty() @IsString() title: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional({ enum: TaskPriority }) @IsOptional() @IsEnum(TaskPriority) priority?: TaskPriority;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() assignedTo?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() controlId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsDateString() dueDate?: string;
+}
 
 @ApiTags('tasks')
 @ApiBearerAuth('access-token')
@@ -11,6 +22,12 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Manually create a task' })
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateTaskDto) {
+    return this.tasksService.createManual(user.orgId, dto);
+  }
 
   @Get()
   findAll(

@@ -2,9 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
+import { apiClient as api } from '@/lib/api/client';
 import {
-  ClipboardList, AlertCircle, Clock, CheckCircle2, Flag,
-  User, Calendar, LayoutGrid, List, Filter,
+  ClipboardList, AlertCircle, Clock, CheckCircle2,
+  Calendar, LayoutGrid, List, Filter, Plus, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -49,6 +50,120 @@ const NEXT_STATUS: Record<string, string[]> = {
   done:        ['accepted'],
   accepted:    [],
 };
+
+// ─── Add Task Modal ───────────────────────────────────────────────────────────
+
+function TaskModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<'critical' | 'high' | 'medium' | 'low'>('medium');
+  const [dueDate, setDueDate] = useState('');
+
+  const create = useMutation({
+    mutationFn: () =>
+      api.post('/tasks', {
+        title,
+        description: description || undefined,
+        priority,
+        dueDate: dueDate || undefined,
+      }).then((r: any) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-4 h-4 text-brand-600" />
+            <h2 className="text-sm font-semibold text-gray-900">Add Task</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Title */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+            <input
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="e.g. Schedule quarterly access review"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+              rows={2}
+              placeholder="Optional details about this task…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          {/* Priority */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Priority</label>
+            <div className="flex gap-1.5">
+              {(['critical', 'high', 'medium', 'low'] as const).map((p) => {
+                const cfg = PRIORITY_CONFIG[p];
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPriority(p)}
+                    className={cn(
+                      'flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors capitalize',
+                      priority === p ? cfg.cls : 'border-gray-200 text-gray-500 hover:bg-gray-50',
+                    )}
+                  >
+                    <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot)} />
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Due Date (optional)</label>
+            <input
+              type="date"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 justify-end px-5 py-4 border-t border-gray-100">
+          <button className="btn-secondary text-sm" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary text-sm"
+            disabled={!title.trim() || create.isPending}
+            onClick={() => create.mutate()}
+          >
+            {create.isPending ? 'Adding…' : 'Add Task'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Task Card (Board) ────────────────────────────────────────────────────────
 
@@ -201,6 +316,7 @@ export default function TasksPage() {
   const qc = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -243,6 +359,8 @@ export default function TasksPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
+      {showAddModal && <TaskModal onClose={() => setShowAddModal(false)} />}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -255,8 +373,18 @@ export default function TasksPage() {
           </p>
         </div>
 
-        {/* View toggle */}
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+        <div className="flex items-center gap-2">
+          {/* Add Task button */}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary flex items-center gap-1.5 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Task
+          </button>
+
+          {/* View toggle */}
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
           <button
             onClick={() => setViewMode('board')}
             className={cn(
@@ -275,6 +403,7 @@ export default function TasksPage() {
           >
             <List className="w-4 h-4" />
           </button>
+          </div>
         </div>
       </div>
 
