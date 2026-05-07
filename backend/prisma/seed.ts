@@ -705,8 +705,9 @@ async function main() {
       passwordHash,
       fullName: 'Alice Admin',
       role: UserRole.admin,
+      onboardingComplete: true,
     },
-    update: {},
+    update: { onboardingComplete: true },
   });
 
   const auditorUser = await prisma.user.upsert({
@@ -717,8 +718,9 @@ async function main() {
       passwordHash,
       fullName: 'Sam Security',
       role: UserRole.auditor,
+      onboardingComplete: true,
     },
-    update: {},
+    update: { onboardingComplete: true },
   });
 
   const memberUser = await prisma.user.upsert({
@@ -729,8 +731,9 @@ async function main() {
       passwordHash,
       fullName: 'Chris Contributor',
       role: UserRole.member,
+      onboardingComplete: true,
     },
-    update: {},
+    update: { onboardingComplete: true },
   });
 
   console.log(`✅ Demo users: ${adminUser.email}, ${auditorUser.email}, ${memberUser.email}`);

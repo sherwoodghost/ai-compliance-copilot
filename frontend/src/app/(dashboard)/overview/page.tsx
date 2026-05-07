@@ -412,13 +412,13 @@ export default function OverviewPage() {
           />
           <StatCard
             label="Control Score"
-            value={readiness?.breakdown ? `${Math.round((readiness.breakdown.controlDesign ?? 0) * 100)}%` : '—'}
+            value={readiness?.breakdown ? `${Math.min(100, Math.round(readiness.breakdown.controlDesign ?? 0))}%` : '—'}
             icon={Shield}
             sub="35% weight"
           />
           <StatCard
             label="Evidence Score"
-            value={readiness?.breakdown ? `${Math.round((readiness.breakdown.evidence ?? 0) * 100)}%` : '—'}
+            value={readiness?.breakdown ? `${Math.min(100, Math.round(readiness.breakdown.evidence ?? 0))}%` : '—'}
             icon={TrendingUp}
             sub="30% weight"
           />
@@ -508,10 +508,10 @@ export default function OverviewPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Controls', score: Math.round((readiness.breakdown?.controlDesign ?? 0) * 100), weight: '35%' },
-              { label: 'Evidence', score: Math.round((readiness.breakdown?.evidence ?? 0) * 100), weight: '30%' },
-              { label: 'Policies', score: Math.round((readiness.breakdown?.policy ?? 0) * 100), weight: '25%' },
-              { label: 'Operational', score: Math.round((readiness.breakdown?.operational ?? 0) * 100), weight: '10%' },
+              { label: 'Controls', score: Math.min(100, Math.round(readiness.breakdown?.controlDesign ?? 0)), weight: '35%' },
+              { label: 'Evidence', score: Math.min(100, Math.round(readiness.breakdown?.evidence ?? 0)), weight: '30%' },
+              { label: 'Policies', score: Math.min(100, Math.round(readiness.breakdown?.policy ?? 0)), weight: '25%' },
+              { label: 'Operational', score: Math.min(100, Math.round(readiness.breakdown?.operational ?? 0)), weight: '10%' },
             ].map((item) => (
               <div key={item.label} className="text-center">
                 <p className="text-xs text-gray-400 mb-1">{item.label} <span className="opacity-60">({item.weight})</span></p>

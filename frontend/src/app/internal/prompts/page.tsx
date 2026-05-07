@@ -173,11 +173,11 @@ function PromptCard({ prompt }: { prompt: PromptTemplate }) {
         <div className="hidden sm:flex items-center gap-5 shrink-0 text-right">
           <div>
             <p className="text-xs text-gray-600">Uses</p>
-            <p className="text-sm font-semibold text-gray-300">{(prompt.usageCount ?? 0).toLocaleString()}</p>
+            <p className="text-sm font-semibold text-gray-300">{(Number(prompt.usageCount) || 0).toLocaleString()}</p>
           </div>
           <div>
             <p className="text-xs text-gray-600">Avg cost</p>
-            <p className="text-sm font-semibold text-amber-400">${(prompt.avgCostUsd ?? 0).toFixed(3)}</p>
+            <p className="text-sm font-semibold text-amber-400">${(Number(prompt.avgCostUsd) || 0).toFixed(3)}</p>
           </div>
           {prompt.lastUsedAt && (
             <div>
