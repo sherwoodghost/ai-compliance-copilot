@@ -11,12 +11,14 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
-  ParseBoolPipe,
   Optional,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { EvidenceService } from './evidence.service';
-import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto';
+import { CreateEvidenceDto, UpdateEvidenceDto, UploadEvidenceDto } from './dto/evidence.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
@@ -57,6 +59,61 @@ export class EvidenceController {
   @ApiOperation({ summary: 'Manually add evidence to a control' })
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreateEvidenceDto) {
     return this.evidenceService.create(user.orgId, dto, user.sub);
+  }
+
+  @Post('upload')
+  @ApiOperation({ summary: 'Upload a file as evidence for a control' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'controlId', 'title', 'type'],
+      properties: {
+        file:      { type: 'string', format: 'binary' },
+        controlId: { type: 'string' },
+        title:     { type: 'string' },
+        type:      { type: 'string' },
+        expiresAt: { type: 'string' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
+      fileFilter: (_req, file, cb) => {
+        const allowed = [
+          'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+          'application/pdf',
+          'text/plain', 'text/csv',
+          'application/json',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/msword',
+        ];
+        if (allowed.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error(`File type ${file.mimetype} not allowed`), false);
+        }
+      },
+    }),
+  )
+  uploadEvidence(
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UploadEvidenceDto,
+  ) {
+    return this.evidenceService.uploadEvidence(user.orgId, file, dto, user.sub);
+  }
+
+  @Get(':evidenceId/download')
+  @ApiOperation({ summary: 'Get a presigned download URL for uploaded evidence' })
+  getDownloadUrl(
+    @CurrentUser() user: JwtPayload,
+    @Param('evidenceId', ParseUUIDPipe) evidenceId: string,
+  ) {
+    return this.evidenceService.getDownloadUrl(user.orgId, evidenceId);
   }
 
   @Patch(':evidenceId')

@@ -2,12 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LlmService } from '../../llm/llm.service';
-import { CreateEvidenceDto, UpdateEvidenceDto } from './dto/evidence.dto';
+import { CreateEvidenceDto, UpdateEvidenceDto, UploadEvidenceDto } from './dto/evidence.dto';
 import { RagIndexerService } from '../../llm-gateway/rag/rag-indexer.service';
+import { StorageService } from '../../storage/storage.service';
 
 @Injectable()
 export class EvidenceService {
@@ -17,6 +19,7 @@ export class EvidenceService {
     private readonly prisma: PrismaService,
     private readonly ragIndexer: RagIndexerService,
     private readonly llm: LlmService,
+    private readonly storage: StorageService,
   ) {}
 
   async findAll(orgId: string, controlId?: string, isValid?: boolean) {
@@ -73,6 +76,72 @@ export class EvidenceService {
     this.logger.log(`Evidence created: ${evidence.id} for control: ${dto.controlId}`);
 
     // Index into RAG for retrieval (non-blocking)
+    this.ragIndexer.indexEvidence(orgId, evidence.id).catch((err) =>
+      this.logger.warn(`RAG indexing failed for evidence ${evidence.id}: ${err.message}`),
+    );
+
+    // AI validation (non-blocking)
+    this.validateEvidenceWithAI(orgId, evidence).catch((err) =>
+      this.logger.warn(`AI validation failed for evidence ${evidence.id}: ${err.message}`),
+    );
+
+    return evidence;
+  }
+
+  // ─── File Upload ────────────────────────────────────────────────────────────
+  async uploadEvidence(
+    orgId: string,
+    file: Express.Multer.File,
+    dto: UploadEvidenceDto,
+    userId: string,
+  ) {
+    if (!file) throw new BadRequestException('No file provided');
+
+    // Verify control belongs to this org
+    const orgControl = await this.prisma.organizationControl.findUnique({
+      where: { orgId_controlId: { orgId, controlId: dto.controlId } },
+    });
+    if (!orgControl) throw new NotFoundException('Control not found for this organization');
+
+    // Upload file to S3 (or placeholder if S3 not configured)
+    const uploadResult = await this.storage.upload(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      orgId,
+    );
+
+    const evidence = await this.prisma.evidence.create({
+      data: {
+        orgId,
+        controlId: dto.controlId,
+        title: dto.title,
+        type: dto.type,
+        source: 'manual_upload',
+        storageUrl: uploadResult.url,
+        contentHash: uploadResult.contentHash,
+        isValid: true,
+        collectedAt: new Date(),
+        ...(dto.expiresAt && { expiresAt: new Date(dto.expiresAt) }),
+        reviewedBy: userId,
+        metadata: {
+          fileName: file.originalname,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          storageKey: uploadResult.key,
+          storageBucket: uploadResult.bucket,
+          uploadedBy: userId,
+          uploadedAt: new Date().toISOString(),
+        } as any,
+      },
+      include: {
+        control: { select: { id: true, code: true, title: true } },
+      },
+    });
+
+    this.logger.log(`File evidence uploaded: ${evidence.id} (${file.originalname}, ${file.size} bytes)`);
+
+    // RAG index (non-blocking)
     this.ragIndexer.indexEvidence(orgId, evidence.id).catch((err) =>
       this.logger.warn(`RAG indexing failed for evidence ${evidence.id}: ${err.message}`),
     );
@@ -215,6 +284,15 @@ If no strong matches, return [].`;
       }));
 
     return { evidenceId, currentControlCode: currentCode, suggestions };
+  }
+
+  async getDownloadUrl(orgId: string, evidenceId: string): Promise<{ url: string }> {
+    const evidence = await this.findOne(orgId, evidenceId);
+    const meta = (evidence.metadata ?? {}) as Record<string, any>;
+    const key = meta['storageKey'];
+    if (!key) throw new NotFoundException('No file stored for this evidence');
+    const url = await this.storage.getSignedUrl(key);
+    return { url };
   }
 
   async getExpiryReport(orgId: string) {

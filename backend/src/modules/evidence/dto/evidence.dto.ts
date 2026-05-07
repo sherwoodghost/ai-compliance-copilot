@@ -46,6 +46,27 @@ export class CreateEvidenceDto {
   expiresAt?: string;
 }
 
+export class UploadEvidenceDto {
+  @ApiProperty({ description: 'ID of the control this evidence satisfies' })
+  @IsUUID()
+  @IsNotEmpty()
+  controlId: string;
+
+  @ApiProperty({ description: 'Human-readable title for this evidence' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiProperty({ enum: EvidenceType, description: 'Type of evidence document' })
+  @IsEnum(EvidenceType)
+  type: EvidenceType;
+
+  @ApiPropertyOptional({ description: 'ISO date string when this evidence expires' })
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
+
 export class UpdateEvidenceDto {
   @ApiPropertyOptional()
   @IsOptional()

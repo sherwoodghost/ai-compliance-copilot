@@ -19,7 +19,9 @@ export const complianceApi = {
     apiClient.get('/evidence', { params }).then((r) => r.data),
   getExpiryReport: () => apiClient.get('/evidence/expiry-report').then((r) => r.data),
   uploadEvidence: (data: FormData) =>
-    apiClient.post('/evidence', data, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data),
+    apiClient.post('/evidence/upload', data, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data),
+  getEvidenceDownloadUrl: (id: string) =>
+    apiClient.get(`/evidence/${id}/download`).then((r) => r.data),
   deleteEvidence: (id: string) => apiClient.delete(`/evidence/${id}`).then((r) => r.data),
 
   // Policies

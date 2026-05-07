@@ -18,18 +18,30 @@ type Evidence = {
   id: string;
   title: string;
   description?: string;
+  type?: string;
   evidenceType?: string;
   source?: string;
   status?: string;
+  isValid?: boolean;
   collectedAt?: string;
   createdAt: string;
   expiresAt?: string;
   fileUrl?: string;
+  storageUrl?: string;
   controlId?: string;
-  metadata?: { aiConfidence?: number; aiSummary?: string; aiFlags?: string[] };
+  control?: { id: string; code: string; title: string };
+  metadata?: {
+    aiConfidence?: number;
+    aiSummary?: string;
+    aiFlags?: string[];
+    isPendingSuggestion?: boolean;
+    instructions?: string;
+    fileName?: string;
+    fileSize?: number;
+  };
 };
 
-type StatusFilter = 'all' | 'valid' | 'expiring' | 'expired';
+type StatusFilter = 'all' | 'valid' | 'expiring' | 'expired' | 'pending';
 
 // ─── Evidence type config ─────────────────────────────────────────────────────
 
@@ -46,10 +58,20 @@ const TYPE_COLORS: Record<string, string> = {
 
 interface MappingSuggestion { controlId: string; code: string; title: string }
 
-function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void }) {
+function EvidenceCard({
+  item,
+  onDelete,
+  onUploadForControl,
+}: {
+  item: Evidence;
+  onDelete: () => void;
+  onUploadForControl?: (controlId: string) => void;
+}) {
   const [showMappings, setShowMappings] = useState(false);
   const [suggestions, setSuggestions] = useState<MappingSuggestion[] | null>(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  const isPending = item.metadata?.isPendingSuggestion === true;
 
   async function fetchSuggestions() {
     if (suggestions !== null) { setShowMappings(!showMappings); return; }
@@ -71,6 +93,61 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
   const expiringSoon = item.expiresAt && !isExpired &&
     new Date(item.expiresAt) < new Date(Date.now() + 30 * 86400_000);
 
+  const evidenceTypeLabel = item.type ?? item.evidenceType ?? '';
+  const typeCls = TYPE_COLORS[evidenceTypeLabel.toLowerCase()] ?? 'bg-gray-100 text-gray-600';
+
+  // ── Pending suggestion card ────────────────────────────────────────────────
+  if (isPending) {
+    return (
+      <div className="group bg-amber-50 border border-amber-200 rounded-xl p-4 hover:shadow-sm transition-all">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+            <Upload className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 mb-1">
+              <p className="text-sm font-semibold text-gray-900 leading-tight">{item.title}</p>
+              <button
+                onClick={onDelete}
+                className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center
+                           text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {item.control && (
+              <span className="inline-flex items-center text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-mono mb-2">
+                {item.control.code}
+              </span>
+            )}
+
+            {item.metadata?.instructions && (
+              <p className="text-xs text-amber-800 mb-2 leading-relaxed">{item.metadata.instructions}</p>
+            )}
+
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Needs evidence upload
+              </span>
+              {item.controlId && onUploadForControl && (
+                <button
+                  onClick={() => onUploadForControl(item.controlId!)}
+                  className="text-xs bg-amber-600 text-white px-2 py-0.5 rounded-md hover:bg-amber-700 transition-colors flex items-center gap-1"
+                >
+                  <Upload className="w-3 h-3" />
+                  Upload now
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal evidence card ───────────────────────────────────────────────────
   const statusIcon = isExpired ? AlertTriangle : expiringSoon ? Clock : CheckCircle;
   const StatusIcon = statusIcon;
   const statusCls = isExpired
@@ -79,20 +156,16 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
     ? 'text-amber-500 bg-amber-50'
     : 'text-emerald-500 bg-emerald-50';
 
-  const typeCls = TYPE_COLORS[item.evidenceType?.toLowerCase() ?? ''] ?? 'bg-gray-100 text-gray-600';
-
   return (
     <div className={cn(
       'group bg-white border rounded-xl p-4 hover:shadow-sm transition-all duration-150',
       isExpired ? 'border-red-200' : expiringSoon ? 'border-amber-200' : 'border-gray-200',
     )}>
       <div className="flex items-start gap-3">
-        {/* Status icon */}
         <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5', statusCls)}>
           <StatusIcon className="w-4 h-4" />
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
             <p className="text-sm font-semibold text-gray-900 leading-tight truncate">{item.title}</p>
@@ -110,9 +183,14 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
           )}
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {item.evidenceType && (
+            {item.control && (
+              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-mono">
+                {item.control.code}
+              </span>
+            )}
+            {evidenceTypeLabel && (
               <span className={cn('text-xs font-medium px-1.5 py-0.5 rounded capitalize', typeCls)}>
-                {item.evidenceType}
+                {evidenceTypeLabel.replace(/_/g, ' ')}
               </span>
             )}
             {item.source && (
@@ -121,6 +199,12 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
                 {item.source === 'agent_generated' ? 'auto-collected'
                   : item.source === 'manual_upload' ? 'manual upload'
                   : item.source.replace(/_/g, ' ')}
+              </span>
+            )}
+            {item.metadata?.fileName && (
+              <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded flex items-center gap-1">
+                <FileCheck className="w-2.5 h-2.5" />
+                {item.metadata.fileName}
               </span>
             )}
           </div>
@@ -141,14 +225,16 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
             </div>
           )}
 
-          {/* Suggest additional mappings */}
-          <button
-            onClick={fetchSuggestions}
-            className="mt-2 text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
-          >
-            <Wand2 className="w-3 h-3" />
-            {loadingSuggestions ? 'Finding matches...' : 'AI: suggest other controls'}
-          </button>
+          {/* Suggest additional mappings — only for valid evidence */}
+          {item.isValid !== false && (
+            <button
+              onClick={fetchSuggestions}
+              className="mt-2 text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
+            >
+              <Wand2 className="w-3 h-3" />
+              {loadingSuggestions ? 'Finding matches...' : 'AI: suggest other controls'}
+            </button>
+          )}
 
           {showMappings && (
             <div className="mt-2 p-2 bg-brand-50 rounded-lg border border-brand-100">
@@ -179,7 +265,7 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
                 'text-xs font-medium',
                 isExpired ? 'text-red-600' : expiringSoon ? 'text-amber-600' : 'text-gray-400',
               )}>
-                {isExpired ? '⚠ Expired' : expiringSoon ? '⏱ Expires'  : 'Expires'}{' '}
+                {isExpired ? '⚠ Expired' : expiringSoon ? '⏱ Expires' : 'Expires'}{' '}
                 {formatDate(item.expiresAt)}
               </span>
             )}
@@ -192,21 +278,45 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
 
-function UploadModal({ onClose }: { onClose: () => void }) {
+const EVIDENCE_TYPES = [
+  { value: 'document',     label: 'Document / Policy' },
+  { value: 'screenshot',   label: 'Screenshot' },
+  { value: 'log',          label: 'Log File' },
+  { value: 'api_response', label: 'API Response / Config Export' },
+  { value: 'manual',       label: 'Manual Record' },
+] as const;
+
+function UploadModal({
+  onClose,
+  preselectedControlId,
+}: {
+  onClose: () => void;
+  preselectedControlId?: string;
+}) {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState('screenshot');
+  const [type, setType] = useState<string>('document');
+  const [controlId, setControlId] = useState(preselectedControlId ?? '');
+  const [expiresAt, setExpiresAt] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Fetch org controls for the dropdown
+  const { data: controls = [] } = useQuery({
+    queryKey: ['controls-for-upload'],
+    queryFn: () => complianceApi.getControls(),
+  });
+
   const upload = useMutation({
     mutationFn: async () => {
+      if (!file) throw new Error('Please select a file');
+      if (!controlId) throw new Error('Please select a control');
       const fd = new FormData();
+      fd.append('file', file);
       fd.append('title', title);
-      fd.append('description', description);
-      fd.append('evidenceType', type);
-      if (file) fd.append('file', file);
+      fd.append('type', type);
+      fd.append('controlId', controlId);
+      if (expiresAt) fd.append('expiresAt', new Date(expiresAt).toISOString());
       return complianceApi.uploadEvidence(fd);
     },
     onSuccess: () => {
@@ -216,10 +326,14 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     },
   });
 
+  const errorMsg = upload.isError
+    ? ((upload.error as any)?.response?.data?.message ?? (upload.error as any)?.message ?? 'Upload failed')
+    : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-semibold text-gray-900">Upload Evidence</h2>
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100">
@@ -228,79 +342,107 @@ function UploadModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="space-y-4">
+          {/* Control selector */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Control *</label>
+            <select
+              value={controlId}
+              onChange={(e) => setControlId(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900
+                         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            >
+              <option value="">Select a control…</option>
+              {(controls as any[]).map((c: any) => (
+                <option key={c.controlId ?? c.id} value={c.controlId ?? c.id}>
+                  {c.control?.code ?? c.code} — {c.control?.title ?? c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Title */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Title *</label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. MFA Policy Screenshot"
+              placeholder="e.g. MFA Policy Screenshot — May 2025"
               className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900
                          focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
           </div>
 
+          {/* Evidence type */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              placeholder="What does this evidence demonstrate?"
-              className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900
-                         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Evidence Type</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Evidence Type *</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900
                          focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             >
-              {['screenshot', 'log', 'report', 'configuration', 'policy', 'certificate', 'other'].map((t) => (
-                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              {EVIDENCE_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
           </div>
 
-          {/* File drop zone */}
-          <div
-            onClick={() => fileRef.current?.click()}
-            className={cn(
-              'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors',
-              file ? 'border-brand-300 bg-brand-50' : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50',
-            )}
-          >
+          {/* Expiry date (optional) */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">
+              Expiry Date <span className="text-gray-400 font-normal">(optional — evidence will be flagged when expired)</span>
+            </label>
             <input
-              ref={fileRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900
+                         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
-            {file ? (
-              <div className="flex items-center justify-center gap-2">
-                <FileCheck className="w-5 h-5 text-brand-600" />
-                <span className="text-sm font-medium text-brand-700">{file.name}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <>
-                <Upload className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Click to upload or drag and drop</p>
-                <p className="text-xs text-gray-400 mt-1">PDF, PNG, JPG, CSV up to 50MB</p>
-              </>
-            )}
           </div>
 
-          {upload.isError && (
-            <p className="text-xs text-red-600">Failed to upload. Please try again.</p>
+          {/* File drop zone */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">File *</label>
+            <div
+              onClick={() => fileRef.current?.click()}
+              className={cn(
+                'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors',
+                file ? 'border-brand-300 bg-brand-50' : 'border-gray-200 hover:border-brand-300 hover:bg-gray-50',
+              )}
+            >
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.json,.xlsx,.xls,.docx,.doc"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+              {file ? (
+                <div className="flex items-center justify-center gap-2">
+                  <FileCheck className="w-5 h-5 text-brand-600" />
+                  <span className="text-sm font-medium text-brand-700">{file.name}</span>
+                  <span className="text-xs text-gray-400">({(file.size / 1024).toFixed(0)} KB)</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Upload className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Click to select or drag and drop</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF, PNG, JPG, CSV, DOCX, XLSX up to 25 MB</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {errorMsg && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorMsg}</p>
           )}
         </div>
 
@@ -308,13 +450,13 @@ function UploadModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
           <button
             onClick={() => upload.mutate()}
-            disabled={!title.trim() || upload.isPending}
+            disabled={!title.trim() || !controlId || !file || upload.isPending}
             className="btn-primary flex-1 flex items-center justify-center gap-2"
           >
             {upload.isPending ? (
               <><RefreshCw className="w-4 h-4 animate-spin" /> Uploading…</>
             ) : (
-              <><Upload className="w-4 h-4" /> Upload</>
+              <><Upload className="w-4 h-4" /> Upload Evidence</>
             )}
           </button>
         </div>
@@ -330,6 +472,12 @@ export default function EvidencePage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadForControlId, setUploadForControlId] = useState<string | undefined>();
+
+  function openUpload(controlId?: string) {
+    setUploadForControlId(controlId);
+    setShowUpload(true);
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['evidence'],
@@ -350,34 +498,39 @@ export default function EvidencePage() {
   });
 
   const evidence: Evidence[] = data ?? [];
-  const expiredCount    = expiryReport?.expired?.length ?? 0;
+  const expiredCount      = expiryReport?.expired?.length ?? 0;
   const expiringSoonCount = expiryReport?.expiringSoon?.length ?? 0;
+  const pendingCount      = evidence.filter((e) => e.metadata?.isPendingSuggestion).length;
 
   const filtered = evidence.filter((item) => {
-    const isExpired = item.expiresAt && new Date(item.expiresAt) < new Date();
-    const expiringSoon = item.expiresAt && !isExpired &&
+    const isPending   = item.metadata?.isPendingSuggestion === true;
+    const isExpired   = !isPending && item.expiresAt && new Date(item.expiresAt) < new Date();
+    const expiringSoon = !isPending && item.expiresAt && !isExpired &&
       new Date(item.expiresAt) < new Date(Date.now() + 30 * 86400_000);
 
-    if (statusFilter === 'expired' && !isExpired) return false;
-    if (statusFilter === 'expiring' && !expiringSoon) return false;
-    if (statusFilter === 'valid' && (isExpired || expiringSoon)) return false;
+    if (statusFilter === 'expired'  && !isExpired)    return false;
+    if (statusFilter === 'expiring' && !expiringSoon)  return false;
+    if (statusFilter === 'valid'    && (isExpired || expiringSoon || isPending)) return false;
+    if (statusFilter === 'pending'  && !isPending)     return false;
 
     if (search.trim()) {
       const q = search.toLowerCase();
       return (
         item.title.toLowerCase().includes(q) ||
         (item.description ?? '').toLowerCase().includes(q) ||
-        (item.evidenceType ?? '').toLowerCase().includes(q)
+        (item.type ?? item.evidenceType ?? '').toLowerCase().includes(q) ||
+        (item.control?.code ?? '').toLowerCase().includes(q)
       );
     }
     return true;
   });
 
   const STATUS_TABS = [
-    { key: 'all' as StatusFilter,      label: `All (${evidence.length})` },
-    { key: 'valid' as StatusFilter,    label: `Valid` },
+    { key: 'all'      as StatusFilter, label: `All (${evidence.length})` },
+    { key: 'valid'    as StatusFilter, label: 'Valid' },
+    { key: 'pending'  as StatusFilter, label: `Needs Upload${pendingCount > 0 ? ` (${pendingCount})` : ''}` },
     { key: 'expiring' as StatusFilter, label: `Expiring${expiringSoonCount > 0 ? ` (${expiringSoonCount})` : ''}` },
-    { key: 'expired' as StatusFilter,  label: `Expired${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
+    { key: 'expired'  as StatusFilter, label: `Expired${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
   ];
 
   return (
@@ -393,7 +546,7 @@ export default function EvidencePage() {
           </p>
         </div>
         <button
-          onClick={() => setShowUpload(true)}
+          onClick={() => openUpload()}
           className="btn-primary flex items-center gap-2 text-sm shrink-0"
         >
           <Plus className="w-4 h-4" />
@@ -472,7 +625,7 @@ export default function EvidencePage() {
               : 'Run a compliance assessment to automatically gather evidence from your integrations, or upload manually.'}
           </p>
           {!search && statusFilter === 'all' && (
-            <button onClick={() => setShowUpload(true)} className="btn-primary mt-4 flex items-center gap-2 mx-auto">
+            <button onClick={() => openUpload()} className="btn-primary mt-4 flex items-center gap-2 mx-auto">
               <Upload className="w-4 h-4" />
               Upload evidence
             </button>
@@ -485,12 +638,18 @@ export default function EvidencePage() {
               key={item.id}
               item={item}
               onDelete={() => deleteEvidence.mutate(item.id)}
+              onUploadForControl={(cId) => openUpload(cId)}
             />
           ))}
         </div>
       )}
 
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} />}
+      {showUpload && (
+        <UploadModal
+          onClose={() => { setShowUpload(false); setUploadForControlId(undefined); }}
+          preselectedControlId={uploadForControlId}
+        />
+      )}
     </div>
   );
 }

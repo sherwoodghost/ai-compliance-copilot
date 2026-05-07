@@ -103,41 +103,43 @@ export class EvidenceAgent extends BaseAgent {
         (s) => availableIntegrations.includes(s.integration),
       );
 
-      const sourcesToCreate =
-        applicableSources.length > 0 ? applicableSources : await this.simulateEvidence(orgControl.control, businessProfile, runId, orgId, jobData?.workflowId);
-
-      for (const source of sourcesToCreate) {
-        await this.recordStep(
-          runId,
-          `collect_evidence_${controlCode}_${source.integration}`,
-          idx + 2,
-          { controlCode, integration: source.integration },
-          async () => {
-            const evidence = await this.prisma.evidence.create({
-              data: {
-                orgId,
-                controlId: orgControl.controlId,
-                title: source.title,
-                type: source.evidenceType as any,
-                source: applicableSources.length > 0 ? 'integration' : 'agent_generated',
-                metadata: {
-                  integration: source.integration,
-                  collectedBy: 'evidence-agent',
-                  simulated: applicableSources.length === 0,
+      if (applicableSources.length > 0) {
+        // Real integration data available — create valid evidence records
+        for (const source of applicableSources) {
+          await this.recordStep(
+            runId,
+            `collect_evidence_${controlCode}_${source.integration}`,
+            idx + 2,
+            { controlCode, integration: source.integration },
+            async () => {
+              const evidence = await this.prisma.evidence.create({
+                data: {
+                  orgId,
+                  controlId: orgControl.controlId,
+                  title: source.title,
+                  type: source.evidenceType as any,
+                  source: 'integration',
+                  metadata: {
+                    integration: source.integration,
+                    collectedBy: 'evidence-agent',
+                  },
+                  isValid: true,
+                  collectedAt: new Date(),
                 },
-                isValid: true,
-                collectedAt: new Date(),
-              },
-            });
-            return { evidenceId: evidence.id };
-          },
-        );
+              });
+              return { evidenceId: evidence.id };
+            },
+          );
 
-        evidenceCreated.push({
-          controlId: orgControl.controlId,
-          title: source.title,
-          source: source.integration,
-        });
+          evidenceCreated.push({
+            controlId: orgControl.controlId,
+            title: source.title,
+            source: source.integration,
+          });
+        }
+      } else {
+        // No integrations available — create a pending suggestion so users know what to collect
+        await this.suggestPendingEvidence(orgControl.control, businessProfile, runId, orgId, orgControl.controlId, evidenceCreated);
       }
     }
 
@@ -148,29 +150,77 @@ export class EvidenceAgent extends BaseAgent {
     };
   }
 
-  private async simulateEvidence(
+  /**
+   * Instead of simulating fake evidence, create a pending suggestion record that
+   * tells users what they need to manually upload. These records are:
+   * - isValid: false  (they don't satisfy the control yet)
+   * - source: agent_generated
+   * - metadata.isPendingSuggestion: true  (frontend can render a "Please upload" banner)
+   *
+   * This is honest: users see what's needed, not fake passing evidence.
+   */
+  private async suggestPendingEvidence(
     control: any,
     profile: any,
     runId: string,
     orgId: string,
-    workflowId?: string,
-  ): Promise<Array<{ integration: string; evidenceType: string; title: string }>> {
-    const response = await this.callGateway(runId, {
-      promptTemplateId: 'evidence-collector',
-      userMessage: `Control: ${control.code} — ${control.title}
-Company tools: ${JSON.stringify(profile.tools)}
-What evidence documents would satisfy this control? Return JSON:
-[{"integration": "manual", "evidenceType": "document", "title": "Evidence title"}]`,
-      taskType: 'evidence_validation',
-      orgId,
-      workflowId,
-      maxTokens: 512,
-    });
+    controlId: string,
+    evidenceCreated: Array<{ controlId: string; title: string; source: string }>,
+  ): Promise<void> {
+    // Use LLM to suggest what evidence would satisfy this control
+    let suggestions: Array<{ title: string; evidenceType: string; instructions: string }> = [];
 
     try {
-      return this.llm.parseJSON<any[]>(response.content).slice(0, 2);
+      const response = await this.callGateway(runId, {
+        promptTemplateId: 'evidence-collector',
+        userMessage: `Control: ${control.code} — ${control.title}
+Company tech stack: ${JSON.stringify(profile.tools ?? {})}
+
+What 1-2 evidence documents would satisfy this control? For each, describe what to collect.
+Return ONLY JSON array:
+[{"title": "Short evidence name", "evidenceType": "document|screenshot|log|policy", "instructions": "Step-by-step how to collect this"}]`,
+        taskType: 'evidence_validation',
+        orgId,
+        maxTokens: 512,
+      });
+
+      const parsed = this.llm.parseJSON<any[]>(response.content);
+      if (Array.isArray(parsed)) {
+        suggestions = parsed.slice(0, 2);
+      }
     } catch {
-      return [{ integration: 'manual', evidenceType: 'document', title: `${control.title} Evidence` }];
+      // Fallback: generic suggestion based on control title
+      suggestions = [{
+        title: `${control.title} — Evidence Required`,
+        evidenceType: 'document',
+        instructions: `Please upload documentation proving ${control.title} is in place for your organization.`,
+      }];
+    }
+
+    for (const suggestion of suggestions) {
+      await this.prisma.evidence.create({
+        data: {
+          orgId,
+          controlId,
+          title: suggestion.title,
+          type: (suggestion.evidenceType as any) ?? 'document',
+          source: 'agent_generated',
+          isValid: false,
+          collectedAt: new Date(),
+          metadata: {
+            isPendingSuggestion: true,
+            instructions: suggestion.instructions,
+            suggestedBy: 'evidence-agent',
+            suggestedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      evidenceCreated.push({
+        controlId,
+        title: suggestion.title,
+        source: 'pending_suggestion',
+      });
     }
   }
 }
