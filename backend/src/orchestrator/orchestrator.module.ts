@@ -35,6 +35,9 @@ const allProcessors = [
           port: config.get<number>('redis.port'),
           password: config.get<string>('redis.password') || undefined,
           tls: config.get<boolean>('redis.tls') ? {} : undefined,
+          enableReadyCheck: false,
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times: number) => Math.min(times * 1000, 10000),
         },
         defaultJobOptions: {
           attempts: 3,

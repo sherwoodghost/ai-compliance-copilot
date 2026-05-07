@@ -57,14 +57,18 @@ export class BullMqEventBusService implements IEventBus {
     const q = this.queueMap.get(queue);
     if (!q) throw new Error(`Unknown queue: ${queue}`);
 
-    await q.add('run', payload, {
-      attempts: opts.attempts ?? 3,
-      backoff: { type: 'exponential', delay: 2000 },
-      delay: opts.delay ?? 0,
-      priority: opts.priority ?? 0,
-      removeOnComplete: 50,
-      removeOnFail: 20,
-    });
+    try {
+      await q.add('run', payload, {
+        attempts: opts.attempts ?? 3,
+        backoff: { type: 'exponential', delay: 2000 },
+        delay: opts.delay ?? 0,
+        priority: opts.priority ?? 0,
+        removeOnComplete: 50,
+        removeOnFail: 20,
+      });
+    } catch (redisErr: any) {
+      this.logger.warn(`Redis unavailable — job dropped for queue ${queue}: ${redisErr.message}`);
+    }
 
     // Record event in DB for full traceability
     await this.prisma.agentEvent.create({

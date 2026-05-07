@@ -17,14 +17,20 @@ export class MonitoringService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // Schedule repeatable jobs for all tests across all active orgs
-    const orgs = await this.prisma.organization.findMany({ select: { id: true } });
+    try {
+      // Schedule repeatable jobs for all tests across all active orgs
+      const orgs = await this.prisma.organization.findMany({ select: { id: true } });
 
-    for (const org of orgs) {
-      await this.scheduleAllTestsForOrg(org.id);
+      for (const org of orgs) {
+        await this.scheduleAllTestsForOrg(org.id);
+      }
+
+      this.logger.log(`Monitoring jobs scheduled for ${orgs.length} orgs`);
+    } catch (err: any) {
+      // Redis may be unavailable (e.g. free-tier request limit) — degrade gracefully
+      // The app continues to serve HTTP requests; monitoring resumes on next restart
+      this.logger.warn(`Monitoring scheduler skipped (Redis unavailable): ${err.message}`);
     }
-
-    this.logger.log(`Monitoring jobs scheduled for ${orgs.length} orgs`);
   }
 
   /**
@@ -44,16 +50,20 @@ export class MonitoringService implements OnModuleInit {
     for (const test of this.registry.getAll()) {
       const jobId = `${test.meta.testId}--${orgId}`;
 
-      await this.queue.add(
-        'run-test',
-        { testId: test.meta.testId, orgId },
-        {
-          repeat:         { cron: test.meta.frequencyCron },
-          jobId,
-          removeOnComplete: 50,   // keep last 50 completed jobs
-          removeOnFail:     20,
-        },
-      );
+      try {
+        await this.queue.add(
+          'run-test',
+          { testId: test.meta.testId, orgId },
+          {
+            repeat:         { cron: test.meta.frequencyCron },
+            jobId,
+            removeOnComplete: 50,   // keep last 50 completed jobs
+            removeOnFail:     20,
+          },
+        );
+      } catch (err: any) {
+        this.logger.warn(`Could not schedule test ${test.meta.testId} for org ${orgId}: ${err.message}`);
+      }
     }
   }
 
@@ -74,13 +84,17 @@ export class MonitoringService implements OnModuleInit {
    * Get the monitoring queue stats.
    */
   async getQueueStats() {
-    const [waiting, active, completed, failed, delayed] = await Promise.all([
-      this.queue.getWaitingCount(),
-      this.queue.getActiveCount(),
-      this.queue.getCompletedCount(),
-      this.queue.getFailedCount(),
-      this.queue.getDelayedCount(),
-    ]);
-    return { waiting, active, completed, failed, delayed };
+    try {
+      const [waiting, active, completed, failed, delayed] = await Promise.all([
+        this.queue.getWaitingCount(),
+        this.queue.getActiveCount(),
+        this.queue.getCompletedCount(),
+        this.queue.getFailedCount(),
+        this.queue.getDelayedCount(),
+      ]);
+      return { waiting, active, completed, failed, delayed };
+    } catch {
+      return { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, error: 'Redis unavailable' };
+    }
   }
 }
