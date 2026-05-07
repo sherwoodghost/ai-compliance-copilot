@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
 import { HeatmapChart } from '@/components/charts/HeatmapChart';
-import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2 } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STATUS_CONFIG = {
@@ -47,8 +47,10 @@ function ControlRow({ control }: { control: any }) {
 }
 
 export default function ControlsPage() {
+  const qc = useQueryClient();
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['controls', status],
@@ -65,7 +67,13 @@ export default function ControlsPage() {
     queryFn: complianceApi.getControlHeatmap,
   });
 
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const initControls = useMutation({
+    mutationFn: () => complianceApi.initializeControls('soc2'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['controls'] });
+      qc.invalidateQueries({ queryKey: ['control-stats'] });
+    },
+  });
 
   const controls: any[] = data ?? [];
   const filtered = search
@@ -80,18 +88,31 @@ export default function ControlsPage() {
     <div className="p-8 max-w-6xl">
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1>Controls</h1>
+          <h1 className="text-xl font-bold text-gray-900">Controls</h1>
           <p className="text-sm text-gray-500 mt-1">
             {stats?.implemented ?? 0} implemented · {stats?.partial ?? 0} partial · {stats?.not_implemented ?? 0} gaps
           </p>
         </div>
-        <button
-          className="btn-secondary flex items-center gap-2"
-          onClick={() => setShowHeatmap((v) => !v)}
-        >
-          <BarChart2 className="w-4 h-4" />
-          {showHeatmap ? 'Hide' : 'Show'} heatmap
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className="btn-secondary flex items-center gap-2"
+            onClick={() => setShowHeatmap((v) => !v)}
+          >
+            <BarChart2 className="w-4 h-4" />
+            {showHeatmap ? 'Hide' : 'Show'} heatmap
+          </button>
+          {controls.length === 0 && (
+            <button
+              className="btn-primary flex items-center gap-2"
+              onClick={() => initControls.mutate()}
+              disabled={initControls.isPending}
+            >
+              {initControls.isPending
+                ? <><RotateCcw className="w-4 h-4 animate-spin" /> Initializing…</>
+                : <><Plus className="w-4 h-4" /> Initialize SOC 2 Controls</>}
+            </button>
+          )}
+        </div>
       </div>
 
       {showHeatmap && heatmap && (
@@ -144,8 +165,27 @@ export default function ControlsPage() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-gray-400">
-                    No controls found
+                  <td colSpan={5} className="px-4 py-16 text-center">
+                    <div className="flex flex-col items-center">
+                      <CheckSquare className="w-10 h-10 text-gray-200 mb-3" />
+                      <p className="text-sm font-medium text-gray-500 mb-1">
+                        {search || status ? 'No controls match your filter' : 'No controls initialized yet'}
+                      </p>
+                      {!search && !status && (
+                        <>
+                          <p className="text-xs text-gray-400 mb-4">Initialize your SOC 2 control set to get started</p>
+                          <button
+                            className="btn-primary flex items-center gap-2 text-sm"
+                            onClick={() => initControls.mutate()}
+                            disabled={initControls.isPending}
+                          >
+                            {initControls.isPending
+                              ? <><RotateCcw className="w-4 h-4 animate-spin" /> Initializing…</>
+                              : <><Plus className="w-4 h-4" /> Initialize SOC 2 Controls</>}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
