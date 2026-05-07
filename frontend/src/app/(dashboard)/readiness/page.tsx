@@ -2,7 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
-import { BarChart3, RefreshCw, TrendingUp, Shield, FileText, FolderOpen, Zap, AlertTriangle } from 'lucide-react';
+import {
+  BarChart3, RefreshCw, TrendingUp, TrendingDown, Minus,
+  Shield, FileText, FolderOpen, Zap, AlertTriangle, Calendar, Rocket,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type ReadinessScore = {
@@ -81,6 +84,159 @@ function ReadinessLabel({ score }: { score: number }) {
   return <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full', color)}>{label}</span>;
 }
 
+type VelocityData = {
+  summary: {
+    totalControls: number;
+    implementedControls: number;
+    inProgressControls: number;
+    remainingControls: number;
+    readinessPct: number;
+  };
+  velocity: {
+    completedLast30Days: number;
+    completedPrev30Days: number;
+    dailyRate: number;
+    trend: 'up' | 'down' | 'flat';
+    evidenceLast30Days: number;
+    tasksCompleted30Days: number;
+  };
+  forecast: {
+    daysToCompletion: number | null;
+    estimatedCompletionDate: string | null;
+    acceleratedScenario: {
+      description: string;
+      daysToCompletion: number | null;
+      daysSaved: number | null;
+    };
+  };
+};
+
+function VelocityWidget({ data }: { data: VelocityData }) {
+  const { summary, velocity, forecast } = data;
+
+  const TrendIcon = velocity.trend === 'up'
+    ? TrendingUp
+    : velocity.trend === 'down'
+    ? TrendingDown
+    : Minus;
+
+  const trendColor = velocity.trend === 'up'
+    ? 'text-emerald-600'
+    : velocity.trend === 'down'
+    ? 'text-red-600'
+    : 'text-gray-400';
+
+  const completionDate = forecast.estimatedCompletionDate
+    ? new Date(forecast.estimatedCompletionDate)
+    : null;
+
+  return (
+    <div className="card p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <Rocket className="w-4 h-4 text-brand-500" />
+          Compliance Velocity
+        </h2>
+        <span className="text-xs text-gray-400">Last 30 days</span>
+      </div>
+
+      {/* Velocity stats row */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-1 mb-0.5">
+            <span className="text-2xl font-black text-gray-900">{velocity.completedLast30Days}</span>
+            <TrendIcon className={cn('w-4 h-4', trendColor)} />
+          </div>
+          <p className="text-xs text-gray-500">Controls completed</p>
+          <p className={cn('text-xs font-medium mt-0.5', trendColor)}>
+            vs {velocity.completedPrev30Days} prev period
+          </p>
+        </div>
+        <div className="text-center">
+          <span className="text-2xl font-black text-gray-900">{velocity.evidenceLast30Days}</span>
+          <p className="text-xs text-gray-500">Evidence items</p>
+          <p className="text-xs text-gray-400 mt-0.5">collected</p>
+        </div>
+        <div className="text-center">
+          <span className="text-2xl font-black text-gray-900">{velocity.tasksCompleted30Days}</span>
+          <p className="text-xs text-gray-500">Tasks closed</p>
+          <p className="text-xs text-gray-400 mt-0.5">this period</p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs text-gray-500">
+            {summary.implementedControls} of {summary.totalControls} controls done
+          </span>
+          <span className="text-xs font-bold text-gray-900">{summary.readinessPct}%</span>
+        </div>
+        <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-brand-500 to-indigo-500 rounded-full transition-all duration-700"
+            style={{ width: `${summary.readinessPct}%` }}
+          />
+        </div>
+        <p className="text-xs text-gray-400 mt-1">
+          {summary.remainingControls} remaining · {summary.inProgressControls} in progress
+        </p>
+      </div>
+
+      {/* Forecast */}
+      {forecast.daysToCompletion != null ? (
+        <div className="space-y-3">
+          <div className="rounded-xl bg-brand-50 border border-brand-100 p-4 flex items-start gap-3">
+            <Calendar className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
+            <div>
+              {forecast.daysToCompletion === 0 ? (
+                <p className="text-sm font-bold text-emerald-700">🎉 All controls implemented!</p>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-brand-900">
+                    Estimated audit-ready in <span className="text-brand-600">{forecast.daysToCompletion} days</span>
+                  </p>
+                  {completionDate && (
+                    <p className="text-xs text-brand-700 mt-0.5">
+                      ~ {completionDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      {' '}at current pace ({velocity.dailyRate} controls/day)
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Accelerated scenario */}
+          {forecast.acceleratedScenario.daysSaved != null &&
+           forecast.acceleratedScenario.daysSaved > 0 && (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 flex items-start gap-2">
+              <Zap className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-emerald-800">
+                  Accelerated: {forecast.acceleratedScenario.description}
+                </p>
+                <p className="text-xs text-emerald-700 mt-0.5">
+                  Could complete in{' '}
+                  <strong>{forecast.acceleratedScenario.daysToCompletion} days</strong>
+                  {' '}— saving <strong>{forecast.acceleratedScenario.daysSaved} days</strong>
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-xl bg-amber-50 border border-amber-100 p-3">
+          <p className="text-xs text-amber-800 font-medium">No velocity data yet</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Start implementing controls — the forecast will appear once you have activity in the last 30 days.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReadinessPage() {
   const qc = useQueryClient();
 
@@ -94,11 +250,17 @@ export default function ReadinessPage() {
     queryFn: () => api.get('/readiness/history?limit=10').then((r: any) => r.data),
   });
 
+  const { data: velocityData } = useQuery<VelocityData>({
+    queryKey: ['readiness-velocity'],
+    queryFn: () => api.get('/readiness/velocity').then((r: any) => r.data),
+  });
+
   const recalculate = useMutation({
     mutationFn: () => api.post('/readiness/recalculate').then((r: any) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['readiness-breakdown'] });
       qc.invalidateQueries({ queryKey: ['readiness-history'] });
+      qc.invalidateQueries({ queryKey: ['readiness-velocity'] });
     },
   });
 
@@ -141,6 +303,9 @@ export default function ReadinessPage() {
             <GradeRing score={breakdown.evidenceScore} label="Evidence" />
             <GradeRing score={breakdown.policyScore} label="Policies" />
           </div>
+
+          {/* Velocity & Forecast */}
+          {velocityData && <VelocityWidget data={velocityData} />}
 
           {/* Detailed breakdown */}
           <div className="card p-6 space-y-5">
