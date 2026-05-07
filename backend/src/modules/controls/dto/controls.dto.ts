@@ -72,45 +72,4 @@ export class ControlFiltersDto {
   assignedTo?: string;
 }
 
-// ─── Control Exception DTOs ───────────────────────────────────────────────────
 
-export class CreateExceptionDto {
-  @IsUUID()
-  controlId: string;
-
-  @IsString()
-  title: string;
-
-  @IsString()
-  justification: string;
-
-  @IsOptional()
-  @IsString()
-  compensatingControl?: string;
-
-  @IsOptional()
-  @IsDateString()
-  expiresAt?: string;
-
-  @IsOptional()
-  @IsUUID()
-  riskOwnerId?: string;
-}
-
-export class UpdateExceptionDto {
-  @IsOptional()
-  @IsString()
-  status?: 'pending' | 'approved' | 'rejected' | 'expired';
-
-  @IsOptional()
-  @IsString()
-  rejectionReason?: string;
-
-  @IsOptional()
-  @IsUUID()
-  reviewerId?: string;
-
-  @IsOptional()
-  @IsDateString()
-  expiresAt?: string;
-}

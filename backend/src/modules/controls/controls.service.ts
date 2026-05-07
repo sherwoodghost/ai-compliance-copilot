@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
@@ -10,8 +9,6 @@ import {
   UpdateOrgControlDto,
   BulkAssignControlsDto,
   ControlFiltersDto,
-  CreateExceptionDto,
-  UpdateExceptionDto,
 } from './dto/controls.dto';
 
 @Injectable()
@@ -265,108 +262,6 @@ export class ControlsService {
           ? Math.round(((statusMap['implemented'] ?? 0) / total) * 100)
           : 0,
     };
-  }
-
-  // ─── Exception Register ────────────────────────────────────────────────────
-
-  async listExceptions(orgId: string) {
-    // Auto-mark expired exceptions before returning
-    await this.prisma.controlException.updateMany({
-      where: {
-        orgId,
-        status: 'approved',
-        expiresAt: { lt: new Date() },
-      },
-      data: { status: 'expired' },
-    });
-
-    return this.prisma.controlException.findMany({
-      where: { orgId },
-      include: {
-        control: { select: { id: true, code: true, title: true, category: true } },
-        riskOwner: { select: { id: true, fullName: true, email: true } },
-        reviewer: { select: { id: true, fullName: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async getExceptionStats(orgId: string) {
-    const [total, pending, approved, expired] = await Promise.all([
-      this.prisma.controlException.count({ where: { orgId } }),
-      this.prisma.controlException.count({ where: { orgId, status: 'pending' } }),
-      this.prisma.controlException.count({ where: { orgId, status: 'approved' } }),
-      this.prisma.controlException.count({ where: { orgId, status: 'expired' } }),
-    ]);
-    return { total, pending, approved, expired };
-  }
-
-  async createException(orgId: string, requesterId: string, dto: CreateExceptionDto) {
-    // Verify control belongs to this org
-    const orgControl = await this.prisma.organizationControl.findUnique({
-      where: { orgId_controlId: { orgId, controlId: dto.controlId } },
-    });
-    if (!orgControl) throw new NotFoundException('Control not found in this organization');
-
-    return this.prisma.controlException.create({
-      data: {
-        orgId,
-        controlId: dto.controlId,
-        title: dto.title,
-        justification: dto.justification,
-        ...(dto.compensatingControl && { compensatingControl: dto.compensatingControl }),
-        ...(dto.expiresAt && { expiresAt: new Date(dto.expiresAt) }),
-        ...(dto.riskOwnerId && { riskOwnerId: dto.riskOwnerId }),
-        status: 'pending',
-      },
-      include: {
-        control: { select: { id: true, code: true, title: true, category: true } },
-        riskOwner: { select: { id: true, fullName: true, email: true } },
-      },
-    });
-  }
-
-  async updateException(orgId: string, reviewerId: string, exceptionId: string, dto: UpdateExceptionDto) {
-    const exception = await this.prisma.controlException.findFirst({
-      where: { id: exceptionId, orgId },
-    });
-    if (!exception) throw new NotFoundException('Exception not found');
-
-    const now = new Date();
-    const data: Record<string, any> = {};
-
-    if (dto.status) {
-      data.status = dto.status;
-      if (dto.status === 'approved') {
-        data.approvedAt = now;
-        data.reviewerId = reviewerId;
-      }
-      if (dto.status === 'rejected') {
-        data.rejectedAt = now;
-        data.reviewerId = reviewerId;
-        data.rejectionReason = dto.rejectionReason ?? 'Rejected by reviewer';
-      }
-    }
-    if (dto.expiresAt) data.expiresAt = new Date(dto.expiresAt);
-
-    return this.prisma.controlException.update({
-      where: { id: exceptionId },
-      data,
-      include: {
-        control: { select: { id: true, code: true, title: true, category: true } },
-        riskOwner: { select: { id: true, fullName: true, email: true } },
-        reviewer: { select: { id: true, fullName: true, email: true } },
-      },
-    });
-  }
-
-  async deleteException(orgId: string, exceptionId: string) {
-    const exception = await this.prisma.controlException.findFirst({
-      where: { id: exceptionId, orgId },
-    });
-    if (!exception) throw new NotFoundException('Exception not found');
-    await this.prisma.controlException.delete({ where: { id: exceptionId } });
-    return { deleted: true };
   }
 
   // ─── Get controls by category for heat-map view ─────────────────────────────

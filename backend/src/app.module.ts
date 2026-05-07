@@ -42,7 +42,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TrustCenterModule } from './modules/trust-center/trust-center.module';
 import { InternalModule } from './internal/internal.module';
-import { ExceptionsModule } from './modules/exceptions/exceptions.module';
+import { ExceptionsModule } from './modules/exceptions/exceptions.module'; // registered early for route priority
 import { AuditorPortalModule } from './modules/auditor-portal/auditor-portal.module';
 import { CopilotModule } from './modules/copilot/copilot.module';
 import { AuditMemoryModule } from './modules/audit-memory/audit-memory.module';
@@ -62,6 +62,7 @@ import { AgentSchedulerModule } from './scheduler/scheduler.module';
     OrganizationsModule,
     UsersModule,
     FrameworksModule,
+    ExceptionsModule,   // ← must register before ControlsModule to take /controls/exceptions routes
     ControlsModule,
     EvidenceModule,
     PoliciesModule,
@@ -96,7 +97,6 @@ import { AgentSchedulerModule } from './scheduler/scheduler.module';
     NotificationsModule,
     TrustCenterModule,
     InternalModule,
-    ExceptionsModule,
     AuditorPortalModule,
     CopilotModule,
     AuditMemoryModule,
