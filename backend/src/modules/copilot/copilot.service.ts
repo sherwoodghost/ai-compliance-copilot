@@ -127,7 +127,10 @@ Answer questions concisely and accurately based on the data above. When asked to
       controlCounts.total += g._count.id;
       if (g.status === 'implemented') controlCounts.implemented += g._count.id;
       if (g.status === 'in_progress') controlCounts.inProgress += g._count.id;
-      if (g.status === 'not_started') controlCounts.notStarted += g._count.id;
+      if (g.status === 'not_started') {
+        controlCounts.notStarted += g._count.id;
+        controlCounts.critical += g._count.id; // not-started controls = critical gaps
+      }
     }
 
     const evidenceCounts = {
