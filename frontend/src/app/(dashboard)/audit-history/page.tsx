@@ -217,7 +217,7 @@ function CycleCard({ cycle, onAddFinding }: { cycle: AuditCycle; onAddFinding: (
 
   const { data: cycleDetail } = useQuery({
     queryKey: ['audit-cycle-detail', cycle.id],
-    queryFn: () => apiClient.get<AuditCycle & { findings: AuditFinding[] }>(`/audit-memory/cycles/${cycle.id}`),
+    queryFn: () => apiClient.get<AuditCycle & { findings: AuditFinding[] }>(`/audit-memory/cycles/${cycle.id}`).then((r: any) => r.data as AuditCycle & { findings: AuditFinding[] }),
     enabled: expanded,
   });
 
@@ -331,17 +331,17 @@ export default function AuditHistoryPage() {
 
   const { data: stats } = useQuery({
     queryKey: ['audit-memory-stats'],
-    queryFn: () => apiClient.get<Stats>('/audit-memory/stats'),
+    queryFn: () => apiClient.get<Stats>('/audit-memory/stats').then((r: any) => r.data as Stats),
   });
 
   const { data: cycles = [] } = useQuery({
     queryKey: ['audit-cycles'],
-    queryFn: () => apiClient.get<AuditCycle[]>('/audit-memory/cycles'),
+    queryFn: () => apiClient.get<AuditCycle[]>('/audit-memory/cycles').then((r: any) => r.data as AuditCycle[]),
   });
 
   const { data: allFindings = [] } = useQuery({
     queryKey: ['audit-findings'],
-    queryFn: () => apiClient.get<AuditFinding[]>('/audit-memory/findings'),
+    queryFn: () => apiClient.get<AuditFinding[]>('/audit-memory/findings').then((r: any) => r.data as AuditFinding[]),
     enabled: tab === 'findings',
   });
 
