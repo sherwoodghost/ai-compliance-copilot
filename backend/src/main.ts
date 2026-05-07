@@ -24,9 +24,26 @@ async function bootstrap() {
   app.use(helmet());
   app.use(compression());
 
-  // CORS
+  // CORS — allow configured FRONTEND_URL plus any Vercel preview deployments
+  const allowedOrigins = [
+    frontendUrl,
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ].filter(Boolean);
+
   app.enableCors({
-    origin: [frontendUrl],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, Swagger, mobile)
+      if (!origin) return callback(null, true);
+      // Allow configured origins or any Vercel deployment for this project
+      if (
+        allowedOrigins.includes(origin) ||
+        /^https:\/\/ai-compliance-copilot.*\.vercel\.app$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-org-id'],
