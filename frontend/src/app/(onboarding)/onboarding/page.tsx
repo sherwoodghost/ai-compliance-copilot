@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Send, CheckCircle, ChevronRight, Sparkles, Loader2, RotateCcw, Check, X } from 'lucide-react';
+import { Shield, Send, CheckCircle, ChevronRight, Sparkles, Loader2, RotateCcw, Check } from 'lucide-react';
 import { onboardingApi, OnboardingMessage, ChatResponse, OnboardingStatus } from '@/lib/api/onboarding';
 import { cn } from '@/lib/utils';
 
