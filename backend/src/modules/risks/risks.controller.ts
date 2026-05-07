@@ -3,11 +3,43 @@ import {
   UseGuards, ParseUUIDPipe, NotFoundException, BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsDateString, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+
+// Numeric values for risk score calculation
+const LIKELIHOOD_SCORES: Record<string, number> = {
+  rare: 1, unlikely: 2, possible: 3, likely: 4, almost_certain: 5,
+};
+const IMPACT_SCORES: Record<string, number> = {
+  negligible: 1, minor: 2, moderate: 3, major: 4, catastrophic: 5,
+};
+
+function deriveSeverity(score: number): string {
+  if (score >= 17) return 'critical';
+  if (score >= 10) return 'high';
+  if (score >= 5)  return 'medium';
+  return 'low';
+}
+
+class CreateRiskDto {
+  @ApiProperty() @IsString() title: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+
+  @ApiProperty({ enum: ['rare', 'unlikely', 'possible', 'likely', 'almost_certain'] })
+  @IsEnum(['rare', 'unlikely', 'possible', 'likely', 'almost_certain'])
+  likelihood: string;
+
+  @ApiProperty({ enum: ['negligible', 'minor', 'moderate', 'major', 'catastrophic'] })
+  @IsEnum(['negligible', 'minor', 'moderate', 'major', 'catastrophic'])
+  impact: string;
+
+  @ApiPropertyOptional() @IsOptional() @IsUUID() controlId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() owner?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() mitigationAdvice?: string;
+}
 
 class UpdateRiskDto {
   @ApiPropertyOptional() @IsOptional() @IsString() status?: string;
@@ -50,6 +82,40 @@ export class RisksController {
   constructor(private readonly prisma: PrismaService) {}
 
   // ── Risk Items ────────────────────────────────────────────────────────────
+
+  @Post()
+  @ApiOperation({ summary: 'Manually create a new risk item' })
+  async create(@CurrentUser() user: JwtPayload, @Body() dto: CreateRiskDto) {
+    if (dto.controlId) {
+      const control = await this.prisma.organizationControl.findUnique({
+        where: { orgId_controlId: { orgId: user.orgId, controlId: dto.controlId } },
+      });
+      if (!control) throw new BadRequestException('Control not found in this organization');
+    }
+
+    const lScore = LIKELIHOOD_SCORES[dto.likelihood];
+    const iScore = IMPACT_SCORES[dto.impact];
+    const riskScore = lScore * iScore;
+    const severity = deriveSeverity(riskScore);
+
+    return this.prisma.riskItem.create({
+      data: {
+        orgId: user.orgId,
+        title: dto.title,
+        description: dto.description ?? null,
+        likelihood: dto.likelihood as any,
+        impact: dto.impact as any,
+        riskScore,
+        severity,
+        mitigationAdvice: dto.mitigationAdvice ?? null,
+        owner: dto.owner ?? null,
+        controlId: dto.controlId ?? null,
+        identifiedBy: 'human' as any,
+        status: 'open' as any,
+      },
+      include: { riskTreatments: true },
+    });
+  }
 
   @Get()
   @ApiOperation({ summary: 'List all risk items for the org' })

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { apiClient as api } from '@/lib/api/client';
 import {
   AlertTriangle, Shield, CheckCircle, ChevronDown, ChevronRight,
-  ShieldOff, ArrowRightLeft, Ban, Zap, Clock, Plus,
+  ArrowRightLeft, Ban, Zap, Clock, Plus, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +47,205 @@ const TREATMENT_CONFIG: Record<string, { label: string; color: string; icon: Rea
   transfer: { label: 'Transfer', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: ArrowRightLeft },
   avoid:    { label: 'Avoid',    color: 'bg-gray-50 text-gray-700 border-gray-200',  icon: Ban },
 };
+
+// ─── Add Risk Modal ──────────────────────────────────────────────────────────
+
+const LIKELIHOOD_OPTIONS = [
+  { value: 'rare', label: 'Rare', desc: 'Unlikely to occur in most circumstances' },
+  { value: 'unlikely', label: 'Unlikely', desc: 'Could occur at some time' },
+  { value: 'possible', label: 'Possible', desc: 'Might occur at some time' },
+  { value: 'likely', label: 'Likely', desc: 'Will probably occur' },
+  { value: 'almost_certain', label: 'Almost Certain', desc: 'Expected to occur' },
+];
+
+const IMPACT_OPTIONS = [
+  { value: 'negligible', label: 'Negligible', desc: 'Minimal effect' },
+  { value: 'minor', label: 'Minor', desc: 'Minor disruption' },
+  { value: 'moderate', label: 'Moderate', desc: 'Significant disruption' },
+  { value: 'major', label: 'Major', desc: 'Major operational impact' },
+  { value: 'catastrophic', label: 'Catastrophic', desc: 'Business-threatening' },
+];
+
+const LIKELIHOOD_SCORES: Record<string, number> = {
+  rare: 1, unlikely: 2, possible: 3, likely: 4, almost_certain: 5,
+};
+const IMPACT_SCORES: Record<string, number> = {
+  negligible: 1, minor: 2, moderate: 3, major: 4, catastrophic: 5,
+};
+
+function deriveScore(l: string, i: string) {
+  return (LIKELIHOOD_SCORES[l] ?? 1) * (IMPACT_SCORES[i] ?? 1);
+}
+function deriveSeverityLabel(score: number) {
+  if (score >= 17) return { label: 'Critical', cls: 'bg-red-100 text-red-700' };
+  if (score >= 10) return { label: 'High',     cls: 'bg-orange-100 text-orange-700' };
+  if (score >= 5)  return { label: 'Medium',   cls: 'bg-yellow-100 text-yellow-700' };
+  return                  { label: 'Low',      cls: 'bg-gray-100 text-gray-600' };
+}
+
+function RiskModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [likelihood, setLikelihood] = useState('possible');
+  const [impact, setImpact] = useState('moderate');
+  const [owner, setOwner] = useState('');
+  const [mitigationAdvice, setMitigationAdvice] = useState('');
+
+  const score = deriveScore(likelihood, impact);
+  const severity = deriveSeverityLabel(score);
+
+  const create = useMutation({
+    mutationFn: () =>
+      api.post('/risks', {
+        title,
+        description: description || undefined,
+        likelihood,
+        impact,
+        owner: owner || undefined,
+        mitigationAdvice: mitigationAdvice || undefined,
+      }).then((r: any) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['risks'] });
+      qc.invalidateQueries({ queryKey: ['risk-stats'] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500" />
+            <h2 className="text-sm font-semibold text-gray-900">Add Risk Item</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Title */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Risk Title *</label>
+            <input
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="e.g. Privileged access not regularly reviewed"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+              rows={2}
+              placeholder="Describe the risk scenario and potential consequences…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          {/* Likelihood */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Likelihood</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {LIKELIHOOD_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => setLikelihood(o.value)}
+                  title={o.desc}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors',
+                    likelihood === o.value
+                      ? 'border-brand-500 bg-brand-50 text-brand-700'
+                      : 'border-gray-200 text-gray-500 hover:bg-gray-50',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Impact */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-2">Impact</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {IMPACT_OPTIONS.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => setImpact(o.value)}
+                  title={o.desc}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors',
+                    impact === o.value
+                      ? 'border-brand-500 bg-brand-50 text-brand-700'
+                      : 'border-gray-200 text-gray-500 hover:bg-gray-50',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Risk Score Preview */}
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+            <div className="text-xs text-gray-500">Calculated risk score:</div>
+            <div className="text-lg font-bold text-gray-900">{score}</div>
+            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', severity.cls)}>
+              {severity.label}
+            </span>
+            <div className="text-xs text-gray-400 ml-auto">Likelihood × Impact</div>
+          </div>
+
+          {/* Owner */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Risk Owner (optional)</label>
+            <input
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="Name or role responsible for this risk"
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+            />
+          </div>
+
+          {/* Mitigation Advice */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Initial Mitigation Notes (optional)</label>
+            <textarea
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+              rows={2}
+              placeholder="Initial thoughts on how to mitigate this risk…"
+              value={mitigationAdvice}
+              onChange={(e) => setMitigationAdvice(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 justify-end px-5 py-4 border-t border-gray-100">
+          <button className="btn-secondary text-sm" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary text-sm"
+            disabled={!title.trim() || create.isPending}
+            onClick={() => create.mutate()}
+          >
+            {create.isPending ? 'Adding…' : 'Add Risk'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Treatment Form ───────────────────────────────────────────────────────────
 
 function TreatmentForm({ riskId, onClose }: { riskId: string; onClose: () => void }) {
   const qc = useQueryClient();
@@ -270,6 +469,7 @@ function RiskRow({ risk }: { risk: Risk }) {
 export default function RisksPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'mitigated' | 'accepted'>('all');
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const { data = [], isLoading } = useQuery<Risk[]>({
     queryKey: ['risks'],
@@ -291,15 +491,26 @@ export default function RisksPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {showAddModal && <RiskModal onClose={() => setShowAddModal(false)} />}
+
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
-          <AlertTriangle className="w-5 h-5 text-red-600" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Risk Register</h1>
+            <p className="text-sm text-gray-500">Identify, score, treat, and track all compliance risks</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Risk Register</h1>
-          <p className="text-sm text-gray-500">Identify, score, treat, and track all compliance risks</p>
-        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="btn-primary flex items-center gap-2 text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Add Risk
+        </button>
       </div>
 
       {/* Stats */}
