@@ -2,11 +2,13 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Body,
   UseGuards,
   Delete,
   Param,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -65,5 +67,31 @@ export class OrganizationsController {
     @Param('userId', ParseUUIDPipe) targetUserId: string,
   ) {
     return this.organizationsService.removeMember(user.orgId, targetUserId, user.sub);
+  }
+
+  @Get('me/llm-settings')
+  @ApiOperation({ summary: 'Get LLM configuration for current org' })
+  async getLlmSettings(@CurrentUser() user: JwtPayload) {
+    return this.organizationsService.getLlmSettings(user.orgId);
+  }
+
+  @Patch('me/llm-settings')
+  @Roles(UserRole.admin)
+  @ApiOperation({ summary: 'Update LLM API key and model preferences (admin only)' })
+  async updateLlmSettings(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { orgApiKey?: string; preferredModel?: string },
+  ) {
+    return this.organizationsService.updateLlmSettings(user.orgId, body);
+  }
+
+  @Post('me/llm-settings/test')
+  @Roles(UserRole.admin)
+  @ApiOperation({ summary: 'Test an OpenRouter API key' })
+  async testLlmKey(
+    @Body() body: { apiKey: string },
+  ) {
+    if (!body.apiKey) throw new BadRequestException('apiKey is required');
+    return this.organizationsService.testLlmKey(body.apiKey);
   }
 }

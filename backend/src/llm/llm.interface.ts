@@ -8,6 +8,7 @@ export interface LLMOptions {
   maxTokens?: number;
   temperature?: number;
   systemPrompt?: string;
+  orgApiKey?: string;
 }
 
 export interface LLMResponse {

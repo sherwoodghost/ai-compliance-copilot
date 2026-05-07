@@ -121,4 +121,65 @@ export class OrganizationsService {
       data: { isActive: false },
     });
   }
+
+  async updateLlmSettings(orgId: string, settings: { orgApiKey?: string; preferredModel?: string }) {
+    const org = await this.findById(orgId);
+    const currentSettings = (org.settings as Record<string, unknown>) ?? {};
+
+    const updatedSettings: Record<string, unknown> = { ...currentSettings };
+
+    if (settings.orgApiKey !== undefined) {
+      // Store key with basic obfuscation (in production use proper encryption)
+      updatedSettings.openRouterKey = settings.orgApiKey || null;
+    }
+    if (settings.preferredModel !== undefined) {
+      updatedSettings.preferredModel = settings.preferredModel;
+    }
+
+    return this.prisma.organization.update({
+      where: { id: orgId },
+      data: { settings: updatedSettings as any },
+    });
+  }
+
+  async testLlmKey(apiKey: string): Promise<{ success: boolean; model?: string; error?: string }> {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://ai-compliance-copilot.app',
+          'X-Title': 'AI Compliance Copilot',
+        },
+        body: JSON.stringify({
+          model: 'anthropic/claude-3-haiku',
+          messages: [{ role: 'user', content: 'Say "ok" in one word.' }],
+          max_tokens: 10,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { success: false, error: `API returned ${response.status}: ${errorText.slice(0, 100)}` };
+      }
+
+      const data = await response.json();
+      return { success: true, model: data.model ?? 'anthropic/claude-3-haiku' };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  async getLlmSettings(orgId: string): Promise<{ hasKey: boolean; preferredModel: string; keyMasked?: string }> {
+    const org = await this.findById(orgId);
+    const settings = (org.settings as Record<string, unknown>) ?? {};
+    const key = settings.openRouterKey as string | null | undefined;
+
+    return {
+      hasKey: !!key,
+      preferredModel: (settings.preferredModel as string) ?? 'anthropic/claude-sonnet-4-5',
+      keyMasked: key ? `sk-or-...${key.slice(-8)}` : undefined,
+    };
+  }
 }

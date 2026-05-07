@@ -26,7 +26,8 @@ export class OpenRouterProvider implements LLMProvider {
   }
 
   async complete(messages: LLMMessage[], options: LLMOptions = {}): Promise<LLMResponse> {
-    if (!this.apiKey) {
+    const apiKey = options.orgApiKey ?? this.apiKey;
+    if (!apiKey) {
       throw new InternalServerErrorException('OpenRouter API key not configured');
     }
 
@@ -48,7 +49,7 @@ export class OpenRouterProvider implements LLMProvider {
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://ai-compliance-copilot.app',
           'X-Title': 'AI Compliance Copilot',

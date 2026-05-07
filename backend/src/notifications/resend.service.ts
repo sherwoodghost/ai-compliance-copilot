@@ -146,6 +146,94 @@ export class ResendService {
     });
   }
 
+  // ─── Evidence Expiry Alert ────────────────────────────────────────────────
+  async sendEvidenceExpiryAlert(opts: {
+    to: string;
+    orgName: string;
+    expiring: Array<{ title: string; controlCode: string; daysLeft: number }>;
+  }): Promise<void> {
+    const { to, orgName, expiring } = opts;
+    const rows = expiring
+      .map(e => `<tr><td style="padding:8px;border-bottom:1px solid #e5e7eb">${e.title}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-family:monospace">${e.controlCode}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;color:${e.daysLeft <= 7 ? '#ef4444' : '#f59e0b'};font-weight:600">${e.daysLeft}d</td></tr>`)
+      .join('');
+    await this.send({
+      to,
+      subject: `⏰ ${expiring.length} Evidence Item${expiring.length > 1 ? 's' : ''} Expiring Soon — ${orgName}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#f59e0b;color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0">Evidence Expiring Soon</h2>
+          </div>
+          <div style="padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+            <p>${expiring.length} evidence items for <strong>${orgName}</strong> are expiring and need renewal:</p>
+            <table style="width:100%;border-collapse:collapse">
+              <thead><tr style="background:#f9fafb"><th style="padding:8px;text-align:left">Evidence</th><th style="padding:8px;text-align:left">Control</th><th style="padding:8px;text-align:left">Days Left</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+            <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb"/>
+            <p style="color:#9ca3af;font-size:12px">Log in to AI Compliance Copilot to renew evidence.</p>
+          </div>
+        </div>
+      `,
+    });
+  }
+
+  // ─── Auditor RFI Notification ─────────────────────────────────────────────
+  async sendAuditorRfiNotification(opts: {
+    to: string;
+    orgName: string;
+    auditorName: string;
+    auditorFirm?: string;
+    question: string;
+    controlCode?: string;
+    priority: string;
+  }): Promise<void> {
+    const { to, orgName, auditorName, auditorFirm, question, controlCode, priority } = opts;
+    const priorityColor: Record<string, string> = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
+    const color = priorityColor[priority] ?? '#6b7280';
+    await this.send({
+      to,
+      subject: `🔍 New Auditor RFI — ${controlCode ? `[${controlCode}] ` : ''}${orgName}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#1e293b;color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0">New Request for Information</h2>
+            <p style="margin:4px 0;opacity:.7">${orgName}</p>
+          </div>
+          <div style="padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+            <p><strong>${auditorName}</strong>${auditorFirm ? ` from ${auditorFirm}` : ''} submitted an RFI:</p>
+            <div style="background:#f9fafb;border-left:4px solid ${color};padding:16px;border-radius:4px;margin:16px 0">
+              <p style="margin:0 0 8px;font-weight:600">${question}</p>
+              ${controlCode ? `<p style="margin:4px 0;color:#6b7280;font-family:monospace">Control: ${controlCode}</p>` : ''}
+              <p style="margin:4px 0;color:${color};font-size:12px;text-transform:uppercase;font-weight:600">${priority} priority</p>
+            </div>
+            <p style="color:#6b7280;font-size:12px">Log in to respond to this RFI in the Auditor Portal.</p>
+          </div>
+        </div>
+      `,
+    });
+  }
+
+  // ─── Slack Webhook Notification ───────────────────────────────────────────
+  async sendSlackNotification(webhookUrl: string, message: {
+    text: string;
+    blocks?: unknown[];
+  }): Promise<void> {
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message),
+      });
+      if (!response.ok) {
+        this.logger.warn(`Slack webhook failed: ${response.status}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Slack webhook error: ${err.message}`);
+      // Never throw
+    }
+  }
+
   // ─── Private helper ───────────────────────────────────────────────────────
 
   private async send(opts: { to: string; subject: string; html: string }): Promise<void> {
