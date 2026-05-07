@@ -1,16 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Cookies from 'js-cookie';
 import { Shield, Terminal } from 'lucide-react';
 
 export default function InternalLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  const router   = useRouter();
+  const pathname = usePathname();
+  const isLoginPage = pathname === '/internal/login';
+
   const [checking, setChecking] = useState(true);
-  const [authed, setAuthed] = useState(false);
+  const [authed, setAuthed]     = useState(false);
 
   useEffect(() => {
+    // Don't redirect when we're already on the login page
+    if (isLoginPage) {
+      setChecking(false);
+      return;
+    }
     const token = Cookies.get('internal_token');
     if (!token) {
       router.replace('/internal/login');
@@ -18,7 +26,10 @@ export default function InternalLayout({ children }: { children: React.ReactNode
       setAuthed(true);
     }
     setChecking(false);
-  }, [router]);
+  }, [router, isLoginPage]);
+
+  // Login page renders without the sidebar shell
+  if (isLoginPage) return <>{children}</>;
 
   if (checking) {
     return (
