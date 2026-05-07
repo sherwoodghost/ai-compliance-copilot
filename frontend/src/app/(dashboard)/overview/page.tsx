@@ -298,7 +298,7 @@ export default function OverviewPage() {
       {triggered && (
         <AlertBanner
           severity="info"
-          message={`Assessment pipeline triggered for ${triggered}. Results appear as agents complete.`}
+          message={`Assessment triggered for ${triggered}. Results will appear shortly.`}
         />
       )}
 

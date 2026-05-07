@@ -227,7 +227,7 @@ function EventLog({ workflowId }: { workflowId: string }) {
 
   function copyAll() {
     navigator.clipboard.writeText(events.map((e) =>
-      `[${new Date(e.createdAt).toLocaleTimeString()}] ${e.agentName} ${e.eventType}`
+      `[${new Date(e.createdAt).toLocaleTimeString()}] ${(e.agentName ?? '').replace(/-agent$/i, '')} ${e.eventType}`
     ).join('\n'));
   }
 
@@ -248,7 +248,7 @@ function EventLog({ workflowId }: { workflowId: string }) {
             <div key={e.id} className="flex items-start gap-2 hover:bg-gray-50 rounded px-1 py-0.5">
               <span className="text-gray-400 shrink-0 mt-0.5">{new Date(e.createdAt).toLocaleTimeString()}</span>
               <span className={cn('w-1.5 h-1.5 rounded-full shrink-0 mt-1.5', cfg.dot)} />
-              <span className={cn('font-semibold shrink-0', cfg.cls)}>{e.agentName}</span>
+              <span className={cn('font-semibold shrink-0', cfg.cls)}>{(e.agentName ?? '').replace(/-agent$/i, '')}</span>
               <span className="text-gray-500">{e.eventType.replace(/_/g, ' ')}</span>
             </div>
           );
