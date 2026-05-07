@@ -9,6 +9,8 @@ import { GitHubAdapter } from './adapters/github.adapter';
 import { AwsAdapter } from './adapters/aws.adapter';
 import { OktaAdapter } from './adapters/okta.adapter';
 import { JiraAdapter } from './adapters/jira.adapter';
+import { DatadogAdapter } from './adapters/datadog.adapter';
+import { GoogleWorkspaceAdapter } from './adapters/google-workspace.adapter';
 import { IntegrationAdapter } from './adapters/integration.interface';
 import { IntegrationProvider } from '@prisma/client';
 import { SecretManagerService } from '../../integrations/secret-manager.service';
@@ -24,6 +26,8 @@ export class IntegrationsService {
     private readonly awsAdapter: AwsAdapter,
     private readonly oktaAdapter: OktaAdapter,
     private readonly jiraAdapter: JiraAdapter,
+    private readonly datadogAdapter: DatadogAdapter,
+    private readonly googleWorkspaceAdapter: GoogleWorkspaceAdapter,
     private readonly secretManager: SecretManagerService,
   ) {
     this.adapterMap = {
@@ -31,6 +35,8 @@ export class IntegrationsService {
       aws: this.awsAdapter,
       okta: this.oktaAdapter,
       jira: this.jiraAdapter,
+      datadog: this.datadogAdapter,
+      google_workspace: this.googleWorkspaceAdapter,
     };
   }
 
