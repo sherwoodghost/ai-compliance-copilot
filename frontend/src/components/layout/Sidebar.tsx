@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/auth';
+import { useQuery } from '@tanstack/react-query';
+import { complianceApi } from '@/lib/api/compliance';
+import { apiClient as api } from '@/lib/api/client';
 import {
   Shield,
   LayoutDashboard,
@@ -26,6 +29,7 @@ import {
   ShieldAlert,
   Users,
   BookOpen,
+  Bell,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -57,6 +61,25 @@ export function Sidebar() {
   const { user, clearUser } = useAuthStore();
   const [signingOut, setSigningOut] = useState(false);
 
+  // Notification counts — polled every 5 minutes
+  const { data: expiryReport } = useQuery({
+    queryKey: ['sidebar-expiry'],
+    queryFn: complianceApi.getExpiryReport,
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+  });
+  const { data: taskStats } = useQuery({
+    queryKey: ['sidebar-task-stats'],
+    queryFn: complianceApi.getTaskStats,
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const expiredCount  = (expiryReport as any)?.expired?.length ?? 0;
+  const expiringCount = (expiryReport as any)?.expiringSoon?.length ?? 0;
+  const overdueCount  = (taskStats as any)?.overdue ?? 0;
+  const totalAlerts   = expiredCount + expiringCount + overdueCount;
+
   async function handleSignOut() {
     setSigningOut(true);
     try { await authApi.logout(); } catch {}
@@ -69,12 +92,27 @@ export function Sidebar() {
       className="flex flex-col bg-white border-r border-gray-200 shrink-0"
       style={{ width: 'var(--sidebar-width)' }}
     >
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-gray-100">
-        <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
-          <Shield className="w-4 h-4 text-white" />
+      {/* Logo + notification bell */}
+      <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
+            <Shield className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-sm font-bold text-gray-900 truncate">Compliance Copilot</span>
         </div>
-        <span className="text-sm font-bold text-gray-900 truncate">Compliance Copilot</span>
+        {/* Alert bell */}
+        {totalAlerts > 0 && (
+          <Link
+            href="/evidence"
+            title={`${expiredCount > 0 ? `${expiredCount} expired evidence, ` : ''}${expiringCount > 0 ? `${expiringCount} expiring soon, ` : ''}${overdueCount > 0 ? `${overdueCount} overdue tasks` : ''}`.replace(/, $/, '')}
+            className="relative shrink-0 w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors"
+          >
+            <Bell className="w-4 h-4 text-red-500" />
+            <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+              {totalAlerts > 9 ? '9+' : totalAlerts}
+            </span>
+          </Link>
+        )}
       </div>
 
       {/* Nav */}
