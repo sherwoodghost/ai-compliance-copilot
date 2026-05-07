@@ -5,6 +5,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 import { PrismaService } from '../database/prisma.service';
 import { InternalAuthGuard } from './internal.guard';
 import * as bcrypt from 'bcrypt';
@@ -12,7 +13,11 @@ import * as bcrypt from 'bcrypt';
 // ─── Auth DTOs ────────────────────────────────────────────────────────────────
 
 class LoginDto {
+  @IsEmail()
   email: string;
+
+  @IsString()
+  @MinLength(1)
   password: string;
 }
 
