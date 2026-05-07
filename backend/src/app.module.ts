@@ -41,6 +41,7 @@ import { ControlTestsApiModule } from './modules/control-tests/control-tests-api
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TrustCenterModule } from './modules/trust-center/trust-center.module';
+import { InternalModule } from './internal/internal.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { TrustCenterModule } from './modules/trust-center/trust-center.module';
     MonitoringModule,
     NotificationsModule,
     TrustCenterModule,
+    InternalModule,
   ],
 })
 export class AppModule {}

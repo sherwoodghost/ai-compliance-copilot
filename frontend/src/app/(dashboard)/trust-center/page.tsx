@@ -258,7 +258,12 @@ export default function TrustCenterPage() {
 
   const { data: trustConfig } = useQuery<TrustConfig>({
     queryKey: ['trust-center-config'],
-    queryFn: () => api.get('/trust-center/config').then((r: any) => r.data).catch(() => null),
+    queryFn: () => api.get('/trust-center').then((r: any) => r.data).catch(() => null),
+  });
+
+  const { data: passRate } = useQuery({
+    queryKey: ['trust-center-pass-rate'],
+    queryFn: () => api.get('/trust-center/pass-rate').then((r: any) => r.data).catch(() => null),
   });
 
   const { data: trustItems, isLoading, refetch } = useQuery<TrustItem[]>({
