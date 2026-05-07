@@ -129,10 +129,19 @@ export function CopilotDrawer() {
         ...prev.slice(0, -1),
         { role: 'assistant', content: data.message },
       ]);
-    } catch {
+    } catch (err: any) {
+      const status = err?.response?.status;
+      let errMsg = "Sorry, I couldn't reach the AI backend.";
+      if (status === 502 || status === 503) {
+        errMsg = "The backend is restarting — please try again in a moment.";
+      } else if (status === 401 || status === 403) {
+        errMsg = "Authentication error. Please refresh the page and try again.";
+      } else if (err?.response?.data?.message?.includes('LLM') || err?.response?.data?.message?.includes('API key')) {
+        errMsg = "No OpenRouter API key configured. Go to **Settings → LLM Settings** and add your key to enable the Copilot.";
+      }
       setMessages((prev) => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: "Sorry, I couldn't reach the backend. Check your OpenRouter API key in Settings and try again." },
+        { role: 'assistant', content: errMsg },
       ]);
     } finally {
       setLoading(false);
