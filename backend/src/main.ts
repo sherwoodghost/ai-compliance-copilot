@@ -7,6 +7,33 @@ import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+// ─── Global Redis/Upstash error guard ──────────────────────────────────────────
+// When the Upstash free-tier request limit is reached, IORedis throws on every
+// Redis command (including AUTH at connection time). Without these handlers the
+// process exits immediately. We catch those specific errors and log a warning so
+// the app keeps serving HTTP traffic even without a working Redis/Bull layer.
+const isRedisLimitError = (err: unknown) => {
+  const msg = (err as any)?.message ?? String(err);
+  return msg.includes('max requests limit exceeded') || msg.includes('ERR max requests');
+};
+
+process.on('unhandledRejection', (reason) => {
+  if (isRedisLimitError(reason)) {
+    new Logger('Redis').warn('Upstash request limit exceeded — queued jobs are disabled until limit resets');
+    return;
+  }
+  // Re-throw genuinely unhandled rejections so they aren't silently swallowed
+  throw reason;
+});
+
+process.on('uncaughtException', (err) => {
+  if (isRedisLimitError(err)) {
+    new Logger('Redis').warn('Upstash request limit exceeded — queued jobs are disabled until limit resets');
+    return;
+  }
+  throw err;
+});
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
