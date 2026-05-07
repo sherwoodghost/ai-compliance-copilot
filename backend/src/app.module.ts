@@ -46,6 +46,7 @@ import { ExceptionsModule } from './modules/exceptions/exceptions.module';
 import { AuditorPortalModule } from './modules/auditor-portal/auditor-portal.module';
 import { CopilotModule } from './modules/copilot/copilot.module';
 import { AuditMemoryModule } from './modules/audit-memory/audit-memory.module';
+import { AgentSchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { AuditMemoryModule } from './modules/audit-memory/audit-memory.module';
     AuditorPortalModule,
     CopilotModule,
     AuditMemoryModule,
+    AgentSchedulerModule,
   ],
 })
 export class AppModule {}
