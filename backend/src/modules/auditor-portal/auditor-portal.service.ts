@@ -96,10 +96,14 @@ export class AuditorPortalService {
       this.prisma.organizationControl.findMany({
         where: { orgId },
         include: {
-          control: { select: { id: true, code: true, title: true, category: true, description: true } },
-          evidence: {
-            select: { id: true, title: true, type: true, isValid: true, collectedAt: true, expiresAt: true },
-            where: { isValid: true },
+          control: {
+            select: {
+              id: true, code: true, title: true, category: true, description: true,
+              evidence: {
+                where: { orgId, isValid: true },
+                select: { id: true, title: true, type: true, isValid: true, collectedAt: true, expiresAt: true },
+              },
+            },
           },
         },
         orderBy: [{ control: { category: 'asc' } }, { control: { code: 'asc' } }],
