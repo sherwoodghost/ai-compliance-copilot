@@ -25,6 +25,7 @@ import {
   Globe,
   ShieldAlert,
   Users,
+  BookOpen,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,8 @@ const NAV = [
   { href: '/trust-center',         label: 'Trust Center',     icon: Globe },
   { href: '/control-panel',        label: 'Workflows',        icon: Zap },
   { href: '/controls/exceptions',  label: 'Exceptions',       icon: ShieldAlert },
+  { href: '/auditor-portal',       label: 'Auditor Portal',   icon: Users },
+  { href: '/audit-history',        label: 'Audit Memory',     icon: BookOpen },
 ];
 
 export function Sidebar() {

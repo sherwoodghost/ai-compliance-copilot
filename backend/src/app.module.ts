@@ -45,6 +45,7 @@ import { InternalModule } from './internal/internal.module';
 import { ExceptionsModule } from './modules/exceptions/exceptions.module';
 import { AuditorPortalModule } from './modules/auditor-portal/auditor-portal.module';
 import { CopilotModule } from './modules/copilot/copilot.module';
+import { AuditMemoryModule } from './modules/audit-memory/audit-memory.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { CopilotModule } from './modules/copilot/copilot.module';
     ExceptionsModule,
     AuditorPortalModule,
     CopilotModule,
+    AuditMemoryModule,
   ],
 })
 export class AppModule {}

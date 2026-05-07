@@ -3,11 +3,12 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
+import { apiClient } from '@/lib/api/client';
 import { formatDate, formatRelative } from '@/lib/utils';
 import {
   FileCheck, AlertTriangle, Clock, Upload, Search, Trash2,
   Plus, X, ChevronDown, Filter, FolderOpen, Link as LinkIcon,
-  CheckCircle, RefreshCw, Sparkles,
+  CheckCircle, RefreshCw, Sparkles, Wand2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -43,7 +44,29 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ─── Evidence Card ─────────────────────────────────────────────────────────────
 
+interface MappingSuggestion { controlId: string; code: string; title: string }
+
 function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void }) {
+  const [showMappings, setShowMappings] = useState(false);
+  const [suggestions, setSuggestions] = useState<MappingSuggestion[] | null>(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  async function fetchSuggestions() {
+    if (suggestions !== null) { setShowMappings(!showMappings); return; }
+    setLoadingSuggestions(true);
+    setShowMappings(true);
+    try {
+      const res = await apiClient.get<{ suggestions: MappingSuggestion[] }>(
+        `/evidence/${item.id}/suggest-mappings`,
+      );
+      setSuggestions(res.suggestions ?? []);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
   const isExpired = item.expiresAt && new Date(item.expiresAt) < new Date();
   const expiringSoon = item.expiresAt && !isExpired &&
     new Date(item.expiresAt) < new Date(Date.now() + 30 * 86400_000);
@@ -106,14 +129,43 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
           {item.metadata?.aiConfidence != null && (
             <div className={cn(
               'flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg mt-2',
-              item.metadata.aiConfidence >= 0.8 ? 'bg-emerald-50 text-emerald-700' :
-              item.metadata.aiConfidence >= 0.5 ? 'bg-amber-50 text-amber-700' :
+              item.metadata.aiConfidence >= 80 ? 'bg-emerald-50 text-emerald-700' :
+              item.metadata.aiConfidence >= 50 ? 'bg-amber-50 text-amber-700' :
               'bg-red-50 text-red-700',
             )}>
               <Sparkles className="w-3 h-3 shrink-0" />
-              <span>AI confidence: {Math.round(item.metadata.aiConfidence * 100)}%</span>
+              <span>AI confidence: {item.metadata.aiConfidence}%</span>
               {item.metadata.aiSummary && (
                 <span className="text-xs opacity-75 truncate">&nbsp;— {item.metadata.aiSummary}</span>
+              )}
+            </div>
+          )}
+
+          {/* Suggest additional mappings */}
+          <button
+            onClick={fetchSuggestions}
+            className="mt-2 text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
+          >
+            <Wand2 className="w-3 h-3" />
+            {loadingSuggestions ? 'Finding matches...' : 'AI: suggest other controls'}
+          </button>
+
+          {showMappings && (
+            <div className="mt-2 p-2 bg-brand-50 rounded-lg border border-brand-100">
+              {loadingSuggestions ? (
+                <p className="text-xs text-brand-600 animate-pulse">Analyzing evidence...</p>
+              ) : suggestions?.length === 0 ? (
+                <p className="text-xs text-gray-500">No additional control matches found</p>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-brand-700 mb-1.5">Also satisfies:</p>
+                  {suggestions?.map(s => (
+                    <div key={s.controlId} className="flex items-center gap-2">
+                      <span className="text-xs bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded font-mono">{s.code}</span>
+                      <span className="text-xs text-gray-700 truncate">{s.title}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}

@@ -349,6 +349,9 @@ model Organization {
   controlExceptions   ControlException[]
   auditorSessions     AuditorSession[]
   auditorRfis         AuditorRfi[]
+  // Phase C (Compliance Memory)
+  auditCycles         AuditCycle[]
+  auditFindings       AuditFinding[]
 
   @@map("organizations")
 }
@@ -389,6 +392,9 @@ model User {
   exceptionsReviewed       ControlException[]     @relation("ExceptionReviewer")
   auditorSessionsCreated   AuditorSession[]       @relation("AuditorSessionCreator")
   rfisResponded            AuditorRfi[]           @relation("RfiResponder")
+  // Phase C (Compliance Memory)
+  auditCyclesCreated       AuditCycle[]           @relation("AuditCycleCreator")
+  findingsResolved         AuditFinding[]         @relation("FindingResolver")
 
   @@map("users")
 }
@@ -455,6 +461,7 @@ model Control {
   soaEntries           IsoStatementOfApplicability[]
   exceptions           ControlException[]
   auditorRfis          AuditorRfi[]
+  auditFindings        AuditFinding[]
 
   @@unique([frameworkId, code])
   @@map("controls")
@@ -1568,4 +1575,56 @@ model LlmBudget {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("llm_budgets")
+}
+
+// ─── Compliance Memory (Audit Cycle History) ──────────────────────────────────
+
+model AuditCycle {
+  id          String    @id @default(uuid())
+  orgId       String    @map("org_id")
+  framework   String                          // SOC2/ISO27001/HIPAA etc
+  label       String                          // e.g. "FY2024 SOC 2 Type II"
+  status      String    @default("active")    // active/completed/cancelled
+  startDate   DateTime  @map("start_date")
+  endDate     DateTime? @map("end_date")
+  auditorName String?   @map("auditor_name")
+  auditorFirm String?   @map("auditor_firm")
+  notes       String?   @db.Text
+  outcome     String?                         // clean/qualified/adverse/disclaimer
+  createdBy   String    @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator      User          @relation("AuditCycleCreator", fields: [createdBy], references: [id])
+  findings     AuditFinding[]
+
+  @@index([orgId])
+  @@map("audit_cycles")
+}
+
+model AuditFinding {
+  id              String    @id @default(uuid())
+  auditCycleId    String    @map("audit_cycle_id")
+  orgId           String    @map("org_id")
+  controlId       String?   @map("control_id")
+  findingType     String    @map("finding_type")   // deficiency/observation/recommendation/exception
+  severity        String    @default("medium")      // critical/high/medium/low/informational
+  title           String
+  description     String    @db.Text
+  remediation     String?   @db.Text               // what was done to fix it
+  lessonLearned   String?   @db.Text @map("lesson_learned")
+  status          String    @default("open")        // open/in_progress/resolved/accepted
+  resolvedAt      DateTime? @map("resolved_at")
+  resolvedBy      String?   @map("resolved_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  auditCycle  AuditCycle   @relation(fields: [auditCycleId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control     Control?     @relation(fields: [controlId], references: [id])
+  resolver    User?        @relation("FindingResolver", fields: [resolvedBy], references: [id])
+
+  @@index([orgId, status])
+  @@map("audit_findings")
 }

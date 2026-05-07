@@ -77,6 +77,15 @@ export class EvidenceController {
     return this.evidenceService.markInvalid(user.orgId, evidenceId, user.sub);
   }
 
+  @Get(':evidenceId/suggest-mappings')
+  @ApiOperation({ summary: 'AI-suggest additional controls this evidence might satisfy' })
+  suggestMappings(
+    @CurrentUser() user: JwtPayload,
+    @Param('evidenceId', ParseUUIDPipe) evidenceId: string,
+  ) {
+    return this.evidenceService.suggestControlMappings(user.orgId, evidenceId);
+  }
+
   @Delete(':evidenceId')
   @HttpCode(HttpStatus.NO_CONTENT)
   delete(

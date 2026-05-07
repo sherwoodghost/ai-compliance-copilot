@@ -136,7 +136,7 @@ export class ControlsService {
       if (!user) throw new BadRequestException('Assigned user not found in this organization');
     }
 
-    return this.prisma.organizationControl.update({
+    const updated = await this.prisma.organizationControl.update({
       where: { orgId_controlId: { orgId, controlId } },
       data: {
         ...(dto.status !== undefined && { status: dto.status }),
@@ -151,6 +151,52 @@ export class ControlsService {
         assignee: { select: { id: true, fullName: true, email: true } },
       },
     });
+
+    // Auto-apply crosswalk credits when a control is implemented
+    if (dto.status === 'implemented') {
+      this.applyCrosswalk(orgId, controlId).catch((err) =>
+        this.logger.warn(`Crosswalk failed for control ${controlId}: ${err.message}`),
+      );
+    }
+
+    return updated;
+  }
+
+  // ─── Auto Multi-Framework Crosswalk ────────────────────────────────────────
+  private async applyCrosswalk(orgId: string, sourceControlId: string) {
+    const crosswalks = await this.prisma.frameworkCrosswalk.findMany({
+      where: {
+        sourceControlId,
+        mappingType: { in: ['equivalent', 'partial'] },
+      },
+      select: { targetControlId: true, mappingType: true },
+    });
+
+    if (!crosswalks.length) return;
+
+    let credited = 0;
+    for (const cw of crosswalks) {
+      const orgControl = await this.prisma.organizationControl.findUnique({
+        where: { orgId_controlId: { orgId, controlId: cw.targetControlId } },
+      });
+
+      if (orgControl && (orgControl.status as string) !== 'implemented') {
+        const newStatus = cw.mappingType === 'equivalent' ? 'implemented' : 'in_progress';
+        await this.prisma.organizationControl.update({
+          where: { orgId_controlId: { orgId, controlId: cw.targetControlId } },
+          data: {
+            status: newStatus as any,
+            notes: `Auto-credited via framework crosswalk (${cw.mappingType}) from control ${sourceControlId}`,
+            lastReviewedAt: new Date(),
+          },
+        });
+        credited++;
+      }
+    }
+
+    if (credited > 0) {
+      this.logger.log(`Crosswalk: credited ${credited} controls for org ${orgId} from source ${sourceControlId}`);
+    }
   }
 
   // ─── Bulk assign controls to a user ────────────────────────────────────────
