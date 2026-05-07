@@ -9,46 +9,56 @@ import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 /** Minimum completeness fraction (0–1) required to allow finalize */
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
 
-// ─── Inline system prompt for sync chat ──────────────────────────────────────
-// Mirrors the 'onboarding-agent' seed prompt; used when calling the LLM
-// directly without going through the job queue.
-const ONBOARDING_SYSTEM_PROMPT = `You are a compliance onboarding specialist guiding a new client through their first GRC conversation. You are warm, precise, and efficient. Your goal is to collect the information needed to build their business profile so the platform can generate a tailored compliance plan.
+// ─── System prompt for the synchronous onboarding chat ───────────────────────
+// This prompt is injected directly into the LLM — it bypasses the template
+// registry. Placeholders are replaced at runtime in chatSync().
+const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an expert GRC onboarding assistant. Your job is to collect 9 specific fields about the user's company through friendly, natural conversation. You ask exactly ONE question per turn.
 
-CONVERSATION HISTORY:
+━━━ CONVERSATION SO FAR ━━━
 {{conversationHistory}}
 
-EXISTING PROFILE DATA COLLECTED SO FAR:
+━━━ PROFILE DATA ALREADY COLLECTED ━━━
 {{existingProfile}}
 
-USER'S LATEST MESSAGE:
-{{message}}
+━━━ USER'S LATEST MESSAGE ━━━
+{{userMessage}}
 
-━━━ FIELDS TO COLLECT (priority order) ━━━
-1. companyName — the company's name
-2. companyType — startup / smb / enterprise / nonprofit
-3. industry — saas / fintech / healthcare / ecommerce / real_estate / professional_services / other
-4. employeeCount — number of employees
-5. cloudProviders — aws / gcp / azure / self-hosted (array)
-6. dataTypes — pii / phi / pci_data / ip / public (array)
-7. targetFrameworks — SOC2 / ISO27001 / HIPAA / GDPR / PCI-DSS (array)
-8. complianceDriver — customer_requirement / investor / internal / regulatory
-9. targetDate — optional ISO date string for audit target
+━━━ THE 9 FIELDS YOU MUST COLLECT (in priority order) ━━━
+1. companyName       — the company's legal or trading name
+2. companyType       — one of: startup, smb, enterprise, nonprofit
+3. industry          — one of: saas, fintech, healthcare, ecommerce, real_estate, professional_services, other
+4. employeeCount     — one of: 1-10, 11-50, 51-200, 201-1000, 1000+
+5. cloudProviders    — array, any of: aws, gcp, azure, self-hosted, on-premise
+6. dataTypes         — array, any of: pii, phi, pci, ip, public
+7. targetFrameworks  — array, any of: SOC2, ISO27001, HIPAA, GDPR, PCI-DSS
+8. complianceDriver  — one of: customer_requirement, investor, internal, regulatory
+9. targetDate        — optional ISO date string (e.g. "2025-12-01") — skip if not mentioned
 
-━━━ RULES ━━━
-- Ask ONE question at a time — the most critical missing field.
-- Acknowledge the user's previous answer before asking the next question.
-- Extract structured data from casual language.
-- Never re-ask about fields already collected.
-- When completionScore reaches 85+, summarize what you know and confirm.
-- Mirror the user's communication style.
+━━━ HOW TO BEHAVE ━━━
+- Look at PROFILE DATA ALREADY COLLECTED. Never ask about a field that already has a value.
+- Look at CONVERSATION SO FAR to understand what was discussed. Never repeat a question.
+- Acknowledge the user's latest message warmly before asking the next question.
+- Extract data from casual language (e.g. "we use Amazon cloud" → cloudProviders: ["aws"]).
+- Ask ONE question at a time — always the first missing field in priority order.
+- Keep messages short: 1–3 sentences. Be warm, professional, encouraging.
+- If the user's message contains multiple pieces of information, extract all of them but still ask only ONE follow-up question.
+- If this is the very first message (no conversation history), greet the user and ask for their company name.
+- Do NOT say things like "Great!", "Awesome!", "Perfect!" on every turn — vary your acknowledgements.
 
-━━━ OUTPUT FORMAT (return ONLY valid JSON, no other text) ━━━
+━━━ COMPLETION ━━━
+- completionScore = count of collected fields out of 9, multiplied by 100/9 (round to integer)
+- isComplete = true when completionScore >= 85 (i.e. at least 8 of 9 fields collected)
+- When isComplete becomes true, provide a brief summary of what you collected and congratulate them.
+
+━━━ OUTPUT — RETURN ONLY THIS EXACT JSON, NOTHING ELSE ━━━
 {
-  "nextMessage": "string — warm, conversational, ONE question",
-  "extractedFields": { "fieldName": "value" },
-  "completionScore": number (0-100),
-  "isComplete": boolean (true when score >= 85)
-}`;
+  "nextMessage": "<your warm conversational reply, acknowledging their answer + ONE question>",
+  "extractedFields": { "<fieldName>": "<value>" },
+  "completionScore": <integer 0-100>,
+  "isComplete": <true|false>
+}
+
+CRITICAL: Your entire response must be valid JSON matching the schema above. Do not add any text before or after the JSON. Do not wrap it in markdown code blocks.`;
 
 @Injectable()
 export class OnboardingService {
@@ -144,29 +154,38 @@ export class OnboardingService {
       });
     }
 
-    // 3. Build conversation history string
-    const historyLines = existingMessages
-      .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-      .join('\n');
+    // 3. Build conversation history string (all turns BEFORE this one)
+    const historyLines = existingMessages.length > 0
+      ? existingMessages
+          .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n')
+      : '(this is the very start of the conversation — no messages yet)';
 
     // 4. Get extracted profile so far
     const extractedSoFar = (session as any).extractedData as Record<string, unknown> ?? {};
+    const profileSummary = Object.keys(extractedSoFar).length > 0
+      ? JSON.stringify(extractedSoFar, null, 2)
+      : '(nothing collected yet)';
 
-    // 5. Build the full system prompt with context
+    // 5. Build the current user turn context
+    const currentUserMessage = userMessage?.trim()
+      || '(no user message — this is the opening greeting, introduce yourself and ask for the company name)';
+
+    // 6. Inject context into system prompt
     const systemPrompt = ONBOARDING_SYSTEM_PROMPT
-      .replace('{{conversationHistory}}', historyLines || '(no messages yet)')
-      .replace('{{existingProfile}}', Object.keys(extractedSoFar).length
-        ? JSON.stringify(extractedSoFar, null, 2)
-        : '(none yet)')
-      .replace('{{message}}', userMessage?.trim() || '(start of conversation — send your greeting)');
+      .replace('{{conversationHistory}}', historyLines)
+      .replace('{{existingProfile}}', profileSummary)
+      .replace('{{userMessage}}', currentUserMessage);
 
-    // 6. Call LLM
+    // 7. Call LLM
     let assistantContent = '';
     let extractedFields: Record<string, unknown> = {};
     let completionScore = 0;
     let isComplete = false;
 
-    const llmUserMessage = userMessage?.trim() || 'Please start the onboarding conversation with a warm greeting.';
+    // The user message sent to the LLM (brief — the full context is in the system prompt)
+    const llmUserMessage = userMessage?.trim()
+      || 'Please start the onboarding. Greet the user and ask for their company name.';
 
     try {
       const response = await this.gateway.callRaw(
@@ -176,40 +195,60 @@ export class OnboardingService {
           taskType: 'onboarding',
           orgId,
           agentName: 'OnboardingAgent',
-          maxTokens: 512,
-          temperature: 0.4,
+          maxTokens: 600,
+          temperature: 0.5,
         },
       );
 
       const raw = response.content?.trim() ?? '';
+      this.logger.debug(`chatSync raw LLM response: ${raw.slice(0, 200)}`);
 
-      // Parse JSON response
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      // Strip markdown code fences if the model wrapped the JSON
+      const cleaned = raw
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```\s*$/, '')
+        .trim();
+
+      // Extract the outermost JSON object
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          assistantContent = parsed.nextMessage ?? '';
+          assistantContent = (parsed.nextMessage ?? '').trim();
           extractedFields = parsed.extractedFields ?? {};
-          completionScore = parsed.completionScore ?? 0;
-          isComplete = parsed.isComplete ?? false;
-        } catch {
-          // fallback: treat entire response as the message
-          assistantContent = raw;
+          completionScore = typeof parsed.completionScore === 'number' ? parsed.completionScore : 0;
+          isComplete = parsed.isComplete === true;
+        } catch (parseErr: any) {
+          this.logger.warn(`chatSync JSON parse failed: ${parseErr.message} — raw: ${raw.slice(0, 300)}`);
+          assistantContent = cleaned; // fallback: show raw text
         }
       } else {
-        assistantContent = raw;
+        // Model returned plain text instead of JSON — use it as-is
+        assistantContent = cleaned;
       }
+
+      // Safety: if nextMessage is empty but we got JSON, provide a generic prompt
+      if (!assistantContent) {
+        assistantContent = "Thanks for that! What else can you tell me about your compliance goals?";
+      }
+
     } catch (err: any) {
-      this.logger.error(`chatSync LLM call failed: ${err.message}`);
-      // Graceful fallback messages
-      const fallbacks: Record<string, string> = {
-        GREETING: "Hi! I'm your Compliance Copilot. I'll help you get set up for your SOC 2 or compliance journey. To get started — what's your company name and what do you do?",
-        COMPANY_BASICS: "Could you tell me a bit more about your company — how many employees do you have, and what industry are you in?",
-        TECH_STACK: "What cloud providers or infrastructure does your company use? (e.g. AWS, GCP, Azure)",
-        COMPLIANCE_GOALS: "What compliance framework are you targeting — SOC 2, ISO 27001, HIPAA, or something else?",
-      };
-      const state = (session as any).currentState ?? 'GREETING';
-      assistantContent = fallbacks[state] ?? "Thanks for that! Can you tell me more about your compliance goals?";
+      this.logger.error(`chatSync LLM call failed: ${err.message}`, err.stack);
+      // Context-aware fallback based on what's already been collected
+      const collected = Object.keys(extractedSoFar);
+      if (!collected.includes('companyName')) {
+        assistantContent = "Hi! I'm your Compliance Copilot 👋 I'll help you build your compliance profile. What's your company name?";
+      } else if (!collected.includes('industry')) {
+        assistantContent = `Great, ${extractedSoFar.companyName}! What industry are you in? (e.g. SaaS, FinTech, Healthcare)`;
+      } else if (!collected.includes('employeeCount')) {
+        assistantContent = "How many employees does your company have?";
+      } else if (!collected.includes('cloudProviders')) {
+        assistantContent = "What cloud infrastructure do you use? (e.g. AWS, GCP, Azure, self-hosted)";
+      } else if (!collected.includes('targetFrameworks')) {
+        assistantContent = "Which compliance framework are you targeting? (SOC 2, ISO 27001, HIPAA, GDPR…)";
+      } else {
+        assistantContent = "Thanks for that! What's driving your compliance initiative — is it a customer requirement, investor due diligence, or something else?";
+      }
     }
 
     // 7. Save assistant message

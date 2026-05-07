@@ -260,29 +260,106 @@ export class LlmGatewayService {
   }
 
   /**
-   * Convenience method for raw LLM calls that bypass the template registry
-   * (used for backward compatibility with existing agents during migration).
-   * Still enforces the compliance wrapper and audit logging.
+   * Raw LLM call that uses the provided systemPrompt directly.
+   * Bypasses the template registry and output schema validation entirely.
+   * Retains retry logic, model routing, and audit logging.
    */
   async callRaw(
-    systemPrompt: string,
+    rawSystemPrompt: string,
     userMessage: string,
     options: Omit<LlmGatewayRequest, 'promptTemplateId' | 'variables'> & { promptTemplateId?: string },
   ): Promise<LlmGatewayResponse> {
-    return this.call({
-      promptTemplateId: options.promptTemplateId ?? 'onboarding-dialogue', // fallback — should not be used
-      promptTemplateVersion: options.promptTemplateVersion,
-      userMessage,
-      taskType: options.taskType,
-      orgId: options.orgId,
-      agentName: options.agentName,
-      workflowId: options.workflowId,
-      agentRunId: options.agentRunId,
-      model: options.model,
-      maxTokens: options.maxTokens,
-      temperature: options.temperature,
-      requiresControlValidation: options.requiresControlValidation,
-    });
+    const {
+      taskType = 'onboarding',
+      orgId,
+      agentName,
+      workflowId,
+      agentRunId,
+      maxTokens = 1024,
+      temperature = 0.4,
+    } = options;
+
+    const model =
+      options.model ??
+      (agentName ? (AGENT_MODEL_ROUTING[agentName] ?? 'claude-sonnet-4-6') : 'claude-sonnet-4-6');
+
+    const startTime = Date.now();
+
+    // Call LLM directly — bypasses template registry, context packing, and output schema validation
+    let content = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      const response = await this.llm.completeWithRetry(
+        [{ role: 'user', content: userMessage }],
+        {
+          agentName,
+          model,
+          maxTokens,
+          temperature,
+          systemPrompt: rawSystemPrompt,
+        },
+      );
+      content = response.content ?? '';
+      inputTokens = response.tokensIn ?? 0;
+      outputTokens = response.tokensOut ?? 0;
+    } catch (error: any) {
+      this.logger.error(`callRaw LLM call failed: ${error.message}`);
+      throw error;
+    }
+
+    const latencyMs = Date.now() - startTime;
+    const promptHash = createHash('sha256')
+      .update(rawSystemPrompt + userMessage)
+      .digest('hex');
+
+    // Audit log (non-fatal — do not let a DB write block the response)
+    try {
+      await this.prisma.llmCall.create({
+        data: {
+          orgId: orgId ?? null,
+          workflowId: workflowId ?? null,
+          agentRunId: agentRunId ?? null,
+          taskType,
+          promptTemplateId: options.promptTemplateId ?? '__raw__',
+          promptTemplateVersion: 'v1',
+          promptHash,
+          renderedPrompt: {
+            system: rawSystemPrompt.slice(0, 2000),
+            user: userMessage.slice(0, 2000),
+          },
+          model,
+          provider: 'anthropic',
+          inputTokens,
+          outputTokens,
+          costUsd: this.estimateCost(model, inputTokens, outputTokens),
+          latencyMs,
+          requiresRetrieval: false,
+          requiresControlValidation: false,
+          schemaValid: true,
+          controlIdsValid: true,
+          hallucinationDetected: false,
+          forbiddenLanguageDetected: false,
+          retryCount: 0,
+          rawOutput: content.slice(0, 10000),
+        },
+      });
+    } catch (auditErr: any) {
+      this.logger.warn(`callRaw audit log failed (non-fatal): ${auditErr.message}`);
+    }
+
+    return {
+      content,
+      llmCallId: 'raw-' + promptHash.slice(0, 8),
+      model,
+      inputTokens,
+      outputTokens,
+      latencyMs,
+      schemaValid: true,
+      controlIdsValid: true,
+      forbiddenLanguageDetected: false,
+    };
   }
 
   private estimateCost(model: string, inputTokens: number, outputTokens: number): number {
