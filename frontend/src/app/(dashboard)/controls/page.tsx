@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
 import { HeatmapChart } from '@/components/charts/HeatmapChart';
-import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STATUS_CONFIG = {
   implemented: { label: 'Implemented', icon: CheckCircle, cls: 'badge-passed' },
+  in_progress: { label: 'In Progress', icon: Clock, cls: 'badge-partial' },
   partial: { label: 'Partial', icon: AlertCircle, cls: 'badge-partial' },
   not_implemented: { label: 'Not implemented', icon: XCircle, cls: 'badge-failed' },
   not_applicable: { label: 'N/A', icon: Clock, cls: 'badge-pending' },
@@ -21,6 +22,13 @@ function ControlRow({ control }: { control: any }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_implemented;
   const Icon = cfg.icon;
 
+  // Detect crosswalk-credited controls from the notes field
+  const isCrosswalkCredit = typeof control.notes === 'string' &&
+    control.notes.toLowerCase().includes('crosswalk');
+  const crosswalkType = isCrosswalkCredit
+    ? (control.notes?.includes('equivalent') ? 'Equivalent' : 'Partial')
+    : null;
+
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <td className="px-4 py-3 text-xs font-mono text-gray-500 whitespace-nowrap">
@@ -31,16 +39,27 @@ function ControlRow({ control }: { control: any }) {
         <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{control.control?.category}</p>
       </td>
       <td className="px-4 py-3">
-        <span className={cfg.cls}>
-          <Icon className="w-3 h-3 mr-1" />
-          {cfg.label}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span className={cfg.cls}>
+            <Icon className="w-3 h-3 mr-1" />
+            {cfg.label}
+          </span>
+          {isCrosswalkCredit && (
+            <span
+              title={control.notes}
+              className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200 w-fit cursor-default"
+            >
+              <ArrowLeftRight className="w-2.5 h-2.5" />
+              {crosswalkType} crosswalk
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-4 py-3 text-sm text-gray-700">
         {control.score != null ? `${control.score}%` : '—'}
       </td>
       <td className="px-4 py-3 text-xs text-gray-500">
-        {control.assignedTo?.fullName ?? '—'}
+        {control.assignee?.fullName ?? '—'}
       </td>
     </tr>
   );
@@ -76,6 +95,10 @@ export default function ControlsPage() {
   });
 
   const controls: any[] = data ?? [];
+  const crosswalkCredited = controls.filter(
+    (c) => typeof c.notes === 'string' && c.notes.toLowerCase().includes('crosswalk'),
+  ).length;
+
   const filtered = search
     ? controls.filter(
         (c) =>
@@ -86,11 +109,14 @@ export default function ControlsPage() {
 
   return (
     <div className="p-8 max-w-6xl">
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Controls</h1>
           <p className="text-sm text-gray-500 mt-1">
             {stats?.implemented ?? 0} implemented · {stats?.partial ?? 0} partial · {stats?.not_implemented ?? 0} gaps
+            {crosswalkCredited > 0 && (
+              <span className="ml-2 text-teal-600">· {crosswalkCredited} auto-credited via crosswalk</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -142,6 +168,20 @@ export default function ControlsPage() {
           ))}
         </select>
       </div>
+
+      {/* Crosswalk info banner */}
+      {crosswalkCredited > 0 && (
+        <div className="flex items-start gap-2 mb-4 rounded-xl bg-teal-50 border border-teal-200 px-4 py-3">
+          <ArrowLeftRight className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-teal-800">Multi-Framework Crosswalk Active</p>
+            <p className="text-xs text-teal-700 mt-0.5">
+              {crosswalkCredited} control{crosswalkCredited !== 1 ? 's were' : ' was'} automatically credited in another framework
+              because an equivalent control is already implemented. No duplicate work needed.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="card overflow-hidden">
