@@ -14,6 +14,7 @@ import { GoogleWorkspaceAdapter } from './adapters/google-workspace.adapter';
 import { GitLabAdapter } from './adapters/gitlab.adapter';
 import { GcpAdapter } from './adapters/gcp.adapter';
 import { RipplingAdapter } from './adapters/rippling.adapter';
+import { JamfAdapter } from './adapters/jamf.adapter';
 import { IntegrationAdapter } from './adapters/integration.interface';
 import { IntegrationProvider } from '@prisma/client';
 import { SecretManagerService } from '../../integrations/secret-manager.service';
@@ -34,6 +35,7 @@ export class IntegrationsService {
     private readonly gitlabAdapter: GitLabAdapter,
     private readonly gcpAdapter: GcpAdapter,
     private readonly ripplingAdapter: RipplingAdapter,
+    private readonly jamfAdapter: JamfAdapter,
     private readonly secretManager: SecretManagerService,
   ) {
     this.adapterMap = {
@@ -46,6 +48,7 @@ export class IntegrationsService {
       gitlab: this.gitlabAdapter,
       gcp: this.gcpAdapter,
       rippling: this.ripplingAdapter,
+      jamf: this.jamfAdapter,
     };
   }
 
