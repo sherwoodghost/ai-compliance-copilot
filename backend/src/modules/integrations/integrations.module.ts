@@ -3,13 +3,14 @@ import { IntegrationsService } from './integrations.service';
 import { IntegrationsController } from './integrations.controller';
 import { GitHubAdapter } from './adapters/github.adapter';
 import { AwsAdapter } from './adapters/aws.adapter';
+import { OktaAdapter } from './adapters/okta.adapter';
 import { GithubOauthController } from './oauth/github-oauth.controller';
 import { IntegrationsCoreModule } from '../../integrations/integrations-core.module';
 import { DatabaseModule } from '../../database/database.module';
 
 @Module({
   imports: [IntegrationsCoreModule, DatabaseModule],
-  providers: [IntegrationsService, GitHubAdapter, AwsAdapter],
+  providers: [IntegrationsService, GitHubAdapter, AwsAdapter, OktaAdapter],
   controllers: [IntegrationsController, GithubOauthController],
   exports: [IntegrationsService],
 })

@@ -182,4 +182,21 @@ export class OrganizationsService {
       keyMasked: key ? `sk-or-...${key.slice(-8)}` : undefined,
     };
   }
+
+  async getAuditLogs(orgId: string, limit = 100, offset = 0) {
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: { orgId },
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(limit, 200),
+        skip: offset,
+        include: {
+          user: { select: { fullName: true, email: true } },
+        },
+      }),
+      this.prisma.auditLog.count({ where: { orgId } }),
+    ]);
+
+    return { logs, total };
+  }
 }

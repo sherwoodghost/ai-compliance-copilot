@@ -4,6 +4,7 @@ import {
   Patch,
   Post,
   Body,
+  Query,
   UseGuards,
   Delete,
   Param,
@@ -93,5 +94,19 @@ export class OrganizationsController {
   ) {
     if (!body.apiKey) throw new BadRequestException('apiKey is required');
     return this.organizationsService.testLlmKey(body.apiKey);
+  }
+
+  @Get('me/audit-logs')
+  @ApiOperation({ summary: 'Get audit log trail for the current organization' })
+  async getAuditLogs(
+    @CurrentUser() user: JwtPayload,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.organizationsService.getAuditLogs(
+      user.orgId,
+      limit ? parseInt(limit, 10) : 100,
+      offset ? parseInt(offset, 10) : 0,
+    );
   }
 }
