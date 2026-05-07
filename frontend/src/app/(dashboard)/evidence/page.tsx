@@ -59,7 +59,7 @@ function EvidenceCard({ item, onDelete }: { item: Evidence; onDelete: () => void
       const res = await apiClient.get<{ suggestions: MappingSuggestion[] }>(
         `/evidence/${item.id}/suggest-mappings`,
       );
-      setSuggestions(res.suggestions ?? []);
+      setSuggestions((res as any).data?.suggestions ?? []);
     } catch {
       setSuggestions([]);
     } finally {
