@@ -6,7 +6,7 @@ import { teamApi, TeamMember, InviteMemberDto, PlatformRole, ComplianceRole, Rac
 import {
   Users, UserPlus, Shield, AlertTriangle, CheckCircle2, Clock,
   MoreVertical, ChevronRight, X, Loader2, RefreshCw,
-  AlertCircle, BookOpen, Grid3X3,
+  AlertCircle, BookOpen, Grid3X3, CalendarClock, FileText, PenLine,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -759,13 +759,271 @@ function TrainingTab({ members }: { members: TeamMember[] }) {
   );
 }
 
+// ─── Management Reviews Tab ───────────────────────────────────────────────────
+
+const MGMT_STATUS_CONFIG = {
+  pending:     { label: 'Scheduled',    cls: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-400' },
+  completed:   { label: 'Completed',   cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-400' },
+  signed:      { label: 'Signed Off',  cls: 'bg-purple-100 text-purple-700', dot: 'bg-purple-400' },
+  overdue:     { label: 'Overdue',     cls: 'bg-red-100 text-red-700',       dot: 'bg-red-400' },
+};
+
+function ManagementReviewsTab() {
+  const qc = useQueryClient();
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({ scheduledAt: '', attendees: '' });
+  const [activeReview, setActiveReview] = useState<any>(null);
+  const [minutesText, setMinutesText]   = useState('');
+
+  const { data: reviews = [], isLoading } = useQuery({
+    queryKey: ['management-reviews'],
+    queryFn: teamApi.getManagementReviews,
+  });
+
+  const schedule = useMutation({
+    mutationFn: () => teamApi.scheduleManagementReview({
+      scheduledAt: scheduleForm.scheduledAt,
+      attendees: scheduleForm.attendees.split(',').map((s) => s.trim()).filter(Boolean),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['management-reviews'] });
+      setShowSchedule(false);
+      setScheduleForm({ scheduledAt: '', attendees: '' });
+    },
+  });
+
+  const updateMinutes = useMutation({
+    mutationFn: (reviewId: string) =>
+      teamApi.updateManagementReview(reviewId, {
+        minutes: minutesText,
+        completedAt: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['management-reviews'] });
+      setActiveReview(null);
+    },
+  });
+
+  const signOff = useMutation({
+    mutationFn: (reviewId: string) => teamApi.signOffManagementReview(reviewId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['management-reviews'] });
+      setActiveReview(null);
+    },
+  });
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs text-gray-500">
+          ISO Clause 9.3 — Management reviews must be conducted at planned intervals to ensure ISMS suitability and effectiveness.
+        </p>
+        <button
+          className="btn-primary text-xs flex items-center gap-1.5"
+          onClick={() => setShowSchedule(true)}
+        >
+          <CalendarClock className="w-3.5 h-3.5" />
+          Schedule Review
+        </button>
+      </div>
+
+      {/* Schedule modal */}
+      {showSchedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900">Schedule Management Review</h3>
+              <button onClick={() => setShowSchedule(false)} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Review Date *</label>
+                <input
+                  type="datetime-local"
+                  className="input w-full"
+                  value={scheduleForm.scheduledAt}
+                  onChange={(e) => setScheduleForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Attendees (emails, comma-separated)</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  placeholder="ciso@company.com, ceo@company.com"
+                  value={scheduleForm.attendees}
+                  onChange={(e) => setScheduleForm((f) => ({ ...f, attendees: e.target.value }))}
+                />
+                <p className="text-xs text-gray-400 mt-1">Must include top management per ISO Clause 9.3</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                <p className="text-xs font-semibold text-blue-800 mb-1">Standard ISO 9.3 Agenda Items</p>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  {[
+                    'Status of actions from previous reviews',
+                    'Changes in external/internal issues',
+                    'Information security performance feedback',
+                    'Feedback from interested parties',
+                    'Risk assessment & treatment plan status',
+                    'Opportunities for continual improvement',
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0 text-blue-500" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button className="btn-secondary text-xs" onClick={() => setShowSchedule(false)}>Cancel</button>
+              <button
+                className="btn-primary text-xs flex items-center gap-1.5"
+                onClick={() => schedule.mutate()}
+                disabled={!scheduleForm.scheduledAt || schedule.isPending}
+              >
+                {schedule.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />}
+                Schedule
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Minutes editor modal */}
+      {activeReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-gray-900">Management Review Minutes</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {new Date(activeReview.scheduledAt).toLocaleDateString('en-US', { dateStyle: 'long' })}
+                </p>
+              </div>
+              <button onClick={() => setActiveReview(null)} className="p-1 rounded hover:bg-gray-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Agenda reminder */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-3 mb-4">
+              <p className="text-xs font-semibold text-gray-700 mb-2">ISO 9.3 Agenda Items to Cover</p>
+              <div className="space-y-1">
+                {(activeReview.agendaItems ?? []).map((a: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                    <span className="text-brand-500 font-bold shrink-0">{i + 1}.</span>
+                    {a.item}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              <FileText className="w-3.5 h-3.5 inline mr-1" />
+              Meeting Minutes (Markdown supported)
+            </label>
+            <textarea
+              className="input w-full font-mono text-xs"
+              rows={12}
+              placeholder="## Management Review Minutes&#10;&#10;**Date:** ...&#10;**Attendees:** ...&#10;&#10;### Agenda Items Discussed&#10;1. Previous actions: ...&#10;2. Context changes: ...&#10;"
+              value={minutesText || activeReview.minutes || ''}
+              onChange={(e) => setMinutesText(e.target.value)}
+            />
+
+            <div className="flex justify-between items-center mt-4">
+              <p className="text-xs text-gray-400">
+                Sign-off generates ISO A.5.35 evidence automatically
+              </p>
+              <div className="flex gap-2">
+                <button className="btn-secondary text-xs" onClick={() => setActiveReview(null)}>Cancel</button>
+                <button
+                  className="btn-secondary text-xs flex items-center gap-1.5"
+                  onClick={() => updateMinutes.mutate(activeReview.id)}
+                  disabled={!minutesText && !activeReview.minutes || updateMinutes.isPending}
+                >
+                  {updateMinutes.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />}
+                  Save Minutes
+                </button>
+                <button
+                  className="btn-primary text-xs flex items-center gap-1.5"
+                  onClick={() => signOff.mutate(activeReview.id)}
+                  disabled={(!activeReview.minutes && !minutesText) || signOff.isPending || activeReview.signedBy}
+                >
+                  {signOff.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  Sign Off & Generate Evidence
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(reviews as any[]).length === 0 ? (
+        <div className="text-center py-12">
+          <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">No management reviews scheduled.</p>
+          <p className="text-xs text-gray-400 mt-1">ISO Clause 9.3 requires quarterly reviews. Schedule the first one.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {(reviews as any[]).map((review) => {
+            const isOverdue = new Date(review.scheduledAt) < new Date() && !review.completedAt && !review.signedBy;
+            const statusKey = review.signedBy ? 'signed' : review.completedAt ? 'completed' : isOverdue ? 'overdue' : 'pending';
+            const cfg = MGMT_STATUS_CONFIG[statusKey as keyof typeof MGMT_STATUS_CONFIG] ?? MGMT_STATUS_CONFIG.pending;
+            return (
+              <div key={review.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+                <div className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-800">
+                    ISO 9.3 Management Review — {new Date(review.scheduledAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {(review.attendees ?? []).length} attendees · {(review.actions ?? []).length} action items
+                    {review.signedBy && ' · Evidence generated'}
+                  </p>
+                </div>
+                <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', cfg.cls)}>
+                  {cfg.label}
+                </span>
+                {!review.signedBy && (
+                  <button
+                    className="btn-primary text-xs py-1.5 px-3"
+                    onClick={() => { setActiveReview(review); setMinutesText(review.minutes ?? ''); }}
+                  >
+                    {review.completedAt ? 'Sign Off' : 'Record Minutes'}
+                  </button>
+                )}
+                {review.signedBy && (
+                  <span className="text-xs text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Evidence generated
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'members',       label: 'Members',        icon: Users },
-  { id: 'raci',          label: 'RACI Matrix',     icon: Grid3X3 },
-  { id: 'access-reviews', label: 'Access Reviews', icon: Shield },
-  { id: 'training',      label: 'Training',        icon: BookOpen },
+  { id: 'members',            label: 'Members',            icon: Users },
+  { id: 'raci',               label: 'RACI Matrix',        icon: Grid3X3 },
+  { id: 'access-reviews',     label: 'Access Reviews',     icon: Shield },
+  { id: 'training',           label: 'Training',           icon: BookOpen },
+  { id: 'mgmt-reviews',       label: 'Mgmt Reviews',       icon: CalendarClock },
 ];
 
 export default function MembersPage() {
@@ -855,10 +1113,11 @@ export default function MembersPage() {
           </div>
         ) : (
           <>
-            {activeTab === 'members'       && <MembersTab members={members} />}
-            {activeTab === 'raci'          && <RaciMatrixTab members={members} />}
+            {activeTab === 'members'        && <MembersTab members={members} />}
+            {activeTab === 'raci'           && <RaciMatrixTab members={members} />}
             {activeTab === 'access-reviews' && <AccessReviewsTab />}
-            {activeTab === 'training'      && <TrainingTab members={members} />}
+            {activeTab === 'training'       && <TrainingTab members={members} />}
+            {activeTab === 'mgmt-reviews'   && <ManagementReviewsTab />}
           </>
         )}
       </div>

@@ -51,6 +51,7 @@ import { PermissionsModule } from './common/permissions/permissions.module';
 import { TeamModule } from './modules/team/team.module';
 import { AccessReviewModule } from './modules/access-reviews/access-review.module';
 import { TrainingModule } from './modules/training/training.module';
+import { ManagementReviewModule } from './modules/management-reviews/management-review.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { TrainingModule } from './modules/training/training.module';
     TeamModule,
     AccessReviewModule,
     TrainingModule,
+    ManagementReviewModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,

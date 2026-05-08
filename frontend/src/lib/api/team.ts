@@ -198,4 +198,17 @@ export const teamApi = {
 
   signOffAccessReview: (reviewId: string, decisions: { itemId: string; decision: string; reason?: string }[]): Promise<any> =>
     apiClient.post(`/access-reviews/${reviewId}/sign-off`, { decisions }).then((r) => r.data),
+
+  // Management reviews (ISO Clause 9.3)
+  getManagementReviews: (): Promise<any[]> =>
+    apiClient.get('/management-reviews').then((r) => r.data),
+
+  scheduleManagementReview: (dto: { scheduledAt: string; attendees: string[] }): Promise<any> =>
+    apiClient.post('/management-reviews/schedule', dto).then((r) => r.data),
+
+  updateManagementReview: (reviewId: string, dto: { minutes?: string; actions?: any[]; completedAt?: string }): Promise<any> =>
+    apiClient.patch(`/management-reviews/${reviewId}`, dto).then((r) => r.data),
+
+  signOffManagementReview: (reviewId: string): Promise<any> =>
+    apiClient.post(`/management-reviews/${reviewId}/sign-off`).then((r) => r.data),
 };
