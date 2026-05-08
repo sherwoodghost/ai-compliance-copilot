@@ -4459,7 +4459,7 @@ All code changes shall go through pull request review before merging. Production
 
   // ── Feature flags (P19) ────────────────────────────────────────────────────
   const FLAGS = [
-    { key: 'documents.aiFeatures',        enabledGlobally: false, description: 'AI improve + gap detection in document editor' },
+    { key: 'documents.aiFeatures',        enabledGlobally: true,  description: 'AI improve + gap detection in document editor' },
     { key: 'documents.vectorSearch',      enabledGlobally: false, description: 'Vector/semantic search over documents (requires pgvector)' },
     { key: 'documents.collaborativeEdit', enabledGlobally: false, description: 'Real-time collaborative editing (Yjs/Hocuspocus)' },
     { key: 'documents.bulkExport',        enabledGlobally: true,  description: 'Bulk export of documents as ZIP' },

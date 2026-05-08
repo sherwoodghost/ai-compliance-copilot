@@ -32,6 +32,9 @@ import {
   Activity,
   Siren,
   ChevronDown,
+  ClipboardCheck,
+  ScrollText,
+  Cpu,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -80,8 +83,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/control-effectiveness', label: 'Effectiveness', icon: Activity },
       { href: '/readiness',       label: 'Readiness',       icon: BarChart3 },
       { href: '/audit-exports',   label: 'Audit Exports',   icon: Download },
-      { href: '/internal-audit',  label: 'Internal Audit',  icon: FileText },
-      { href: '/audit-history',   label: 'Audit Memory',    icon: BookOpen },
+      { href: '/internal-audit',  label: 'Internal Audit',  icon: ClipboardCheck },
+      { href: '/audit-history',   label: 'Audit Memory',    icon: ScrollText },
     ],
   },
   {
@@ -96,7 +99,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Advanced',
     items: [
       { href: '/scope',           label: 'Scope',           icon: Target },
-      { href: '/control-panel',   label: 'Workflows',       icon: Zap },
+      { href: '/control-panel',   label: 'Workflows',       icon: Cpu },
       { href: '/controls/exceptions', label: 'Exceptions',  icon: ShieldAlert },
       { href: '/auditor-portal',  label: 'Auditor Portal',  icon: Users },
     ],

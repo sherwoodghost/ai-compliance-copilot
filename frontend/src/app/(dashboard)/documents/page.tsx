@@ -3,10 +3,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  BookOpen, Plus, Search, ChevronLeft, FileText, Clock, User,
-  CheckCircle2, AlertTriangle, Lock, Archive, Sparkles, Upload,
-  Download, Tag, Calendar, Shield, Loader2, X, MoreVertical,
-  AlertCircle, RefreshCw, Clipboard, FileUp,
+  BookOpen, Plus, Search, ChevronLeft, FileText,
+  CheckCircle2, AlertTriangle, Lock, Sparkles,
+  Download, Shield, Loader2, X,
+  RefreshCw, Clipboard, FileUp, ScanSearch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -84,6 +84,7 @@ export default function DocumentsPage() {
   // AI panel state
   const [aiPanel, setAiPanel]       = useState<'improve' | 'gaps' | null>(null);
   const [gapResults, setGapResults] = useState<Array<{ section: string; framework: string; severity: string; detail: string }>>([]);
+  const [gapAnalysisRan, setGapAnalysisRan] = useState(false);
   const [aiLoading, setAiLoading]   = useState(false);
   const [aiError, setAiError]       = useState<string | null>(null);
   const [improveInstruction, setImproveInstruction] = useState('');
@@ -179,6 +180,9 @@ export default function DocumentsPage() {
     setEditorClass(doc.classification);
     setAiPanel(null);
     setGapResults([]);
+    setGapAnalysisRan(false);
+    setImprovedText(null);
+    setAiError(null);
     setShowVersions(false);
   }, []);
 
@@ -292,9 +296,11 @@ export default function DocumentsPage() {
     setAiError(null);
     setAiPanel('gaps');
     setGapResults([]);
+    setGapAnalysisRan(false);
     try {
       const { gaps } = await documentsApi.aiGaps(editing.id);
       setGapResults(gaps);
+      setGapAnalysisRan(true);
     } catch (err: any) {
       setAiError(err?.response?.data?.message ?? 'Gap analysis failed');
     } finally {
@@ -592,9 +598,9 @@ export default function DocumentsPage() {
                       {aiLoading && aiPanel === 'gaps' ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" />
                       ) : (
-                        <Search className="h-3.5 w-3.5 text-brand-600" />
+                        <ScanSearch className="h-3.5 w-3.5 text-brand-600" />
                       )}
-                      Detect missing sections
+                      {aiLoading && aiPanel === 'gaps' ? 'Analyzing…' : 'Detect missing sections'}
                     </button>
 
                     {aiError && (
@@ -603,38 +609,38 @@ export default function DocumentsPage() {
 
                     {aiPanel === 'gaps' && (
                       <div className="space-y-1.5">
-                        {aiLoading && gapResults.length === 0 && (
+                        {aiLoading && (
                           <div className="flex items-center gap-2 p-3 text-xs text-gray-500 bg-gray-50 rounded-lg">
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            Analyzing document against frameworks…
+                            Analyzing document against ISO 27001 & SOC 2…
                           </div>
                         )}
-                        {gapResults.length === 0 && !aiLoading && (
+                        {gapAnalysisRan && gapResults.length === 0 && !aiLoading && (
                           <div className="p-3 text-xs text-green-700 bg-green-50 rounded-lg border border-green-200 flex items-center gap-2">
                             <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
                             No gaps detected — document looks complete!
                           </div>
                         )}
                         {gapResults.map((g, i) => (
-                          <div key={i} className="p-2 bg-white border border-gray-200 rounded-lg text-xs">
-                            <div className="flex items-center gap-1.5 mb-1">
+                          <div key={i} className="p-2.5 bg-white border border-gray-200 rounded-lg text-xs hover:border-gray-300 transition-colors">
+                            <div className="flex items-center gap-1.5 mb-1.5">
                               <span className={cn(
-                                'px-1.5 py-0.5 rounded text-xs font-medium',
+                                'px-1.5 py-0.5 rounded text-xs font-medium capitalize',
                                 g.severity === 'critical' ? 'bg-red-100 text-red-700' :
                                 g.severity === 'major'    ? 'bg-orange-100 text-orange-700' :
                                                             'bg-amber-100 text-amber-700',
                               )}>
                                 {g.severity}
                               </span>
-                              <span className="font-medium text-gray-800">{g.section}</span>
+                              <span className="font-semibold text-gray-800">{g.section}</span>
                             </div>
-                            <p className="text-gray-500">{g.detail}</p>
-                            <p className="text-gray-400 mt-0.5">{g.framework}</p>
+                            <p className="text-gray-600 leading-relaxed">{g.detail}</p>
+                            <p className="text-gray-400 mt-1 font-mono text-[10px]">{g.framework}</p>
                           </div>
                         ))}
-                        {gapResults.length > 0 && (
+                        {(gapResults.length > 0 || gapAnalysisRan) && !aiLoading && (
                           <button
-                            onClick={() => { setGapResults([]); setAiPanel(null); }}
+                            onClick={() => { setGapResults([]); setAiPanel(null); setGapAnalysisRan(false); }}
                             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                           >
                             Clear results
@@ -811,11 +817,25 @@ export default function DocumentsPage() {
       {/* Document list */}
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
-              <p className="text-sm text-gray-400">Loading documents…</p>
-            </div>
+          <div className="grid grid-cols-1 gap-2.5 max-w-4xl">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="p-4 bg-white border border-gray-100 rounded-xl animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="h-4 bg-gray-100 rounded w-48" />
+                      <div className="h-3 bg-gray-100 rounded w-16 shrink-0" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-5 bg-gray-100 rounded-full w-16" />
+                      <div className="h-5 bg-gray-100 rounded-full w-20" />
+                      <div className="h-3 bg-gray-100 rounded w-8" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : docs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">

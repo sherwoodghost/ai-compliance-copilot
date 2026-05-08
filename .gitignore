@@ -12,6 +12,9 @@ prisma/migrations/
 
 .vercel
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Playwright
 frontend/test-results/
 frontend/playwright-report/
