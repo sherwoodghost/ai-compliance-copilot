@@ -7,4 +7,6 @@ export const integrationsApi = {
     apiClient.post('/integrations/connect', { provider: provider.toLowerCase(), credentials }).then((r) => r.data),
   sync: (id: string) => apiClient.post(`/integrations/${id}/sync`).then((r) => r.data),
   disconnect: (id: string) => apiClient.delete(`/integrations/${id}`).then((r) => r.data),
+  aiRecommend: (): Promise<Record<string, unknown>> =>
+    apiClient.post('/integrations/ai-recommend').then((r) => r.data),
 };

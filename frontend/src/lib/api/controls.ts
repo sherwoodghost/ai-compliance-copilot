@@ -98,4 +98,16 @@ export const controlsApi = {
       .get<ControlTest[]>(`/controls/${controlId}/effectiveness-samples`)
       .then((r) => r.data);
   },
+
+  /** Get the full control library (ISO + SOC2 reference controls) */
+  getLibrary(): Promise<Control[]> {
+    return apiClient.get<Control[]>('/controls/library').then((r) => r.data);
+  },
+
+  /** AI-explain a control from the library */
+  aiExplainControl(controlCode: string): Promise<{ explanation: string; examples: string[]; generatedAt: string }> {
+    return apiClient
+      .post(`/controls/library/control/${controlCode}/ai-explain`, {})
+      .then((r) => r.data);
+  },
 };

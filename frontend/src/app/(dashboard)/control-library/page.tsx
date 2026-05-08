@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { apiClient as api } from '@/lib/api/client';
+import { controlsApi } from '@/lib/api/controls';
 import {
   Library, Search, Shield, CheckCircle, AlertCircle,
   ChevronDown, ChevronRight, Sparkles, X, Clock,
@@ -178,8 +178,8 @@ function ControlRow({ control, expanded, onToggle }: {
     if (explainResult) { setExplainResult(null); return; }
     setExplaining(true);
     try {
-      const res = await api.post(`/controls/library/control/${control.code}/ai-explain`, {});
-      setExplainResult((res as any).data ?? res);
+      const res = await controlsApi.aiExplainControl(control.code);
+      setExplainResult(res as unknown as ExplainResult);
       // Ensure the row is expanded so explanation is visible
     } finally {
       setExplaining(false);
@@ -273,7 +273,7 @@ export default function ControlLibraryPage() {
 
   const { data: controls = [], isLoading } = useQuery<Control[]>({
     queryKey: ['control-library'],
-    queryFn: () => api.get('/controls/library').then((r: any) => r.data),
+    queryFn: () => controlsApi.getLibrary() as unknown as Promise<Control[]>,
   });
 
   const filtered = controls.filter((c) => {

@@ -11,7 +11,6 @@ import {
   Laptop, Ticket, Activity, ChevronRight, Search,
   AlertTriangle, Zap, ExternalLink, Sparkles, TrendingUp, ArrowRight,
 } from 'lucide-react';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 // NEXT_PUBLIC_API_URL is like https://host/api/v1 — strip /api/v1 for OAuth redirects
@@ -590,8 +589,8 @@ function IntegrationsContent() {
   const qcPage = useQueryClient();
 
   const advisorMutation = useMutation({
-    mutationFn: () => apiClient.post<AdvisorResult>('/integrations/ai-recommend'),
-    onSuccess: (res) => setAdvisorResult((res as any).data ?? res),
+    mutationFn: () => integrationsApi.aiRecommend() as Promise<AdvisorResult>,
+    onSuccess: (res) => setAdvisorResult(res),
   });
 
   // Handle OAuth callbacks
