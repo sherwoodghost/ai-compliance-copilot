@@ -16,6 +16,9 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CharacterCount from '@tiptap/extension-character-count';
 import Image from '@tiptap/extension-image';
+import Collaboration from '@tiptap/extension-collaboration';
+import * as Y from 'yjs';
+// @hocuspocus/provider — dynamically imported to avoid SSR issues
 import type { Editor } from '@tiptap/core';
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, Highlighter,
@@ -24,7 +27,7 @@ import {
   Heading2, Heading3,
   Quote, Code, Minus, Link2, Link2Off,
   Table as TableIcon, Undo, Redo,
-  ChevronDown,
+  ChevronDown, Users, Wifi, WifiOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -311,6 +314,14 @@ export interface PolicyEditorProps {
   className?:     string;
   minHeight?:     number;
   showWordCount?: boolean;
+  /** Collaborative editing options. When provided, enables Yjs + Hocuspocus real-time sync. */
+  collaborativeOptions?: {
+    documentId: string;
+    userToken:  string;
+    userName?:  string;
+    userColor?: string;
+    serverUrl?: string;  // defaults to ws://localhost:1234
+  };
 }
 
 export function PolicyEditor({
@@ -321,7 +332,41 @@ export function PolicyEditor({
   className,
   minHeight     = 300,
   showWordCount = true,
+  collaborativeOptions,
 }: PolicyEditorProps) {
+  // Yjs document ref (only created when collaborative mode enabled)
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const providerRef = useRef<any>(null);
+  const [collabConnected, setCollabConnected] = useState(false);
+  const [collabUsers, setCollabUsers] = useState(0);
+
+  // Initialize Yjs + Hocuspocus provider when collaborative mode requested
+  useEffect(() => {
+    if (!collaborativeOptions) return;
+    const { documentId, userToken, serverUrl = 'ws://localhost:1234' } = collaborativeOptions;
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
+
+    // Dynamic import to avoid SSR issues
+    import('@hocuspocus/provider').then(({ HocuspocusProvider }) => {
+      const provider = new HocuspocusProvider({
+        url:          serverUrl,
+        name:         'doc:' + documentId,
+        token:        userToken,
+        document:     ydoc,
+        onConnect:    () => setCollabConnected(true),
+        onDisconnect: () => setCollabConnected(false),
+        onAwarenessUpdate: ({ states }: any) => setCollabUsers(states.length),
+      });
+      providerRef.current = provider;
+    }).catch(() => {});
+
+    return () => {
+      providerRef.current?.destroy();
+      ydocRef.current?.destroy();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collaborativeOptions?.documentId]);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
 
   // Slash command state
@@ -350,7 +395,15 @@ export function PolicyEditor({
   const editor = useEditor({
     immediatelyRender: false,   // required for Next.js SSR compatibility
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      // When collaborative: disable StarterKit history (Yjs provides CRDT undo/redo)
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        ...(collaborativeOptions && ydocRef.current ? { history: false } : {}),
+      }),
+      // Collaboration extension (Yjs) — only when collaborative mode active
+      ...(collaborativeOptions && ydocRef.current
+        ? [Collaboration.configure({ document: ydocRef.current })]
+        : []),
       Placeholder.configure({ placeholder }),
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -469,6 +522,23 @@ export function PolicyEditor({
 
           <ToolbarButton title="Undo (⌘Z)"   disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}><Undo className="w-3.5 h-3.5" /></ToolbarButton>
           <ToolbarButton title="Redo (⌘⇧Z)"  disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}><Redo className="w-3.5 h-3.5" /></ToolbarButton>
+        </div>
+      )}
+
+      {/* Collaborative indicator */}
+      {collaborativeOptions && (
+        <div className="flex items-center gap-2 px-3 py-1 border-b border-gray-100 bg-white text-xs">
+          {collabConnected ? (
+            <><Wifi className="h-3 w-3 text-emerald-500" /><span className="text-emerald-600 font-medium">Live</span></>
+          ) : (
+            <><WifiOff className="h-3 w-3 text-gray-400" /><span className="text-gray-400">Connecting…</span></>
+          )}
+          {collabConnected && collabUsers > 0 && (
+            <span className="flex items-center gap-1 text-gray-500">
+              <Users className="h-3 w-3" />
+              {collabUsers} {collabUsers === 1 ? 'person' : 'people'} editing
+            </span>
+          )}
         </div>
       )}
 

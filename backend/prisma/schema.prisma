@@ -2262,6 +2262,8 @@ model Document {
   legalHoldReason String?           @map("legal_hold_reason")
   deletedAt       DateTime?         @map("deleted_at")
   purgedAt        DateTime?         @map("purged_at")
+  // Collaborative editing (Yjs binary state — populated by Hocuspocus on change)
+  yjsState        String?           @db.Text @map("yjs_state")
   metadata        Json              @default("{}")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt      @map("updated_at")

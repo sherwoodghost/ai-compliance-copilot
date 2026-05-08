@@ -14,6 +14,7 @@ import {
 } from '@/lib/api/documents';
 import { PolicyEditor, markdownToSimpleHtml, htmlToMarkdown } from '@/components/editor/PolicyEditor';
 import { useFlag } from '@/lib/hooks/useFeatureFlags';
+import { useCollaboration } from '@/lib/hooks/useCollaboration';
 
 // ── Type tab config ────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ export default function DocumentsPage() {
   const qc = useQueryClient();
   const aiEnabled      = useFlag('documents.aiFeatures');
   const vectorEnabled  = useFlag('documents.vectorSearch');
+  const collabEnabled  = useFlag('documents.collaborativeEdit');
 
   // List state
   const [typeFilter, setTypeFilter] = useState<DocType | 'all'>('all');
@@ -99,6 +101,16 @@ export default function DocumentsPage() {
   const fileInputRef    = useRef<HTMLInputElement>(null);
   const mdFileInputRef  = useRef<HTMLInputElement>(null);
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Collaboration (Yjs/Hocuspocus) ────────────────────────────────────────
+  const authToken = typeof window !== 'undefined'
+    ? localStorage.getItem('auth_token') ?? ''
+    : '';
+  const collab = useCollaboration({
+    documentId: editing?.id ?? '',
+    userToken:  authToken,
+    enabled:    collabEnabled && !!editing,
+  });
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
@@ -463,6 +475,11 @@ export default function DocumentsPage() {
               className="min-h-full"
               minHeight={600}
               showWordCount={true}
+              collaborativeOptions={collabEnabled && editing ? {
+                documentId: editing.id,
+                userToken:  authToken,
+                serverUrl:  process.env.NEXT_PUBLIC_COLLABORATION_URL ?? 'ws://localhost:1234',
+              } : undefined}
             />
           </div>
 
