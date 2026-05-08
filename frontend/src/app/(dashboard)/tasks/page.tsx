@@ -5,7 +5,7 @@ import { complianceApi } from '@/lib/api/compliance';
 import { apiClient as api } from '@/lib/api/client';
 import {
   ClipboardList, AlertCircle, Clock, CheckCircle2,
-  Calendar, LayoutGrid, List, Filter, Plus, X, Sparkles,
+  Calendar, LayoutGrid, List, Filter, Plus, X, Sparkles, Zap, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -50,6 +50,105 @@ const NEXT_STATUS: Record<string, string[]> = {
   done:        ['accepted'],
   accepted:    [],
 };
+
+// ─── Sprint Planner Types & Panel ────────────────────────────────────────────
+
+type SprintItem = {
+  rank: number;
+  taskId: string;
+  title: string;
+  priority: string;
+  status: string;
+  controlCode: string | null;
+  controlCategory: string | null;
+  assignee: string | null;
+  dueDate?: string;
+  urgencyLevel: 'overdue' | 'critical' | 'high' | 'medium';
+  reason: string;
+  estimatedHours: number;
+};
+
+type SprintResult = {
+  weekOf: string;
+  readinessScore: number;
+  weekFocus: string;
+  sprintItems: SprintItem[];
+  totalOpen: number;
+};
+
+const URGENCY_CFG: Record<string, { badge: string; border: string }> = {
+  overdue:  { badge: 'bg-red-100 text-red-700 border-red-200',       border: 'border-l-red-400' },
+  critical: { badge: 'bg-orange-100 text-orange-700 border-orange-200', border: 'border-l-orange-400' },
+  high:     { badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', border: 'border-l-yellow-400' },
+  medium:   { badge: 'bg-blue-50 text-blue-700 border-blue-200',      border: 'border-l-blue-300' },
+};
+
+function SprintPanel({ result, onClose }: { result: SprintResult; onClose: () => void }) {
+  const weekLabel = new Date(result.weekOf).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  return (
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+            <Zap className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">AI Sprint Planner</p>
+            <p className="text-xs text-indigo-700">Week of {weekLabel} · {result.sprintItems.length} tasks · Readiness {result.readinessScore}%</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-white/60">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {result.weekFocus && (
+        <div className="bg-white/70 rounded-xl border border-blue-100 px-4 py-2.5">
+          <p className="text-xs font-semibold text-indigo-700 mb-0.5">This week&apos;s focus</p>
+          <p className="text-sm text-gray-800">{result.weekFocus}</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {result.sprintItems.map((item) => {
+          const urg = URGENCY_CFG[item.urgencyLevel] ?? URGENCY_CFG.medium;
+          const isOverdue = item.dueDate && new Date(item.dueDate) < new Date();
+          return (
+            <div key={item.taskId} className={cn('bg-white rounded-xl border-l-4 border border-blue-100 p-3', urg.border)}>
+              <div className="flex items-start gap-2 mb-1">
+                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{item.rank}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
+                    <span className={cn('text-xs font-medium px-1.5 py-0.5 rounded-full border', urg.badge)}>
+                      {item.urgencyLevel === 'overdue' ? '⚠ Overdue' : item.urgencyLevel}
+                    </span>
+                    {item.estimatedHours > 0 && (
+                      <span className="text-xs text-gray-400">~{item.estimatedHours}h</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{item.reason}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    {item.controlCode && (
+                      <span className="font-mono bg-gray-100 px-1 rounded">{item.controlCode}</span>
+                    )}
+                    {item.assignee && <span>{item.assignee}</span>}
+                    {item.dueDate && (
+                      <span className={cn(isOverdue ? 'text-red-500 font-medium' : '')}>
+                        {isOverdue ? '⚠' : '📅'} {new Date(item.dueDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-gray-400 text-center">{result.totalOpen} total open tasks · showing top {result.sprintItems.length} priority items</p>
+    </div>
+  );
+}
 
 // ─── Add Task Modal ───────────────────────────────────────────────────────────
 
@@ -318,6 +417,12 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [aiResult, setAiResult] = useState<{ created: number } | null>(null);
+  const [sprintResult, setSprintResult] = useState<SprintResult | null>(null);
+
+  const sprintMutation = useMutation({
+    mutationFn: () => api.post('/tasks/ai-sprint-planner', {}).then((r: any) => r.data as SprintResult),
+    onSuccess: (result) => setSprintResult(result),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -385,6 +490,19 @@ export default function TasksPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* AI Sprint Planner button */}
+          <button
+            onClick={() => sprintMutation.mutate()}
+            disabled={sprintMutation.isPending}
+            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-indigo-200
+                       bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-60"
+          >
+            {sprintMutation.isPending
+              ? <RefreshCw className="w-4 h-4 animate-spin" />
+              : <Zap className="w-4 h-4" />}
+            {sprintMutation.isPending ? 'Planning…' : 'Sprint Planner'}
+          </button>
+
           {/* AI Generate button */}
           <button
             onClick={() => generateTasks.mutate()}
@@ -441,6 +559,11 @@ export default function TasksPage() {
             ? 'All controls already have open tasks — nothing new to generate.'
             : `✓ ${aiResult.created} AI-generated task${aiResult.created !== 1 ? 's' : ''} added to your board.`}
         </div>
+      )}
+
+      {/* Sprint planner panel */}
+      {sprintResult && (
+        <SprintPanel result={sprintResult} onClose={() => setSprintResult(null)} />
       )}
 
       {/* Stats strip */}
