@@ -30,29 +30,34 @@ import {
   Users,
   BookOpen,
   Bell,
+  Rocket,
+  UserCircle2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { teamApi } from '@/lib/api/team';
 
 const NAV = [
-  { href: '/overview',       label: 'Overview',       icon: LayoutDashboard },
-  { href: '/journey',        label: 'Journey',        icon: GitBranch },
-  { href: '/controls',       label: 'Controls',       icon: CheckSquare },
-  { href: '/control-library', label: 'Control Library', icon: Library },
-  { href: '/evidence',       label: 'Evidence',       icon: FolderOpen },
-  { href: '/policies',       label: 'Policies',       icon: FileText },
-  { href: '/risks',          label: 'Risks',          icon: AlertTriangle },
-  { href: '/tasks',          label: 'Tasks',          icon: ClipboardList },
-  { href: '/scope',          label: 'Scope',          icon: Target },
-  { href: '/readiness',      label: 'Readiness',      icon: BarChart3 },
-  { href: '/audit-exports',  label: 'Audit Exports',  icon: Download },
-  { href: '/vendors',        label: 'Vendors',        icon: Building2 },
-  { href: '/integrations',         label: 'Integrations',     icon: Plug },
-  { href: '/trust-center',         label: 'Trust Center',     icon: Globe },
-  { href: '/control-panel',        label: 'Workflows',        icon: Zap },
-  { href: '/controls/exceptions',  label: 'Exceptions',       icon: ShieldAlert },
-  { href: '/auditor-portal',       label: 'Auditor Portal',   icon: Users },
-  { href: '/audit-history',        label: 'Audit Memory',     icon: BookOpen },
+  { href: '/overview',         label: 'Overview',        icon: LayoutDashboard },
+  { href: '/getting-started',  label: 'Getting Started', icon: Rocket,       badge: 'guided' },
+  { href: '/journey',          label: 'Journey',         icon: GitBranch },
+  { href: '/controls',         label: 'Controls',        icon: CheckSquare },
+  { href: '/control-library',  label: 'Control Library', icon: Library },
+  { href: '/evidence',         label: 'Evidence',        icon: FolderOpen },
+  { href: '/policies',         label: 'Policies',        icon: FileText },
+  { href: '/risks',            label: 'Risks',           icon: AlertTriangle },
+  { href: '/tasks',            label: 'Tasks',           icon: ClipboardList },
+  { href: '/members',          label: 'Team',            icon: UserCircle2 },
+  { href: '/scope',            label: 'Scope',           icon: Target },
+  { href: '/readiness',        label: 'Readiness',       icon: BarChart3 },
+  { href: '/audit-exports',    label: 'Audit Exports',   icon: Download },
+  { href: '/vendors',          label: 'Vendors',         icon: Building2 },
+  { href: '/integrations',     label: 'Integrations',    icon: Plug },
+  { href: '/trust-center',     label: 'Trust Center',    icon: Globe },
+  { href: '/control-panel',    label: 'Workflows',       icon: Zap },
+  { href: '/controls/exceptions', label: 'Exceptions',   icon: ShieldAlert },
+  { href: '/auditor-portal',   label: 'Auditor Portal',  icon: Users },
+  { href: '/audit-history',    label: 'Audit Memory',    icon: BookOpen },
 ];
 
 export function Sidebar() {
@@ -74,11 +79,18 @@ export function Sidebar() {
     refetchInterval: 5 * 60 * 1000,
     staleTime: 2 * 60 * 1000,
   });
+  const { data: guidedProgram } = useQuery({
+    queryKey: ['guided-program', false],
+    queryFn: () => teamApi.getGuidedProgram(false),
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+  });
 
   const expiredCount  = (expiryReport as any)?.expired?.length ?? 0;
   const expiringCount = (expiryReport as any)?.expiringSoon?.length ?? 0;
   const overdueCount  = (taskStats as any)?.overdue ?? 0;
   const totalAlerts   = expiredCount + expiringCount + overdueCount;
+  const guidedPending = ((guidedProgram as any)?.thisWeek?.length ?? 0) + ((guidedProgram as any)?.stats?.inProgress ?? 0);
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -117,21 +129,28 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              'sidebar-link',
-              (href === '/controls'
-                ? pathname === '/controls' || /^\/controls\/[0-9a-f-]{36}/.test(pathname)
-                : pathname.startsWith(href)) && 'active',
-            )}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
-          </Link>
-        ))}
+        {NAV.map(({ href, label, icon: Icon, badge }) => {
+          const isActive =
+            href === '/controls'
+              ? pathname === '/controls' || /^\/controls\/[0-9a-f-]{36}/.test(pathname)
+              : pathname.startsWith(href);
+          const badgeCount = badge === 'guided' && guidedPending > 0 ? guidedPending : 0;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn('sidebar-link', isActive && 'active')}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="flex-1 truncate">{label}</span>
+              {badgeCount > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none shrink-0">
+                  {badgeCount > 99 ? '99+' : badgeCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* User footer */}

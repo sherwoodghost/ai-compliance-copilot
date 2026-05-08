@@ -9,6 +9,7 @@ import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
   XCircle, Activity, Gauge, CalendarDays, Sparkles, Copy, X, Mail,
+  Rocket,
 } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -361,6 +362,53 @@ function DigestModal({ digest, generatedAt, onClose }: {
   );
 }
 
+// ─── Guided Tasks Banner ──────────────────────────────────────────────────────
+
+function GuidedTasksBanner() {
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('guided-banner-dismissed') === 'true';
+  });
+
+  const { data: program } = useQuery({
+    queryKey: ['guided-program', false],
+    queryFn: () => import('@/lib/api/team').then((m) => m.teamApi.getGuidedProgram(false)),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const pending = program ? program.thisWeek.length + program.readyNow.length : 0;
+  const total   = program?.stats?.total ?? 0;
+  const done    = program?.stats?.done ?? 0;
+
+  if (dismissed || total === 0) return null;
+
+  return (
+    <div className="flex items-center gap-3 bg-brand-50 border border-brand-200 rounded-xl px-4 py-3">
+      <Rocket className="w-4 h-4 text-brand-600 shrink-0" />
+      <p className="text-sm text-brand-800 flex-1">
+        <strong>{pending > 0 ? `${pending} compliance setup tasks waiting` : `${done}/${total} tasks complete`}</strong>
+        {pending > 0 && ' — your ISO 27001 + SOC 2 program is ready.'}
+        {done === total && total > 0 && ' 🎉 Compliance program complete!'}
+      </p>
+      <Link
+        href="/getting-started"
+        className="text-xs font-semibold text-brand-700 hover:text-brand-800 flex items-center gap-1 shrink-0"
+      >
+        View Getting Started <ArrowRight className="w-3 h-3" />
+      </Link>
+      <button
+        className="p-1 rounded hover:bg-brand-100 transition-colors shrink-0"
+        onClick={() => {
+          localStorage.setItem('guided-banner-dismissed', 'true');
+          setDismissed(true);
+        }}
+      >
+        <X className="w-3.5 h-3.5 text-brand-500" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
@@ -478,6 +526,9 @@ export default function OverviewPage() {
           message={`Assessment triggered for ${triggered}. Results will appear shortly.`}
         />
       )}
+
+      {/* Guided tasks banner */}
+      <GuidedTasksBanner />
 
       {/* Score + quick stats */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
