@@ -7,7 +7,7 @@ import { formatDate } from '@/lib/utils';
 import {
   Building2, AlertTriangle, CheckCircle, Search, ChevronDown, ChevronUp,
   Calendar, ShieldAlert, ShieldCheck, Package, ExternalLink, Plus,
-  Pencil, Trash2, X, Save,
+  Pencil, Trash2, X, Save, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -250,10 +250,14 @@ function VendorCard({
   vendor,
   onEdit,
   onDelete,
+  onAiAnalyze,
+  analyzing,
 }: {
   vendor: Vendor;
   onEdit: (v: Vendor) => void;
   onDelete: (v: Vendor) => void;
+  onAiAnalyze: (v: Vendor) => void;
+  analyzing: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = RISK_CONFIG[vendor.riskLevel] ?? RISK_CONFIG.low;
@@ -375,8 +379,21 @@ function VendorCard({
             <p className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3">{vendor.notes}</p>
           )}
 
-          {/* Edit / Delete */}
+          {/* Actions row */}
           <div className="flex items-center gap-2 pt-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); onAiAnalyze(vendor); }}
+              disabled={analyzing}
+              className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 transition-colors disabled:opacity-50"
+            >
+              {analyzing ? (
+                <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5" />
+              )}
+              {analyzing ? 'Analyzing…' : 'AI Analyze'}
+            </button>
+            <span className="text-gray-200">|</span>
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(vendor); }}
               className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-brand-600 transition-colors"
@@ -456,6 +473,17 @@ export default function VendorsPage() {
       qc.invalidateQueries({ queryKey: ['vendors'] });
       setShowDelete(null);
     },
+  });
+
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const analyzeMutation = useMutation({
+    mutationFn: (id: string) => apiClient.post(`/vendor-risk/${id}/analyze`, {}).then((r) => r.data),
+    onMutate: (id) => setAnalyzingId(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vendors'] });
+      setAnalyzingId(null);
+    },
+    onError: () => setAnalyzingId(null),
   });
 
   function openCreate() { setModalVendor(null); setShowModal(true); }
@@ -572,7 +600,14 @@ export default function VendorsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v) => (
-            <VendorCard key={v.id} vendor={v} onEdit={openEdit} onDelete={openDelete} />
+            <VendorCard
+              key={v.id}
+              vendor={v}
+              onEdit={openEdit}
+              onDelete={openDelete}
+              onAiAnalyze={(vendor) => analyzeMutation.mutate(vendor.id)}
+              analyzing={analyzingId === v.id}
+            />
           ))}
         </div>
       )}

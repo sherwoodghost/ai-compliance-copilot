@@ -5,7 +5,7 @@ import { complianceApi } from '@/lib/api/compliance';
 import { apiClient as api } from '@/lib/api/client';
 import {
   ClipboardList, AlertCircle, Clock, CheckCircle2,
-  Calendar, LayoutGrid, List, Filter, Plus, X,
+  Calendar, LayoutGrid, List, Filter, Plus, X, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
@@ -317,6 +317,7 @@ export default function TasksPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [aiResult, setAiResult] = useState<{ created: number } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['tasks'],
@@ -328,6 +329,16 @@ export default function TasksPage() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       complianceApi.updateTask(id, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+
+  const generateTasks = useMutation({
+    mutationFn: () =>
+      api.post('/tasks/generate-from-gaps', {}).then((r: any) => r.data as { created: number; tasks: any[] }),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      setAiResult({ created: result.created });
+      setTimeout(() => setAiResult(null), 5000);
+    },
   });
 
   const tasks: Task[] = data ?? [];
@@ -374,6 +385,21 @@ export default function TasksPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* AI Generate button */}
+          <button
+            onClick={() => generateTasks.mutate()}
+            disabled={generateTasks.isPending}
+            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-purple-200
+                       bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-60"
+          >
+            {generateTasks.isPending ? (
+              <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {generateTasks.isPending ? 'Generating…' : 'AI Generate Tasks'}
+          </button>
+
           {/* Add Task button */}
           <button
             onClick={() => setShowAddModal(true)}
@@ -406,6 +432,16 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+
+      {/* AI result banner */}
+      {aiResult !== null && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-sm text-purple-800">
+          <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
+          {aiResult.created === 0
+            ? 'All controls already have open tasks — nothing new to generate.'
+            : `✓ ${aiResult.created} AI-generated task${aiResult.created !== 1 ? 's' : ''} added to your board.`}
+        </div>
+      )}
 
       {/* Stats strip */}
       <div className="grid grid-cols-4 gap-3">
@@ -461,9 +497,22 @@ export default function TasksPage() {
             <ClipboardList className="w-7 h-7 text-gray-300" />
           </div>
           <p className="text-sm font-semibold text-gray-700 mb-1">No tasks yet</p>
-          <p className="text-xs text-gray-400 max-w-xs text-center">
-            Tasks are created automatically when gaps or evidence requests are identified during assessments.
+          <p className="text-xs text-gray-400 max-w-xs text-center mb-5">
+            Create tasks manually or let AI generate remediation tasks from your open compliance gaps.
           </p>
+          <button
+            onClick={() => generateTasks.mutate()}
+            disabled={generateTasks.isPending}
+            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-purple-600 text-white
+                       hover:bg-purple-700 transition-colors disabled:opacity-60 font-medium"
+          >
+            {generateTasks.isPending ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {generateTasks.isPending ? 'Generating tasks…' : 'Generate AI Remediation Tasks'}
+          </button>
         </div>
       ) : viewMode === 'board' ? (
         /* ── Board view ── */

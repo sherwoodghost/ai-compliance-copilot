@@ -29,6 +29,12 @@ export class TasksController {
     return this.tasksService.createManual(user.orgId, dto);
   }
 
+  @Post('generate-from-gaps')
+  @ApiOperation({ summary: 'AI: generate prioritized remediation tasks for all not-started controls' })
+  generateFromGaps(@CurrentUser() user: JwtPayload) {
+    return this.tasksService.generateFromGaps(user.orgId);
+  }
+
   @Get()
   findAll(
     @CurrentUser() user: JwtPayload,

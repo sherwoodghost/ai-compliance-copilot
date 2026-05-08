@@ -6,6 +6,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, IsDateString, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PrismaService } from '../../database/prisma.service';
+import { LlmService } from '../../llm/llm.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
@@ -79,7 +80,10 @@ class AcceptTreatmentDto {
 @UseGuards(JwtAuthGuard)
 @Controller('risks')
 export class RisksController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly llm: LlmService,
+  ) {}
 
   // ── Risk Items ────────────────────────────────────────────────────────────
 
@@ -200,6 +204,87 @@ export class RisksController {
         ...(dto.mitigationAdvice !== undefined && { mitigationAdvice: dto.mitigationAdvice }),
       },
     });
+  }
+
+  // ── AI Advice ─────────────────────────────────────────────────────────────
+
+  @Post(':riskId/ai-advice')
+  @ApiOperation({ summary: 'AI: generate mitigation strategies and residual risk assessment' })
+  async getAiAdvice(
+    @CurrentUser() user: JwtPayload,
+    @Param('riskId', ParseUUIDPipe) riskId: string,
+  ) {
+    const risk = await this.prisma.riskItem.findFirst({
+      where: { id: riskId, orgId: user.orgId },
+      include: {
+        control: { select: { code: true, title: true, category: true } },
+      },
+    });
+    if (!risk) throw new NotFoundException('Risk not found');
+
+    // Get org profile for context
+    const profile = await this.prisma.businessProfile.findFirst({
+      where: { orgId: user.orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const profileData = (profile?.profileData as any) ?? {};
+
+    const systemPrompt = `You are a compliance and information security risk expert. Provide concrete, actionable mitigation strategies for identified risks. Return ONLY valid JSON.`;
+    const userPrompt = `Generate mitigation advice for this risk:
+
+Risk: ${risk.title}
+${risk.description ? `Description: ${risk.description}` : ''}
+Likelihood: ${risk.likelihood} (score: ${LIKELIHOOD_SCORES[risk.likelihood as string] ?? '?'}/5)
+Impact: ${risk.impact} (score: ${IMPACT_SCORES[risk.impact as string] ?? '?'}/5)
+Risk Score: ${risk.riskScore}/25 — Severity: ${risk.severity}
+${risk.control ? `Linked Control: [${risk.control.code}] ${risk.control.title} (${risk.control.category})` : ''}
+
+Organization context:
+- Industry: ${profileData.industry ?? 'software/SaaS'}
+- Cloud: ${(profileData.infrastructure?.cloudProviders ?? []).join(', ') || 'cloud-based'}
+- Frameworks: ${(profileData.complianceGoals?.targetFrameworks ?? []).join(', ') || 'SOC 2'}
+
+Return JSON:
+{
+  "executiveSummary": "2-sentence summary of this risk and why it matters",
+  "mitigationStrategies": [
+    { "type": "mitigate" | "transfer" | "avoid" | "accept", "title": "short action", "description": "how to do it", "effort": "low" | "medium" | "high", "timeframe": "1 week" | "1 month" | "3 months" | "6 months" }
+  ],
+  "residualRiskAfterMitigation": "low" | "medium" | "high",
+  "quickWin": "the fastest, easiest action that reduces this risk today",
+  "relatedControls": ["CC6.1", ...]
+}`;
+
+    const response = await this.llm.complete(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt },
+      ],
+      { agentName: 'risk-scoring', temperature: 0.2 },
+    );
+
+    let advice: any = {};
+    try {
+      const raw = response.content.trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+      advice = JSON.parse(raw);
+    } catch {
+      advice = { executiveSummary: response.content, mitigationStrategies: [] };
+    }
+
+    // Persist the AI advice as mitigationAdvice on the risk
+    if (advice.executiveSummary || advice.quickWin) {
+      const advisoryText = [
+        advice.executiveSummary,
+        advice.quickWin ? `Quick win: ${advice.quickWin}` : '',
+      ].filter(Boolean).join(' | ');
+
+      await this.prisma.riskItem.update({
+        where: { id: riskId },
+        data: { mitigationAdvice: advisoryText },
+      });
+    }
+
+    return { riskId, ...advice };
   }
 
   // ── Risk Treatments ────────────────────────────────────────────────────────

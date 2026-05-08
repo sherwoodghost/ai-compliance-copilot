@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { apiClient as api } from '@/lib/api/client';
 import {
   AlertTriangle, Shield, CheckCircle, ChevronDown, ChevronRight,
-  ArrowRightLeft, Ban, Zap, Clock, Plus, X,
+  ArrowRightLeft, Ban, Zap, Clock, Plus, X, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -332,8 +332,18 @@ function RiskRow({ risk }: { risk: Risk }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [aiAdvice, setAiAdvice] = useState<any>(null);
   const cfg = SEVERITY_CONFIG[risk.severity] ?? SEVERITY_CONFIG.low;
   const latestTreatment = risk.riskTreatments?.[0];
+
+  const getAiAdvice = useMutation({
+    mutationFn: () =>
+      api.post(`/risks/${risk.id}/ai-advice`, {}).then((r: any) => r.data),
+    onSuccess: (data) => {
+      setAiAdvice(data);
+      qc.invalidateQueries({ queryKey: ['risks'] });
+    },
+  });
 
   const acceptTreatment = useMutation({
     mutationFn: (treatmentId: string) =>
@@ -390,6 +400,58 @@ function RiskRow({ risk }: { risk: Risk }) {
               <p className="text-xs font-semibold text-blue-800 mb-1">AI Mitigation Advice</p>
               <p className="text-xs text-blue-700">{risk.mitigationAdvice}</p>
             </div>
+          )}
+
+          {/* AI Advice panel */}
+          {aiAdvice && (
+            <div className="bg-purple-50 border border-purple-100 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                <p className="text-xs font-semibold text-purple-800">AI Risk Analysis</p>
+              </div>
+              {aiAdvice.executiveSummary && (
+                <p className="text-xs text-purple-700">{aiAdvice.executiveSummary}</p>
+              )}
+              {aiAdvice.quickWin && (
+                <div className="bg-white rounded-lg px-3 py-2 border border-purple-100">
+                  <p className="text-xs font-semibold text-purple-700 mb-0.5">⚡ Quick Win</p>
+                  <p className="text-xs text-gray-700">{aiAdvice.quickWin}</p>
+                </div>
+              )}
+              {aiAdvice.mitigationStrategies?.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-purple-700">Strategies</p>
+                  {aiAdvice.mitigationStrategies.slice(0, 3).map((s: any, i: number) => (
+                    <div key={i} className="bg-white rounded-lg px-3 py-2 border border-purple-100">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <p className="text-xs font-medium text-gray-800">{s.title}</p>
+                        <div className="flex gap-1">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 capitalize">{s.type}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{s.effort} effort</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-600">{s.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Get AI advice button (only if no advice yet) */}
+          {!aiAdvice && risk.status === 'open' && (
+            <button
+              onClick={() => getAiAdvice.mutate()}
+              disabled={getAiAdvice.isPending}
+              className="flex items-center gap-1.5 text-xs text-purple-600 hover:text-purple-700 font-medium disabled:opacity-50 transition-colors"
+            >
+              {getAiAdvice.isPending ? (
+                <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5" />
+              )}
+              {getAiAdvice.isPending ? 'Generating AI advice…' : 'Get AI Mitigation Advice'}
+            </button>
           )}
 
           {/* Treatment history */}

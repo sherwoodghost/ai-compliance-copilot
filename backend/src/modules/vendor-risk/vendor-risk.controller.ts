@@ -5,6 +5,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsOptional, IsIn } from 'class-validator';
 import { PrismaService } from '../../database/prisma.service';
+import { LlmService } from '../../llm/llm.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
@@ -35,7 +36,10 @@ class UpdateVendorDto {
 @UseGuards(JwtAuthGuard)
 @Controller('vendor-risk')
 export class VendorRiskController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly llm: LlmService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List all vendor risk assessments for the org' })
@@ -150,6 +154,102 @@ export class VendorRiskController {
       contactEmail: a.contactEmail,
       website: a.website,
       notes: a.notes,
+    };
+  }
+
+  @Post(':id/analyze')
+  @ApiOperation({ summary: 'AI: analyze a vendor and generate findings, mitigations, and risk level' })
+  async analyzeVendor(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const existing = await this.prisma.vendorRisk.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Vendor not found');
+    if (existing.orgId !== user.orgId) throw new ForbiddenException();
+
+    const currentAssessment = (existing.assessment as Record<string, unknown>) ?? {};
+    const notes = (currentAssessment.notes as string) ?? '';
+
+    // Fetch org profile for context
+    const profile = await this.prisma.businessProfile.findFirst({
+      where: { orgId: user.orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const profileData = (profile?.profileData as any) ?? {};
+
+    const systemPrompt = `You are a vendor security and compliance analyst. Assess third-party vendors based on their known security practices, certifications, breach history, and compliance posture. Return ONLY valid JSON.`;
+    const userPrompt = `Analyze this vendor for a ${profileData.industry ?? 'software'} company:
+
+Vendor: ${existing.vendorName}
+Category: ${existing.category ?? 'unknown'}
+${notes ? `Internal notes: ${notes}` : ''}
+
+Company's data types: ${(profileData.dataHandling?.dataTypes ?? []).join(', ') || 'general business data'}
+Company's compliance frameworks: ${(profileData.complianceGoals?.targetFrameworks ?? []).join(', ') || 'SOC 2'}
+
+Return JSON with this structure:
+{
+  "riskLevel": "critical" | "high" | "medium" | "low",
+  "summary": "2-3 sentence executive summary of this vendor's risk posture",
+  "findings": ["finding 1", "finding 2", ...],  (3-5 specific security/compliance findings)
+  "mitigations": ["mitigation 1", ...],  (3-5 actionable mitigations)
+  "certifications": ["ISO 27001", ...],  (known certifications if any)
+  "subprocessors": ["vendor A", ...],  (notable subprocessors if known)
+  "dataRetentionRisk": "low" | "medium" | "high"
+}`;
+
+    const response = await this.llm.complete(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt },
+      ],
+      { agentName: 'vendor-risk', temperature: 0.2 },
+    );
+
+    let aiResult: any = {};
+    try {
+      const raw = response.content.trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+      aiResult = JSON.parse(raw);
+    } catch {
+      aiResult = { summary: response.content, findings: [], mitigations: [] };
+    }
+
+    const updatedAssessment = {
+      ...currentAssessment,
+      summary: aiResult.summary ?? currentAssessment['summary'],
+      findings: aiResult.findings ?? [],
+      mitigations: aiResult.mitigations ?? [],
+      certifications: aiResult.certifications ?? [],
+      subprocessors: aiResult.subprocessors ?? [],
+      dataRetentionRisk: aiResult.dataRetentionRisk ?? 'medium',
+      status: 'approved',
+      aiAnalyzedAt: new Date().toISOString(),
+    };
+
+    const updated = await this.prisma.vendorRisk.update({
+      where: { id },
+      data: {
+        riskLevel: aiResult.riskLevel ?? existing.riskLevel,
+        assessment: updatedAssessment as any,
+        lastAssessedAt: new Date(),
+      },
+    });
+
+    const a = updated.assessment as any;
+    return {
+      id: updated.id,
+      vendorName: updated.vendorName,
+      category: updated.category,
+      riskLevel: updated.riskLevel,
+      lastReviewedAt: updated.lastAssessedAt,
+      findings: a.findings ?? [],
+      mitigations: a.mitigations ?? [],
+      certifications: a.certifications ?? [],
+      subprocessors: a.subprocessors ?? [],
+      dataRetentionRisk: a.dataRetentionRisk,
+      status: a.status ?? 'approved',
+      summary: a.summary,
+      aiAnalyzedAt: a.aiAnalyzedAt,
     };
   }
 
