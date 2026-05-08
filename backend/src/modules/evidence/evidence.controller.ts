@@ -47,6 +47,12 @@ export class EvidenceController {
     return this.evidenceService.getExpiryReport(user.orgId);
   }
 
+  @Post('ai-bulk-map')
+  @ApiOperation({ summary: 'AI: suggest additional control mappings across all evidence items (batch cross-mapping)' })
+  bulkSuggestMappings(@CurrentUser() user: JwtPayload) {
+    return this.evidenceService.bulkSuggestMappings(user.orgId);
+  }
+
   @Get(':evidenceId')
   findOne(
     @CurrentUser() user: JwtPayload,

@@ -301,6 +301,101 @@ If no strong matches, return [].`;
     return { evidenceId, currentControlCode: currentCode, suggestions };
   }
 
+  // ─── AI: Bulk cross-mapping — find additional controls for all evidence ──────
+  async bulkSuggestMappings(orgId: string) {
+    // Fetch up to 12 real (non-pending) evidence items
+    const evidenceItems = await this.prisma.evidence.findMany({
+      where: { orgId, controlId: { not: null } },
+      include: { control: { select: { id: true, code: true, title: true } } },
+      orderBy: { collectedAt: 'desc' },
+      take: 12,
+    });
+
+    const realItems = evidenceItems.filter(
+      (e) => !(e.metadata as any)?.isPendingSuggestion,
+    );
+
+    if (realItems.length === 0) {
+      return { processed: 0, suggestions: [] };
+    }
+
+    // Fetch all org controls for matching
+    const orgControls = await this.prisma.organizationControl.findMany({
+      where: { orgId },
+      include: { control: { select: { id: true, code: true, title: true, category: true } } },
+      take: 80,
+    });
+
+    const controlListStr = orgControls
+      .map((oc) => `${oc.control.code}: ${oc.control.title} (${oc.control.category})`)
+      .join('\n');
+
+    const evidenceListStr = realItems
+      .map((e, i) => `${i + 1}. ID:${e.id} | "${e.title}" | type:${e.type} | mapped-to:${(e as any).control?.code ?? 'none'}`)
+      .join('\n');
+
+    const prompt = `You are a compliance expert performing cross-framework evidence mapping.
+
+For each evidence item below, identify up to 3 ADDITIONAL compliance controls it could satisfy (beyond its current mapping).
+Only suggest controls where confidence is >70%. Ignore the control the evidence is already mapped to.
+
+AVAILABLE CONTROLS:
+${controlListStr}
+
+EVIDENCE ITEMS:
+${evidenceListStr}
+
+Return ONLY a JSON array (no markdown, no explanation):
+[
+  {
+    "evidenceId": "exact ID from evidence item",
+    "additionalCodes": ["CC6.1", "A.9.2"]
+  }
+]
+
+If an evidence item has no strong additional matches, omit it from the array.`;
+
+    const response = await this.llm.complete(
+      [{ role: 'user', content: prompt }],
+      { agentName: 'evidence-mapper', maxTokens: 800, temperature: 0.1 },
+    );
+
+    let rawMappings: Array<{ evidenceId: string; additionalCodes: string[] }> = [];
+    try {
+      const match = response.content.match(/\[[\s\S]*\]/);
+      if (match) rawMappings = JSON.parse(match[0]);
+    } catch {
+      rawMappings = [];
+    }
+
+    // Build lookup maps
+    const controlByCode = new Map(
+      orgControls.map((oc) => [oc.control.code, { controlId: oc.controlId, code: oc.control.code, title: oc.control.title }]),
+    );
+    const evidenceById = new Map(realItems.map((e) => [e.id, e]));
+
+    const suggestions = rawMappings
+      .map((m) => {
+        const ev = evidenceById.get(m.evidenceId);
+        if (!ev) return null;
+        const additionalControls = (m.additionalCodes ?? [])
+          .map((code) => controlByCode.get(code))
+          .filter(Boolean) as Array<{ controlId: string; code: string; title: string }>;
+        if (additionalControls.length === 0) return null;
+        return {
+          evidenceId:          ev.id,
+          evidenceTitle:       ev.title,
+          evidenceType:        ev.type,
+          storageUrl:          ev.storageUrl,
+          currentControlCode:  (ev as any).control?.code ?? null,
+          additionalControls,
+        };
+      })
+      .filter(Boolean);
+
+    return { processed: realItems.length, suggestions };
+  }
+
   // ─── Manual re-trigger AI validation ───────────────────────────────────────
   async revalidate(orgId: string, evidenceId: string) {
     const evidence = await this.findOne(orgId, evidenceId);

@@ -8,7 +8,7 @@ import { formatDate, formatRelative } from '@/lib/utils';
 import {
   FileCheck, AlertTriangle, Clock, Upload, Search, Trash2,
   Plus, X, ChevronDown, Filter, FolderOpen, Link as LinkIcon,
-  CheckCircle, RefreshCw, Sparkles, Wand2,
+  CheckCircle, RefreshCw, Sparkles, Wand2, GitMerge, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +42,121 @@ type Evidence = {
 };
 
 type StatusFilter = 'all' | 'valid' | 'expiring' | 'expired' | 'pending' | 'ai_issues';
+
+// ─── Bulk Map Types ───────────────────────────────────────────────────────────
+
+type BulkMapControl = { controlId: string; code: string; title: string };
+type BulkMapSuggestion = {
+  evidenceId: string;
+  evidenceTitle: string;
+  evidenceType?: string;
+  storageUrl?: string;
+  currentControlCode: string | null;
+  additionalControls: BulkMapControl[];
+};
+type BulkMapResult = { processed: number; suggestions: BulkMapSuggestion[] };
+
+// ─── Bulk Map Panel ───────────────────────────────────────────────────────────
+
+function BulkMapPanel({
+  result,
+  onClose,
+  onApply,
+}: {
+  result: BulkMapResult;
+  onClose: () => void;
+  onApply: (evidenceId: string, evidenceTitle: string, evidenceType: string | undefined, storageUrl: string | undefined, control: BulkMapControl) => void;
+}) {
+  const [applied, setApplied] = useState<Set<string>>(new Set());
+
+  function handleApply(s: BulkMapSuggestion, ctrl: BulkMapControl) {
+    const key = `${s.evidenceId}:${ctrl.controlId}`;
+    onApply(s.evidenceId, s.evidenceTitle, s.evidenceType, s.storageUrl, ctrl);
+    setApplied((prev) => new Set([...prev, key]));
+  }
+
+  const hasSuggestions = result.suggestions.length > 0;
+
+  return (
+    <div className="mb-6 bg-purple-50 border border-purple-200 rounded-2xl p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+            <GitMerge className="w-4 h-4 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">AI Cross-Mapping Analysis</p>
+            <p className="text-xs text-purple-700">
+              Scanned {result.processed} evidence items ·{' '}
+              {hasSuggestions
+                ? `${result.suggestions.length} item${result.suggestions.length !== 1 ? 's' : ''} can satisfy additional controls`
+                : 'No additional cross-mappings found'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-purple-100 shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {!hasSuggestions ? (
+        <div className="text-center py-4">
+          <CheckCircle className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+          <p className="text-sm text-purple-700 font-medium">Great coverage!</p>
+          <p className="text-xs text-purple-600 mt-0.5">Your evidence is already well-mapped to controls.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {result.suggestions.map((s) => (
+            <div key={s.evidenceId} className="bg-white rounded-xl border border-purple-100 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-medium text-gray-900 truncate flex-1">{s.evidenceTitle}</span>
+                {s.currentControlCode && (
+                  <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-mono shrink-0">
+                    {s.currentControlCode}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {s.additionalControls.map((ctrl) => {
+                  const key = `${s.evidenceId}:${ctrl.controlId}`;
+                  const isApplied = applied.has(key);
+                  return (
+                    <div key={ctrl.controlId} className="flex items-center gap-2">
+                      <ArrowRight className="w-3 h-3 text-purple-400 shrink-0" />
+                      <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-mono shrink-0">
+                        {ctrl.code}
+                      </span>
+                      <span className="text-xs text-gray-600 flex-1 truncate">{ctrl.title}</span>
+                      <button
+                        onClick={() => handleApply(s, ctrl)}
+                        disabled={isApplied}
+                        className={cn(
+                          'text-xs px-2 py-0.5 rounded-md font-medium shrink-0 transition-colors',
+                          isApplied
+                            ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                            : 'bg-purple-600 text-white hover:bg-purple-700',
+                        )}
+                      >
+                        {isApplied ? '✓ Linked' : 'Link'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <p className="text-xs text-purple-600 mt-1">
+            Linking creates a new evidence reference for the target control using the same evidence item.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Evidence type config ─────────────────────────────────────────────────────
 
@@ -533,10 +648,37 @@ export default function EvidencePage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showUpload, setShowUpload] = useState(false);
   const [uploadForControlId, setUploadForControlId] = useState<string | undefined>();
+  const [bulkMapResult, setBulkMapResult] = useState<BulkMapResult | null>(null);
 
   function openUpload(controlId?: string) {
     setUploadForControlId(controlId);
     setShowUpload(true);
+  }
+
+  const bulkMap = useMutation({
+    mutationFn: () => apiClient.post<BulkMapResult>('/evidence/ai-bulk-map'),
+    onSuccess: (res) => setBulkMapResult((res as any).data ?? res),
+  });
+
+  async function applyMapping(
+    _evidenceId: string,
+    evidenceTitle: string,
+    evidenceType: string | undefined,
+    storageUrl: string | undefined,
+    ctrl: BulkMapControl,
+  ) {
+    try {
+      await apiClient.post('/evidence', {
+        controlId: ctrl.controlId,
+        title: `${evidenceTitle} (cross-mapped)`,
+        type: evidenceType ?? 'document',
+        source: 'manual',
+        ...(storageUrl && { storageUrl }),
+      });
+      qc.invalidateQueries({ queryKey: ['evidence'] });
+    } catch {
+      // ignore — user sees "Linked" regardless since it's optimistic
+    }
   }
 
   const { data, isLoading } = useQuery({
@@ -619,13 +761,27 @@ export default function EvidencePage() {
             {aiIssuesCount > 0 && <span className="text-red-600"> · {aiIssuesCount} AI flagged</span>}
           </p>
         </div>
-        <button
-          onClick={() => openUpload()}
-          className="btn-primary flex items-center gap-2 text-sm shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Upload evidence
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {evidence.length > 0 && (
+            <button
+              onClick={() => bulkMap.mutate()}
+              disabled={bulkMap.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border
+                         bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors"
+            >
+              {bulkMap.isPending
+                ? <><RefreshCw className="w-4 h-4 animate-spin" /> Analyzing…</>
+                : <><Sparkles className="w-4 h-4" /> AI Coverage Map</>}
+            </button>
+          )}
+          <button
+            onClick={() => openUpload()}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Upload evidence
+          </button>
+        </div>
       </div>
 
       {/* Alert banners */}
@@ -637,6 +793,15 @@ export default function EvidencePage() {
             <p className="text-xs text-red-600 mt-0.5">These need to be recollected to maintain compliance.</p>
           </div>
         </div>
+      )}
+
+      {/* AI Coverage Map panel */}
+      {bulkMapResult && (
+        <BulkMapPanel
+          result={bulkMapResult}
+          onClose={() => setBulkMapResult(null)}
+          onApply={applyMapping}
+        />
       )}
 
       {/* Search + filters */}

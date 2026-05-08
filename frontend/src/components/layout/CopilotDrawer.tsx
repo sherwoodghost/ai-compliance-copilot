@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { apiClient as api } from '@/lib/api/client';
 import {
   Sparkles, X, Send, Bot, User, RotateCcw,
   Shield, AlertTriangle, BarChart3, FileText, CheckSquare, Zap,
+  Lock, GitMerge, FlaskConical, ClipboardCheck, TrendingUp, BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,9 +18,9 @@ type Message = {
   pending?: boolean;
 };
 
-// ─── Suggested prompts ────────────────────────────────────────────────────────
+// ─── Context-aware prompt sets ────────────────────────────────────────────────
 
-const QUICK_PROMPTS = [
+const DEFAULT_PROMPTS = [
   { label: 'What should I focus on today?',            icon: Zap },
   { label: 'Which critical controls are not started?', icon: AlertTriangle },
   { label: 'List expiring evidence with control names', icon: FileText },
@@ -26,6 +28,81 @@ const QUICK_PROMPTS = [
   { label: 'What are my top unmitigated risks?',       icon: Shield },
   { label: 'Draft a compliance status update email',   icon: BarChart3 },
 ];
+
+const PAGE_PROMPTS: Record<string, typeof DEFAULT_PROMPTS> = {
+  '/controls': [
+    { label: 'Which controls have no evidence yet?',           icon: AlertTriangle },
+    { label: 'What are my weakest control categories?',        icon: Shield },
+    { label: 'Which implemented controls still need review?',  icon: CheckSquare },
+    { label: 'Show me controls failing automated tests',       icon: FlaskConical },
+    { label: 'List controls with expiring evidence',           icon: FileText },
+    { label: 'What controls should I implement next?',         icon: TrendingUp },
+  ],
+  '/evidence': [
+    { label: 'Which controls have no evidence uploaded?',      icon: AlertTriangle },
+    { label: 'What evidence is expiring in 30 days?',          icon: FileText },
+    { label: 'List evidence with low AI confidence scores',    icon: Sparkles },
+    { label: 'Which evidence items are flagged as invalid?',   icon: Shield },
+    { label: 'Show evidence with no assigned reviewer',        icon: CheckSquare },
+    { label: 'What types of evidence are most common?',        icon: BarChart3 },
+  ],
+  '/risk': [
+    { label: 'Show me all critical unmitigated risks',         icon: AlertTriangle },
+    { label: 'Which risks have no owner assigned?',            icon: Shield },
+    { label: 'What risks are overdue for review?',             icon: FileText },
+    { label: 'List risks above acceptable threshold',          icon: TrendingUp },
+    { label: 'Which risk categories need most attention?',     icon: BarChart3 },
+    { label: 'Show risks linked to specific controls',         icon: GitMerge },
+  ],
+  '/tasks': [
+    { label: 'Show all overdue tasks and their owners',        icon: AlertTriangle },
+    { label: 'What tasks are due this week?',                  icon: CheckSquare },
+    { label: 'Which team members have the most open tasks?',   icon: BarChart3 },
+    { label: 'List high-priority tasks not yet started',       icon: Zap },
+    { label: 'What tasks are blocking audit readiness?',       icon: Shield },
+    { label: 'Show tasks with no assignee',                    icon: FileText },
+  ],
+  '/policies': [
+    { label: 'Which policies are pending approval?',           icon: AlertTriangle },
+    { label: 'What policies expire in the next 90 days?',      icon: FileText },
+    { label: 'List policies not linked to any control',        icon: GitMerge },
+    { label: 'Which policies haven\'t been reviewed recently?', icon: BookOpen },
+    { label: 'Draft a password security policy',               icon: Lock },
+    { label: 'What policies are required for SOC 2?',          icon: CheckSquare },
+  ],
+  '/readiness': [
+    { label: 'When will I be audit-ready at current pace?',    icon: TrendingUp },
+    { label: 'What\'s blocking my readiness score from 80%?',  icon: AlertTriangle },
+    { label: 'What are the highest-impact actions I can take?', icon: Zap },
+    { label: 'Compare my readiness to similar companies',      icon: BarChart3 },
+    { label: 'What\'s my weakest readiness domain?',           icon: Shield },
+    { label: 'Draft a readiness report for the board',         icon: FileText },
+  ],
+  '/audit-history': [
+    { label: 'Summarise findings from my last audit',          icon: ClipboardCheck },
+    { label: 'Which findings keep recurring across cycles?',   icon: AlertTriangle },
+    { label: 'What\'s the average remediation time for findings?', icon: TrendingUp },
+    { label: 'Show findings with no lesson learned notes',     icon: BookOpen },
+    { label: 'Which controls are flagged most in audits?',     icon: Shield },
+    { label: 'Draft talking points for the next audit kick-off', icon: FileText },
+  ],
+};
+
+function getPrompts(pathname: string) {
+  const match = Object.keys(PAGE_PROMPTS).find((k) => pathname.includes(k));
+  return match ? PAGE_PROMPTS[match] : DEFAULT_PROMPTS;
+}
+
+function getPageLabel(pathname: string): string | null {
+  if (pathname.includes('/controls'))     return 'Controls';
+  if (pathname.includes('/evidence'))     return 'Evidence';
+  if (pathname.includes('/risk'))         return 'Risk';
+  if (pathname.includes('/tasks'))        return 'Tasks';
+  if (pathname.includes('/policies'))     return 'Policies';
+  if (pathname.includes('/readiness'))    return 'Readiness';
+  if (pathname.includes('/audit-history')) return 'Audit History';
+  return null;
+}
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
@@ -86,6 +163,7 @@ function Bubble({ msg }: { msg: Message }) {
 // ─── CopilotDrawer ────────────────────────────────────────────────────────────
 
 export function CopilotDrawer() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -93,6 +171,9 @@ export function CopilotDrawer() {
   const [context, setContext] = useState<{ controlsTotal?: number; readinessScore?: number }>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const quickPrompts = getPrompts(pathname ?? '');
+  const pageLabel = getPageLabel(pathname ?? '');
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 150);
@@ -207,9 +288,17 @@ export function CopilotDrawer() {
                   {context.controlsTotal !== undefined && (
                     <> · <span className="font-medium text-white">{context.controlsTotal}</span> controls</>
                   )}
+                  {pageLabel && (
+                    <> · <span className="font-medium text-white/90 bg-white/10 px-1 rounded text-[10px]">{pageLabel}</span></>
+                  )}
                 </p>
               ) : (
-                <p className="text-xs text-white/70">Backed by live compliance data</p>
+                <p className="text-xs text-white/70">
+                  Backed by live compliance data
+                  {pageLabel && (
+                    <> · <span className="font-medium text-white/90 bg-white/10 px-1 rounded text-[10px]">{pageLabel}</span></>
+                  )}
+                </p>
               )}
             </div>
           </div>
@@ -248,9 +337,11 @@ export function CopilotDrawer() {
               </div>
 
               {/* Quick prompts */}
-              <p className="text-xs text-gray-400 text-center pt-1">Quick prompts</p>
+              <p className="text-xs text-gray-400 text-center pt-1">
+                {pageLabel ? `${pageLabel} prompts` : 'Quick prompts'}
+              </p>
               <div className="grid grid-cols-2 gap-2">
-                {QUICK_PROMPTS.map(({ label, icon: Icon }) => (
+                {quickPrompts.map(({ label, icon: Icon }) => (
                   <button
                     key={label}
                     onClick={() => sendMessage(label)}
