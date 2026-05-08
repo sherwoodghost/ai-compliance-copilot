@@ -82,10 +82,13 @@ export default function DocumentsPage() {
   const [savingDoc, setSavingDoc]     = useState(false);
 
   // AI panel state
-  const [aiPanel, setAiPanel]   = useState<'improve' | 'gaps' | null>(null);
+  const [aiPanel, setAiPanel]       = useState<'improve' | 'gaps' | null>(null);
   const [gapResults, setGapResults] = useState<Array<{ section: string; framework: string; severity: string; detail: string }>>([]);
   const [aiLoading, setAiLoading]   = useState(false);
   const [aiError, setAiError]       = useState<string | null>(null);
+  const [improveInstruction, setImproveInstruction] = useState('');
+  const [improvedText, setImprovedText] = useState<string | null>(null);
+  const editorRef = useRef<any>(null);
 
   // Version history state
   const [showVersions, setShowVersions] = useState(false);
@@ -287,16 +290,33 @@ export default function DocumentsPage() {
     if (!editing) return;
     setAiLoading(true);
     setAiError(null);
+    setAiPanel('gaps');
+    setGapResults([]);
     try {
       const { gaps } = await documentsApi.aiGaps(editing.id);
       setGapResults(gaps);
-      setAiPanel('gaps');
     } catch (err: any) {
       setAiError(err?.response?.data?.message ?? 'Gap analysis failed');
     } finally {
       setAiLoading(false);
     }
   }, [editing]);
+
+  const runImproveSelection = useCallback(async (selectedHtml: string) => {
+    if (!editing || !selectedHtml.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    setAiPanel('improve');
+    setImprovedText(null);
+    try {
+      const { improved } = await documentsApi.aiImprove(editing.id, selectedHtml, improveInstruction || undefined);
+      setImprovedText(improved);
+    } catch (err: any) {
+      setAiError(err?.response?.data?.message ?? 'Improve failed');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [editing, improveInstruction]);
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
@@ -493,27 +513,108 @@ export default function DocumentsPage() {
               {/* AI Assist */}
               {aiEnabled && editing && (
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-brand-500" />
                     AI Assist
                   </h3>
                   <div className="space-y-2">
+
+                    {/* Improve selection */}
+                    <div className="p-2.5 bg-brand-50 border border-brand-100 rounded-lg space-y-2">
+                      <p className="text-xs font-medium text-brand-800">✨ Improve Selection</p>
+                      <p className="text-xs text-brand-600">Select text in the editor, then click improve.</p>
+                      <input
+                        type="text"
+                        value={improveInstruction}
+                        onChange={(e) => setImproveInstruction(e.target.value)}
+                        placeholder="Optional: make it more formal..."
+                        className="w-full text-xs px-2 py-1.5 border border-brand-200 rounded-md bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                      />
+                      <button
+                        onClick={() => {
+                          // Get selected HTML from the editor via window.getSelection
+                          const sel = window.getSelection();
+                          const selectedHtml = sel && sel.rangeCount > 0
+                            ? (() => { const d = document.createElement('div'); d.appendChild(sel.getRangeAt(0).cloneContents()); return d.innerHTML; })()
+                            : '';
+                          if (selectedHtml.trim()) {
+                            runImproveSelection(selectedHtml);
+                          } else {
+                            setAiError('Select some text in the editor first');
+                            setTimeout(() => setAiError(null), 3000);
+                          }
+                        }}
+                        disabled={aiLoading}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs bg-brand-600 text-white rounded-md hover:bg-brand-700 disabled:opacity-50 transition-colors font-medium"
+                      >
+                        {aiLoading && aiPanel === 'improve' ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3" />
+                        )}
+                        Improve selection
+                      </button>
+                      {improvedText && aiPanel === 'improve' && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-brand-700">Improved text:</p>
+                          <div
+                            className="text-xs text-gray-700 bg-white border border-brand-200 rounded-md p-2 max-h-32 overflow-y-auto prose prose-xs"
+                            dangerouslySetInnerHTML={{ __html: improvedText }}
+                          />
+                          <button
+                            onClick={() => {
+                              // Replace selection in editor with improved text
+                              const sel = window.getSelection();
+                              if (sel && sel.rangeCount > 0) {
+                                const range = sel.getRangeAt(0);
+                                range.deleteContents();
+                                const fragment = range.createContextualFragment(improvedText);
+                                range.insertNode(fragment);
+                                sel.collapseToEnd();
+                              }
+                              setImprovedText(null);
+                              setAiPanel(null);
+                            }}
+                            className="w-full text-xs px-2 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium"
+                          >
+                            Apply to document
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Gap analysis */}
                     <button
                       onClick={runGapAnalysis}
                       disabled={aiLoading}
                       className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
                     >
-                      {aiLoading ? (
+                      {aiLoading && aiPanel === 'gaps' ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" />
                       ) : (
                         <Search className="h-3.5 w-3.5 text-brand-600" />
                       )}
                       Detect missing sections
                     </button>
+
                     {aiError && (
-                      <p className="text-xs text-red-600">{aiError}</p>
+                      <p className="text-xs text-red-600 bg-red-50 px-2 py-1.5 rounded-md">{aiError}</p>
                     )}
-                    {gapResults.length > 0 && (
+
+                    {aiPanel === 'gaps' && (
                       <div className="space-y-1.5">
+                        {aiLoading && gapResults.length === 0 && (
+                          <div className="flex items-center gap-2 p-3 text-xs text-gray-500 bg-gray-50 rounded-lg">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Analyzing document against frameworks…
+                          </div>
+                        )}
+                        {gapResults.length === 0 && !aiLoading && (
+                          <div className="p-3 text-xs text-green-700 bg-green-50 rounded-lg border border-green-200 flex items-center gap-2">
+                            <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+                            No gaps detected — document looks complete!
+                          </div>
+                        )}
                         {gapResults.map((g, i) => (
                           <div key={i} className="p-2 bg-white border border-gray-200 rounded-lg text-xs">
                             <div className="flex items-center gap-1.5 mb-1">
@@ -527,9 +628,18 @@ export default function DocumentsPage() {
                               </span>
                               <span className="font-medium text-gray-800">{g.section}</span>
                             </div>
-                            <p className="text-gray-500 text-xs">{g.detail}</p>
+                            <p className="text-gray-500">{g.detail}</p>
+                            <p className="text-gray-400 mt-0.5">{g.framework}</p>
                           </div>
                         ))}
+                        {gapResults.length > 0 && (
+                          <button
+                            onClick={() => { setGapResults([]); setAiPanel(null); }}
+                            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            Clear results
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -642,31 +752,37 @@ export default function DocumentsPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-5 w-5 text-brand-600" />
-          <h1 className="text-lg font-semibold text-gray-900">Documents</h1>
-          <span className="text-sm text-gray-500">{docs.length} total</span>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center">
+              <BookOpen className="h-4 w-4 text-brand-600" />
+            </div>
+            <h1 className="text-lg font-bold text-gray-900">Documents</h1>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5 ml-9">
+            {docs.length > 0 ? `${docs.length} document${docs.length !== 1 ? 's' : ''} across all types` : 'Policy editor & compliance document hub'}
+          </p>
         </div>
         <button
           onClick={openNew}
-          className="flex items-center gap-2 px-3 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
+          className="btn-primary flex items-center gap-2 text-sm px-4 py-2"
         >
           <Plus className="h-4 w-4" />
           New Document
         </button>
       </div>
 
-      {/* Type filter tabs */}
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-gray-200 bg-white overflow-x-auto">
+      {/* Type filter tabs + Search */}
+      <div className="flex items-center gap-1 px-6 py-2.5 border-b border-gray-100 bg-white overflow-x-auto">
         {TYPE_TABS.map((t) => (
           <button
             key={t.value}
             onClick={() => setTypeFilter(t.value)}
             className={cn(
-              'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors',
+              'px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors font-medium',
               typeFilter === t.value
-                ? 'bg-brand-50 text-brand-700 font-medium'
+                ? 'bg-brand-600 text-white shadow-sm'
                 : 'text-gray-600 hover:bg-gray-100',
             )}
           >
@@ -675,51 +791,81 @@ export default function DocumentsPage() {
         ))}
 
         {/* Search */}
-        <div className="ml-auto flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
-          <Search className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+        <div className="ml-auto flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5 min-w-[160px]">
+          <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search documents…"
-            className="bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400 w-44"
+            placeholder="Search…"
+            className="bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400 w-full"
           />
           {search && (
-            <button onClick={() => setSearch('')}>
-              <X className="h-3.5 w-3.5 text-gray-500" />
+            <button onClick={() => setSearch('')} className="text-gray-400 hover:text-gray-600">
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       </div>
 
       {/* Document list */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
+              <p className="text-sm text-gray-400">Loading documents…</p>
+            </div>
           </div>
         ) : docs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <BookOpen className="h-10 w-10 text-gray-300 mb-3" />
-            <p className="text-gray-500 font-medium">No documents yet</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Create your first compliance document or import from DOCX / PDF.
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mb-4">
+              <BookOpen className="h-8 w-8 text-brand-300" />
+            </div>
+            <h3 className="text-base font-semibold text-gray-800">
+              {search || typeFilter !== 'all' ? 'No matching documents' : 'No documents yet'}
+            </h3>
+            <p className="text-sm text-gray-400 mt-1 max-w-xs">
+              {search || typeFilter !== 'all'
+                ? 'Try adjusting your search or filter criteria.'
+                : 'Create your first compliance document, or import from DOCX, Markdown, or PDF.'}
             </p>
-            <button
-              onClick={openNew}
-              className="mt-4 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              + New Document
-            </button>
+            {!search && typeFilter === 'all' && (
+              <button
+                onClick={openNew}
+                className="btn-primary mt-5 text-sm px-5 py-2.5"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create First Document
+              </button>
+            )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2.5 max-w-4xl">
             {docs.map((doc) => (
               <DocumentCard key={doc.id} doc={doc} onClick={() => openEditor(doc)} />
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Doc type icon ─────────────────────────────────────────────────────────────
+
+function DocTypeIcon({ type, className }: { type: DocType; className?: string }) {
+  const cfg: Record<DocType, { icon: React.ElementType; bg: string; color: string }> = {
+    policy:        { icon: Shield,    bg: 'bg-brand-50',   color: 'text-brand-600' },
+    procedure:     { icon: BookOpen,  bg: 'bg-purple-50',  color: 'text-purple-600' },
+    template:      { icon: FileText,  bg: 'bg-emerald-50', color: 'text-emerald-600' },
+    evidence_note: { icon: Clipboard, bg: 'bg-amber-50',   color: 'text-amber-600' },
+    report:        { icon: Download,  bg: 'bg-sky-50',     color: 'text-sky-600' },
+  };
+  const { icon: Icon, bg, color } = cfg[type] ?? { icon: FileText, bg: 'bg-gray-50', color: 'text-gray-500' };
+  return (
+    <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', bg, className)}>
+      <Icon className={cn('w-4 h-4', color)} />
     </div>
   );
 }
@@ -733,48 +879,56 @@ function DocumentCard({ doc, onClick }: { doc: Document; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-4 bg-white border border-gray-200 rounded-xl hover:border-brand-300 hover:shadow-sm transition-all group"
+      className="w-full text-left p-4 bg-white border border-gray-200 rounded-xl hover:border-brand-200 hover:shadow-md transition-all duration-150 group"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
-          <div className="mt-0.5 p-1.5 bg-gray-100 rounded-lg group-hover:bg-brand-50 transition-colors flex-shrink-0">
-            <FileText className="h-4 w-4 text-gray-500 group-hover:text-brand-600" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-gray-900 truncate">{doc.title}</span>
-              <span className="text-xs text-gray-400">v{doc.version}</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={cn('px-1.5 py-0.5 rounded text-xs font-medium', statusInfo.cls)}>
-                {statusInfo.label}
-              </span>
-              <span className={cn('px-1.5 py-0.5 rounded text-xs font-medium', classInfo.cls)}>
-                {classInfo.label}
-              </span>
-              {doc.controlIds.length > 0 && (
-                <span className="text-xs text-gray-400">
-                  {doc.controlIds.length} control{doc.controlIds.length !== 1 ? 's' : ''}
-                </span>
-              )}
-              {doc.lockedAt && (
-                <span className="flex items-center gap-0.5 text-xs text-amber-600">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              )}
-              {doc.legalHoldAt && (
-                <span className="flex items-center gap-0.5 text-xs text-red-600">
-                  <Shield className="h-3 w-3" /> Legal Hold
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="flex items-start gap-3">
+        {/* Type icon */}
+        <DocTypeIcon type={doc.docType} className="mt-0.5 group-hover:scale-105 transition-transform duration-150" />
 
-        <div className="flex-shrink-0 text-right">
-          <div className="text-xs text-gray-400">{timeAgo(doc.updatedAt)}</div>
+        {/* Main content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <span className="font-semibold text-gray-900 text-sm leading-snug group-hover:text-brand-700 transition-colors truncate">
+              {doc.title}
+            </span>
+            <span className="text-xs text-gray-400 whitespace-nowrap shrink-0 mt-0.5">
+              {timeAgo(doc.updatedAt)}
+            </span>
+          </div>
+
+          {/* Badges row */}
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusInfo.cls)}>
+              {statusInfo.label}
+            </span>
+            <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', classInfo.cls)}>
+              {classInfo.label}
+            </span>
+            <span className="text-xs text-gray-400 font-mono">v{doc.version}</span>
+            {doc.controlIds.length > 0 && (
+              <span className="flex items-center gap-0.5 text-xs text-gray-400">
+                <CheckCircle2 className="w-3 h-3" />
+                {doc.controlIds.length} control{doc.controlIds.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {doc.lockedAt && (
+              <span className="flex items-center gap-0.5 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                <Lock className="w-3 h-3" /> Review
+              </span>
+            )}
+            {doc.legalHoldAt && (
+              <span className="flex items-center gap-0.5 text-xs text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                <Shield className="w-3 h-3" /> Hold
+              </span>
+            )}
+          </div>
+
+          {/* Footer row */}
           {doc.wordCount > 0 && (
-            <div className="text-xs text-gray-400 mt-0.5">{doc.wordCount.toLocaleString()} words</div>
+            <div className="flex items-center gap-1 mt-1.5 text-xs text-gray-400">
+              <FileText className="w-3 h-3" />
+              {doc.wordCount.toLocaleString()} words
+            </div>
           )}
         </div>
       </div>

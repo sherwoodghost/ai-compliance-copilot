@@ -16,21 +16,52 @@ import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-function StatCard({ label, value, icon: Icon, sub, color }: {
+function StatCard({ label, value, icon: Icon, sub, color, accent }: {
   label: string;
   value: string | number;
   icon: React.ElementType;
   sub?: string;
   color?: string;
+  accent?: 'green' | 'blue' | 'amber' | 'red' | 'purple';
 }) {
+  const BG_MAP: Record<string, string> = {
+    green:  'bg-emerald-50',
+    blue:   'bg-brand-50',
+    amber:  'bg-amber-50',
+    red:    'bg-red-50',
+    purple: 'bg-purple-50',
+  };
+  const ICON_MAP: Record<string, string> = {
+    green:  'text-emerald-500',
+    blue:   'text-brand-500',
+    amber:  'text-amber-500',
+    red:    'text-red-500',
+    purple: 'text-purple-500',
+  };
+  const VALUE_MAP: Record<string, string> = {
+    green:  'text-emerald-700',
+    blue:   'text-brand-700',
+    amber:  'text-amber-700',
+    red:    'text-red-700',
+    purple: 'text-purple-700',
+  };
+
+  const accentBg    = accent ? (BG_MAP[accent]    ?? 'bg-gray-50')    : 'bg-gray-50';
+  const accentIcon  = accent ? (ICON_MAP[accent]   ?? 'text-gray-400') : (color ?? 'text-gray-400');
+  const valueColor  = color  ?? (accent ? (VALUE_MAP[accent] ?? 'text-gray-900') : 'text-gray-900');
+
   return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm text-gray-500">{label}</p>
-        <Icon className={cn('w-4 h-4', color ?? 'text-gray-400')} />
+    <div className="card p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
+        <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0', accentBg)}>
+          <Icon className={cn('w-4 h-4', accentIcon)} />
+        </div>
       </div>
-      <p className={cn('text-2xl font-bold', color ? color.replace('text-', 'text-').replace('-400', '-700').replace('-500', '-700') : 'text-gray-900')}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      <div>
+        <p className={cn('text-2xl font-bold tabular-nums', valueColor)}>{value}</p>
+        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      </div>
     </div>
   );
 }
@@ -463,14 +494,6 @@ export default function OverviewPage() {
   const alerts: any[] = dashboardConfig?.alerts ?? [];
   const recommendedActions: any[] = dashboardConfig?.recommendedActions ?? [];
 
-  if (statsLoading) {
-    return (
-      <div className="p-8 flex items-center justify-center h-full">
-        <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {digest && (
@@ -542,43 +565,62 @@ export default function OverviewPage() {
         </div>
 
         <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <StatCard
-            label="Controls"
-            value={`${stats?.implementedControls ?? 0}/${stats?.totalControls ?? 0}`}
-            icon={CheckCircle}
-            sub="implemented"
-          />
-          <StatCard
-            label="Evidence"
-            value={stats?.totalEvidence ?? 0}
-            icon={FileText}
-            sub="items collected"
-          />
-          <StatCard
-            label="Open Tasks"
-            value={stats?.openTasks ?? 0}
-            icon={ClipboardList}
-            sub="pending action"
-          />
-          <StatCard
-            label="High Risks"
-            value={riskStats?.highRisks ?? 0}
-            icon={AlertTriangle}
-            sub="open critical+high"
-            color={riskStats?.highRisks > 0 ? 'text-red-500' : 'text-gray-400'}
-          />
-          <StatCard
-            label="Control Score"
-            value={readiness?.breakdown ? `${Math.min(100, Math.round(readiness.breakdown.controlDesign ?? 0))}%` : '—'}
-            icon={Shield}
-            sub="35% weight"
-          />
-          <StatCard
-            label="Evidence Score"
-            value={readiness?.breakdown ? `${Math.min(100, Math.round(readiness.breakdown.evidence ?? 0))}%` : '—'}
-            icon={TrendingUp}
-            sub="30% weight"
-          />
+          {statsLoading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card p-4 flex flex-col gap-3 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <div className="h-3 bg-gray-100 rounded w-20" />
+                  <div className="w-7 h-7 bg-gray-100 rounded-lg" />
+                </div>
+                <div className="h-7 bg-gray-100 rounded w-16" />
+              </div>
+            ))
+          ) : (
+            <>
+              <StatCard
+                label="Controls"
+                value={`${stats?.implementedControls ?? 0}/${stats?.totalControls ?? 0}`}
+                icon={CheckCircle}
+                sub="implemented"
+                accent="green"
+              />
+              <StatCard
+                label="Evidence"
+                value={stats?.totalEvidence ?? 0}
+                icon={FileText}
+                sub="items collected"
+                accent="blue"
+              />
+              <StatCard
+                label="Open Tasks"
+                value={stats?.openTasks ?? 0}
+                icon={ClipboardList}
+                sub="pending action"
+                accent={stats?.openTasks > 0 ? 'amber' : 'green'}
+              />
+              <StatCard
+                label="High Risks"
+                value={riskStats?.highRisks ?? 0}
+                icon={AlertTriangle}
+                sub="open critical+high"
+                accent={riskStats?.highRisks > 0 ? 'red' : 'green'}
+              />
+              <StatCard
+                label="Control Score"
+                value={readiness?.breakdown ? `${Math.min(100, Math.round(readiness.breakdown.controlDesign ?? 0))}%` : '—'}
+                icon={Shield}
+                sub="design quality"
+                accent="purple"
+              />
+              <StatCard
+                label="Evidence Score"
+                value={readiness?.breakdown ? `${Math.min(100, Math.round(readiness.breakdown.evidence ?? 0))}%` : '—'}
+                icon={TrendingUp}
+                sub="completeness"
+                accent="blue"
+              />
+            </>
+          )}
         </div>
       </div>
 

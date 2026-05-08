@@ -4,24 +4,36 @@
 
 @layer base {
   :root {
-    --sidebar-width: 240px;
+    --sidebar-width: 224px;
   }
 
   * { @apply border-gray-200; }
 
   body {
-    @apply text-gray-900 antialiased;
+    @apply text-gray-900 antialiased bg-gray-50/50;
     font-feature-settings: 'cv11', 'ss01';
   }
 
   h1 { @apply text-2xl font-bold tracking-tight; }
   h2 { @apply text-xl font-semibold tracking-tight; }
   h3 { @apply text-lg font-semibold; }
+
+  /* Thin custom scrollbar for modern look */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-200 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-300; }
+  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: #e5e7eb transparent; }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-xl border border-gray-200 shadow-sm;
+    @apply bg-white rounded-xl border border-gray-200/80 shadow-sm;
+    transition: box-shadow 0.15s ease;
+  }
+  .card-hover {
+    @apply bg-white rounded-xl border border-gray-200/80 shadow-sm
+           hover:shadow-md hover:border-gray-300/80 transition-all duration-200 cursor-pointer;
   }
 
   .badge-passed  { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-success-50 text-success-700; }
@@ -31,32 +43,39 @@
 
   .btn-primary {
     @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold
-           text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2
+           text-white bg-brand-600 hover:bg-brand-700 shadow-sm focus:outline-none focus:ring-2
            focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed
-           transition-colors duration-150;
+           transition-all duration-150;
   }
 
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-semibold
-           text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none
+           text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 shadow-sm focus:outline-none
            focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50
-           transition-colors duration-150;
+           transition-all duration-150;
   }
 
   .input {
-    @apply block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm
+    @apply block w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm
            placeholder:text-gray-400 focus:border-brand-500 focus:outline-none
            focus:ring-2 focus:ring-brand-500/20 transition-colors duration-150;
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600
-           hover:bg-gray-100 hover:text-gray-900 transition-colors duration-150;
+    @apply flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-gray-600
+           hover:bg-gray-100 hover:text-gray-900 transition-colors duration-100;
   }
 
   .sidebar-link.active {
-    @apply bg-brand-50 text-brand-700;
+    @apply bg-brand-50 text-brand-700 font-semibold;
   }
+
+  /* Stat card accent variants */
+  .stat-card-green  { @apply border-l-4 border-l-emerald-400; }
+  .stat-card-blue   { @apply border-l-4 border-l-brand-400; }
+  .stat-card-amber  { @apply border-l-4 border-l-amber-400; }
+  .stat-card-red    { @apply border-l-4 border-l-red-400; }
+  .stat-card-purple { @apply border-l-4 border-l-purple-400; }
 }
 
 /* Agent status pulse animation */
