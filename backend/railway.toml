@@ -3,7 +3,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "sh -c 'npx prisma db push --accept-data-loss || true && node dist/main'"
+startCommand = "sh -c 'npx prisma db push --accept-data-loss || true && node dist/prisma/seed.js || true && node dist/main'"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 

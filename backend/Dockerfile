@@ -6,6 +6,8 @@ RUN npm ci
 COPY . .
 RUN npx prisma generate
 RUN npm run build
+# Compile the seed script separately (nest build only covers src/)
+RUN npx tsc -p tsconfig.seed.json
 
 FROM node:20-alpine AS runner
 
