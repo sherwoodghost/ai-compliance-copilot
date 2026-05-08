@@ -53,55 +53,7 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   'Monitoring':       Eye,
 };
 
-const MOCK_ITEMS: TrustItem[] = [
-  {
-    id: '1', category: 'Access Control', title: 'Multi-Factor Authentication',
-    description: 'MFA is enforced for all users accessing production systems.',
-    status: 'passing', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: '2', category: 'Access Control', title: 'Role-Based Access Control',
-    description: 'Access to customer data is restricted by least-privilege roles.',
-    status: 'passing', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 7200000).toISOString(),
-  },
-  {
-    id: '3', category: 'Data Security', title: 'Encryption at Rest',
-    description: 'All customer data is encrypted at rest using AES-256.',
-    status: 'passing', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 1800000).toISOString(),
-  },
-  {
-    id: '4', category: 'Data Security', title: 'Encryption in Transit',
-    description: 'TLS 1.2+ enforced on all API endpoints and web traffic.',
-    status: 'passing', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 1800000).toISOString(),
-  },
-  {
-    id: '5', category: 'Availability', title: 'Uptime SLA',
-    description: 'Platform maintains 99.9% uptime with automated failover.',
-    status: 'passing', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 600000).toISOString(),
-  },
-  {
-    id: '6', category: 'Incident Response', title: 'Incident Response Plan',
-    description: 'Documented IR plan with defined RTO/RPO and escalation paths.',
-    status: 'in_progress', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: '7', category: 'Compliance', title: 'SOC 2 Type II Audit',
-    description: 'Annual SOC 2 Type II audit covering all trust service criteria.',
-    status: 'in_progress', public: true, framework: 'SOC2',
-  },
-  {
-    id: '8', category: 'Monitoring', title: 'Continuous Monitoring',
-    description: 'Real-time security monitoring with 24/7 alerting.',
-    status: 'passing', public: true, framework: 'SOC2',
-    lastChecked: new Date(Date.now() - 300000).toISOString(),
-  },
-];
+
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
@@ -373,17 +325,16 @@ export default function TrustCenterPage() {
 
   const { data: trustItems, isLoading, refetch } = useQuery<TrustItem[]>({
     queryKey: ['trust-center-items'],
-    queryFn: () => api.get('/trust-center/checks').then((r: any) => r.data).catch(() => MOCK_ITEMS),
-    initialData: MOCK_ITEMS,
+    queryFn: () => api.get('/trust-center/checks').then((r: any) => r.data).catch(() => []),
   });
 
-  const items: TrustItem[] = trustItems ?? MOCK_ITEMS;
+  const items: TrustItem[] = trustItems ?? [];
 
   const categories = ['all', ...Array.from(new Set(items.map((i) => i.category)))];
   const passing = items.filter((i) => i.status === 'passing').length;
   const failing = items.filter((i) => i.status === 'failing').length;
   const inProgress = items.filter((i) => i.status === 'in_progress').length;
-  const score = Math.round((passing / items.length) * 100);
+  const score = items.length > 0 ? Math.round((passing / items.length) * 100) : 0;
 
   const filtered = items.filter((item) => {
     if (activeCategory !== 'all' && item.category !== activeCategory) return false;
