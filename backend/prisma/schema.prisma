@@ -2039,3 +2039,88 @@ model PasswordResetToken {
   @@index([userId])
   @@map("password_reset_tokens")
 }
+
+// ─── Incident Management (ISO A.5.24–A.5.27) ─────────────────────────────────
+
+enum IncidentSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFORMATIONAL
+}
+
+enum IncidentStatus {
+  detected
+  triaging
+  contained
+  eradicating
+  recovering
+  closed
+}
+
+enum IncidentCategory {
+  data_breach
+  ransomware
+  phishing
+  unauthorized_access
+  availability
+  other
+}
+
+enum CorrectiveActionStatus {
+  open
+  in_progress
+  pending_review
+  closed
+}
+
+model SecurityIncident {
+  id                 String           @id @default(uuid())
+  orgId              String           @map("org_id")
+  title              String
+  description        String
+  severity           IncidentSeverity
+  status             IncidentStatus   @default(detected)
+  category           IncidentCategory
+  detectedAt         DateTime         @map("detected_at")
+  containedAt        DateTime?        @map("contained_at")
+  resolvedAt         DateTime?        @map("resolved_at")
+  closedAt           DateTime?        @map("closed_at")
+  reportedBy         String           @map("reported_by")
+  assignedTo         String?          @map("assigned_to")
+  affectedSystems    String[]         @map("affected_systems")
+  impactedUsers      Int?             @map("impacted_users")
+  dataClassification String?          @map("data_classification")
+  rootCause          String?          @map("root_cause")
+  lessonsLearned     String?          @map("lessons_learned")
+  timeline           Json[]
+  notifications      Json[]
+  controlIds         String[]         @map("control_ids")
+  evidenceId         String?          @map("evidence_id")
+  correctiveActions  CorrectiveAction[]
+
+  @@index([orgId, status])
+  @@index([orgId, severity])
+  @@index([orgId, detectedAt])
+  @@map("security_incidents")
+}
+
+model CorrectiveAction {
+  id             String                 @id @default(uuid())
+  orgId          String                 @map("org_id")
+  incidentId     String?                @map("incident_id")
+  auditFindingId String?                @map("audit_finding_id")
+  title          String
+  description    String
+  assignedTo     String                 @map("assigned_to")
+  dueDate        DateTime               @map("due_date")
+  completedAt    DateTime?              @map("completed_at")
+  evidenceId     String?                @map("evidence_id")
+  status         CorrectiveActionStatus @default(open)
+  incident       SecurityIncident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, status])
+  @@index([incidentId])
+  @@map("corrective_actions")
+}

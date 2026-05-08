@@ -30,6 +30,7 @@ import {
   Rocket,
   UserCircle2,
   Activity,
+  Siren,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ const NAV = [
   { href: '/evidence',         label: 'Evidence',        icon: FolderOpen },
   { href: '/policies',         label: 'Policies',        icon: FileText },
   { href: '/risks',            label: 'Risks',           icon: AlertTriangle },
+  { href: '/incidents',        label: 'Incidents',       icon: Siren,        badge: 'incidents' },
   { href: '/tasks',            label: 'Tasks',           icon: ClipboardList },
   { href: '/members',          label: 'Team',            icon: UserCircle2 },
   { href: '/control-effectiveness', label: 'Effectiveness', icon: Activity },
@@ -75,6 +77,18 @@ export function Sidebar() {
   });
 
   const guidedPending = ((guidedProgram as any)?.thisWeek?.length ?? 0) + ((guidedProgram as any)?.stats?.inProgress ?? 0);
+
+  // Incident badge — critical/high open incidents
+  const { data: incidentMetrics } = useQuery({
+    queryKey: ['incident-metrics'],
+    queryFn:  () => teamApi.getIncidentMetrics(),
+    refetchInterval: 2 * 60 * 1000,
+    staleTime: 60 * 1000,
+  });
+
+  const criticalIncidents: number = (incidentMetrics as any)?.bySeverity
+    ?.filter((s: any) => (s.severity === 'CRITICAL' || s.severity === 'HIGH') && s.open > 0)
+    ?.reduce((acc: number, s: any) => acc + s.open, 0) ?? 0;
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -107,7 +121,10 @@ export function Sidebar() {
             href === '/controls'
               ? pathname === '/controls' || /^\/controls\/[0-9a-f-]{36}/.test(pathname)
               : pathname.startsWith(href);
-          const badgeCount = badge === 'guided' && guidedPending > 0 ? guidedPending : 0;
+          const badgeCount =
+            badge === 'guided'    && guidedPending      > 0 ? guidedPending :
+            badge === 'incidents' && criticalIncidents  > 0 ? criticalIncidents :
+            0;
           return (
             <Link
               key={href}

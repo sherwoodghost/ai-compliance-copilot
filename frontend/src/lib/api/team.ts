@@ -224,4 +224,45 @@ export const teamApi = {
 
   runBatchSample: (): Promise<{ sampled: number; results: any[]; evidenceId: string | null }> =>
     apiClient.post('/control-effectiveness/batch-sample').then((r) => r.data),
+
+  // ─── Incidents (ISO A.5.24–A.5.27) ──────────────────────────────────────────
+
+  listIncidents: (filters?: { status?: string; severity?: string; category?: string }): Promise<any> =>
+    apiClient.get('/incidents', { params: filters }).then((r) => r.data),
+
+  getIncident: (id: string): Promise<any> =>
+    apiClient.get(`/incidents/${id}`).then((r) => r.data),
+
+  getIncidentMetrics: (): Promise<any> =>
+    apiClient.get('/incidents/metrics').then((r) => r.data),
+
+  createIncident: (dto: {
+    title: string;
+    description: string;
+    severity: string;
+    category: string;
+    detectedAt?: string;
+    affectedSystems?: string[];
+    impactedUsers?: number;
+    dataClassification?: string;
+    assignedTo?: string;
+  }): Promise<any> =>
+    apiClient.post('/incidents', dto).then((r) => r.data),
+
+  updateIncidentStatus: (id: string, status: string, note?: string): Promise<any> =>
+    apiClient.post(`/incidents/${id}/status`, { status, note }).then((r) => r.data),
+
+  closeIncident: (id: string, dto: { rootCause: string; lessonsLearned: string }): Promise<any> =>
+    apiClient.post(`/incidents/${id}/close`, dto).then((r) => r.data),
+
+  addCorrectiveAction: (incidentId: string, dto: {
+    title: string;
+    description: string;
+    assignedTo: string;
+    dueDate: string;
+  }): Promise<any> =>
+    apiClient.post(`/incidents/${incidentId}/corrective-actions`, dto).then((r) => r.data),
+
+  closeCorrectiveAction: (incidentId: string, actionId: string): Promise<any> =>
+    apiClient.post(`/incidents/${incidentId}/corrective-actions/${actionId}/close`).then((r) => r.data),
 };

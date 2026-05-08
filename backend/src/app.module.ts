@@ -53,6 +53,7 @@ import { AccessReviewModule } from './modules/access-reviews/access-review.modul
 import { TrainingModule } from './modules/training/training.module';
 import { ManagementReviewModule } from './modules/management-reviews/management-review.module';
 import { ControlEffectivenessModule } from './modules/control-effectiveness/control-effectiveness.module';
+import { IncidentModule } from './modules/incidents/incident.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { ControlEffectivenessModule } from './modules/control-effectiveness/cont
     TrainingModule,
     ManagementReviewModule,
     ControlEffectivenessModule,
+    IncidentModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,
