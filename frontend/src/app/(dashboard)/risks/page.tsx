@@ -531,6 +531,66 @@ export default function RisksPage() {
         </div>
       )}
 
+      {/* 5×5 Risk Matrix */}
+      {(data as Risk[]).length > 0 && (
+        <div className="card p-5">
+          <p className="text-sm font-semibold text-gray-900 mb-4">Risk Matrix</p>
+          <div className="flex gap-2">
+            {/* Y-axis label */}
+            <div className="flex flex-col items-center justify-center gap-1 shrink-0" style={{ width: 16 }}>
+              <span className="text-[9px] text-gray-400 rotate-[-90deg] whitespace-nowrap" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', transformOrigin: 'center' }}>
+                IMPACT ↑
+              </span>
+            </div>
+            <div className="flex-1">
+              {/* Matrix cells — impact on Y (high→low), likelihood on X (low→high) */}
+              {(['catastrophic', 'major', 'moderate', 'minor', 'negligible'] as const).map((imp) => (
+                <div key={imp} className="flex gap-1 mb-1">
+                  <div className="w-16 text-[10px] text-gray-400 flex items-center justify-end pr-1.5 shrink-0 capitalize">{imp}</div>
+                  {(['rare', 'unlikely', 'possible', 'likely', 'almost_certain'] as const).map((lik) => {
+                    const cellRisks = (data as Risk[]).filter(
+                      (r: Risk) => r.likelihood === lik && r.impact === imp && r.status !== 'mitigated',
+                    );
+                    const score = LIKELIHOOD_SCORES[lik] * IMPACT_SCORES[imp];
+                    const cellColor =
+                      score >= 17 ? 'bg-red-100 border-red-200'
+                      : score >= 10 ? 'bg-orange-100 border-orange-200'
+                      : score >= 5  ? 'bg-yellow-100 border-yellow-200'
+                      : 'bg-gray-50 border-gray-200';
+                    const dotColor =
+                      score >= 17 ? 'bg-red-500'
+                      : score >= 10 ? 'bg-orange-500'
+                      : score >= 5  ? 'bg-yellow-500'
+                      : 'bg-gray-400';
+                    return (
+                      <div
+                        key={lik}
+                        className={cn('flex-1 h-10 rounded border flex items-center justify-center gap-0.5 flex-wrap p-0.5', cellColor)}
+                        title={cellRisks.map((r: Risk) => r.title).join('\n') || `${imp} × ${lik}`}
+                      >
+                        {cellRisks.slice(0, 4).map((r: Risk) => (
+                          <span key={r.id} className={cn('w-2 h-2 rounded-full', dotColor)} />
+                        ))}
+                        {cellRisks.length > 4 && <span className="text-[9px] font-bold text-gray-600">+{cellRisks.length - 4}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              {/* X-axis labels */}
+              <div className="flex gap-1 mt-1">
+                <div className="w-16 shrink-0" />
+                {['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost Certain'].map((l) => (
+                  <div key={l} className="flex-1 text-center text-[9px] text-gray-400">{l}</div>
+                ))}
+              </div>
+              <p className="text-center text-[9px] text-gray-400 mt-1">LIKELIHOOD →</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2 text-center">Dots = open/accepted risks. Mitigated risks not shown.</p>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
