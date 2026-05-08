@@ -50,6 +50,7 @@ import { AgentSchedulerModule } from './scheduler/scheduler.module';
 import { PermissionsModule } from './common/permissions/permissions.module';
 import { TeamModule } from './modules/team/team.module';
 import { AccessReviewModule } from './modules/access-reviews/access-review.module';
+import { TrainingModule } from './modules/training/training.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { AccessReviewModule } from './modules/access-reviews/access-review.modul
     PermissionsModule,
     TeamModule,
     AccessReviewModule,
+    TrainingModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,

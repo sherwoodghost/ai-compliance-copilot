@@ -4249,6 +4249,190 @@ All code changes shall go through pull request review before merging. Production
     },
   ];
 
+  // ── Training Modules ──────────────────────────────────────────────────────────
+  const TRAINING_MODULES = [
+    {
+      id: 'tm-security-awareness-001',
+      title: 'Security Awareness Fundamentals',
+      kind: 'SECURITY_AWARENESS',
+      durationMin: 30,
+      controls: ['A.6.3', 'CC1.4'],
+      isActive: true,
+      content: {
+        sections: [
+          {
+            title: 'Introduction to Information Security',
+            content: 'Learn the fundamentals of information security and why it matters.',
+            type: 'video',
+            durationMin: 5,
+          },
+          {
+            title: 'Password Security Best Practices',
+            content: 'Creating strong passwords, using password managers, and MFA.',
+            type: 'interactive',
+            durationMin: 10,
+          },
+          {
+            title: 'Recognizing Social Engineering',
+            content: 'How to identify and respond to phishing, vishing, and pretexting attacks.',
+            type: 'scenario',
+            durationMin: 10,
+          },
+          {
+            title: 'Data Handling and Classification',
+            content: 'How to handle Confidential and Restricted information securely.',
+            type: 'quiz',
+            durationMin: 5,
+          },
+        ],
+        passingScore: 80,
+        certificateIssued: true,
+      },
+    },
+    {
+      id: 'tm-phishing-001',
+      title: 'Phishing Simulation & Awareness',
+      kind: 'PHISHING',
+      durationMin: 20,
+      controls: ['A.6.3', 'A.8.23'],
+      isActive: true,
+      content: {
+        sections: [
+          {
+            title: 'Anatomy of a Phishing Email',
+            content: 'Identifying suspicious sender addresses, urgent language, and malicious links.',
+            type: 'interactive',
+            durationMin: 10,
+          },
+          {
+            title: 'Simulated Phishing Scenarios',
+            content: 'Practice identifying phishing emails with real-world examples.',
+            type: 'scenario',
+            durationMin: 10,
+          },
+        ],
+        passingScore: 90,
+        certificateIssued: false,
+      },
+    },
+    {
+      id: 'tm-data-handling-001',
+      title: 'Data Handling and Privacy',
+      kind: 'DATA_HANDLING',
+      durationMin: 45,
+      controls: ['A.5.10', 'A.5.12', 'A.5.34'],
+      isActive: true,
+      content: {
+        sections: [
+          {
+            title: 'Data Classification in Practice',
+            content: 'How to identify and classify data you work with daily.',
+            type: 'interactive',
+            durationMin: 15,
+          },
+          {
+            title: 'GDPR/Privacy Basics',
+            content: 'Individual rights, consent, and your obligations under privacy law.',
+            type: 'video',
+            durationMin: 15,
+          },
+          {
+            title: 'Secure File Sharing',
+            content: 'Approved tools and procedures for sharing sensitive information.',
+            type: 'quiz',
+            durationMin: 15,
+          },
+        ],
+        passingScore: 80,
+        certificateIssued: true,
+      },
+    },
+    {
+      id: 'tm-incident-reporting-001',
+      title: 'Incident Reporting Procedures',
+      kind: 'INCIDENT_REPORTING',
+      durationMin: 20,
+      controls: ['A.5.24', 'A.5.25', 'CC7.3'],
+      isActive: true,
+      content: {
+        sections: [
+          {
+            title: 'What Is a Security Incident?',
+            content: 'Definition, examples, and why reporting matters.',
+            type: 'video',
+            durationMin: 10,
+          },
+          {
+            title: 'How to Report an Incident',
+            content: 'Step-by-step guide to reporting via the correct channels.',
+            type: 'interactive',
+            durationMin: 10,
+          },
+        ],
+        passingScore: 85,
+        certificateIssued: false,
+      },
+    },
+    {
+      id: 'tm-role-specific-dev-001',
+      title: 'Secure Development Practices',
+      kind: 'ROLE_SPECIFIC',
+      durationMin: 60,
+      controls: ['A.8.25', 'A.8.26', 'A.8.29', 'CC8.1'],
+      isActive: true,
+      content: {
+        sections: [
+          {
+            title: 'OWASP Top 10 for Developers',
+            content: 'The most critical web application security risks.',
+            type: 'video',
+            durationMin: 20,
+          },
+          {
+            title: 'Secrets Management',
+            content: 'Never hardcode credentials. Using environment variables and secret managers.',
+            type: 'interactive',
+            durationMin: 20,
+          },
+          {
+            title: 'Secure Code Review Checklist',
+            content: 'What to look for when reviewing code for security issues.',
+            type: 'quiz',
+            durationMin: 20,
+          },
+        ],
+        passingScore: 85,
+        certificateIssued: true,
+      },
+    },
+  ];
+
+  let trainingModuleCount = 0;
+  for (const mod of TRAINING_MODULES) {
+    await prisma.trainingModule.upsert({
+      where: { id: mod.id },
+      update: {
+        title:      mod.title,
+        kind:       mod.kind as any,
+        durationMin: mod.durationMin,
+        controls:   mod.controls,
+        isActive:   mod.isActive,
+        content:    mod.content,
+      },
+      create: {
+        id:         mod.id,
+        title:      mod.title,
+        kind:       mod.kind as any,
+        durationMin: mod.durationMin,
+        controls:   mod.controls,
+        isActive:   mod.isActive,
+        content:    mod.content,
+      },
+    });
+    trainingModuleCount++;
+  }
+  console.log(`✅ Training modules: ${trainingModuleCount} upserted`);
+
   let templateCount = 0;
   for (const tmpl of POLICY_TEMPLATES) {
     await prisma.policyTemplate.upsert({

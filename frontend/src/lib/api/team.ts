@@ -176,6 +176,19 @@ export const teamApi = {
   generateGuidedProgram: (): Promise<{ created: number; skipped: number }> =>
     apiClient.post('/tasks/generate-guided-program').then((r) => r.data),
 
+  // Training
+  getTrainingStats: (): Promise<any> =>
+    apiClient.get('/training/stats').then((r) => r.data),
+
+  assignSecurityAwarenessToAll: (): Promise<{ assigned: number; skipped: number; total: number }> =>
+    apiClient.post('/training/assign-all-security-awareness').then((r) => r.data),
+
+  getMyTraining: (): Promise<any[]> =>
+    apiClient.get('/training/assignments/mine').then((r) => r.data),
+
+  completeTraining: (assignmentId: string, score?: number): Promise<any> =>
+    apiClient.post(`/training/assignments/${assignmentId}/complete`, { score }).then((r) => r.data),
+
   // Access reviews
   getAccessReviews: (): Promise<any[]> =>
     apiClient.get('/access-reviews').then((r) => r.data),

@@ -658,9 +658,21 @@ function AccessReviewsTab() {
 // ─── Training Tab ─────────────────────────────────────────────────────────────
 
 function TrainingTab({ members }: { members: TeamMember[] }) {
-  const completionPct = members.length > 0
-    ? Math.round(members.filter((m) => (m.stats?.trainingComplete ?? 0) > 0).length / members.length * 100)
-    : 0;
+  const qc = useQueryClient();
+  const { data: stats } = useQuery({
+    queryKey: ['training-stats'],
+    queryFn: teamApi.getTrainingStats,
+  });
+
+  const assignAll = useMutation({
+    mutationFn: teamApi.assignSecurityAwarenessToAll,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['training-stats'] });
+      qc.invalidateQueries({ queryKey: ['team-members'] });
+    },
+  });
+
+  const completionPct = (stats as any)?.orgCompletionPct ?? 0;
 
   return (
     <div>
@@ -668,22 +680,44 @@ function TrainingTab({ members }: { members: TeamMember[] }) {
       <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-gray-700">Security Awareness Training Completion</span>
-          <span className="text-xs font-bold text-brand-700">{completionPct}%</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-brand-700">{completionPct}%</span>
+            <button
+              className="btn-secondary text-xs flex items-center gap-1.5 py-1.5"
+              onClick={() => assignAll.mutate()}
+              disabled={assignAll.isPending}
+            >
+              {assignAll.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              Assign to All
+            </button>
+          </div>
         </div>
         <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
-            className="h-2 bg-brand-500 rounded-full transition-all"
+            className={cn('h-2 rounded-full transition-all', completionPct >= 80 ? 'bg-emerald-500' : 'bg-brand-500')}
             style={{ width: `${completionPct}%` }}
           />
         </div>
-        <p className="text-xs text-gray-400 mt-1">ISO A.6.3 requires 100% annual completion before audit</p>
+        <div className="flex items-center gap-4 mt-1.5 text-xs text-gray-400">
+          <span>ISO A.6.3 requires 100% annual completion before audit</span>
+          {(stats as any)?.completedAssignments != null && (
+            <span className="ml-auto">{(stats as any).completedAssignments}/{(stats as any).totalAssignments} assignments complete</span>
+          )}
+        </div>
       </div>
+
+      {assignAll.data && (
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg px-3 py-2 mb-3">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          Assigned to {(assignAll.data as any).assigned} users · {(assignAll.data as any).skipped} already assigned
+        </div>
+      )}
 
       {/* Per-member table */}
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-gray-200">
-            {['Member', 'Modules Assigned', 'Completed', 'Status'].map((h) => (
+            {['Member', 'Department', 'Completed', 'Status'].map((h) => (
               <th key={h} className="text-left text-xs font-semibold text-gray-500 py-2 px-3 first:pl-0">{h}</th>
             ))}
           </tr>
@@ -701,7 +735,7 @@ function TrainingTab({ members }: { members: TeamMember[] }) {
                     <span className="font-medium text-gray-800">{m.fullName}</span>
                   </div>
                 </td>
-                <td className="py-2.5 px-3 text-gray-500">—</td>
+                <td className="py-2.5 px-3 text-gray-500">{m.department ?? '—'}</td>
                 <td className="py-2.5 px-3">
                   <span className="font-medium text-gray-800">{complete}</span>
                 </td>
