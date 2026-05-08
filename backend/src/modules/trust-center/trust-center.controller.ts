@@ -120,7 +120,7 @@ export class TrustCenterController {
       this.trustCenter.getOrCreate(orgId).then((tc) => (tc as any).certifications ?? []),
     ]);
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName   = pd.companyName   ?? 'our company';
     const industry      = pd.industry      ?? 'technology';
     const companySize   = pd.companySize   ?? 'small';

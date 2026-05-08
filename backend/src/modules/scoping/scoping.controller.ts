@@ -72,7 +72,7 @@ export class ScopingController {
       this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
     ]);
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
 
     if (!scope) {
       return { message: 'No SOC 2 scope defined yet. Run an assessment first.' };

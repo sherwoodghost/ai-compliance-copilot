@@ -184,7 +184,7 @@ export class PoliciesService {
       where: { orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const profileData = (profile?.profileData as any) ?? {};
+    const profileData = (profile as any) ?? {};
 
     const control = policy.control as any;
     const existingContent = policy.content ?? '';
@@ -243,7 +243,7 @@ Make it specific to the organization context above. Be concrete and actionable, 
       this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
     ]);
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
     const industry   = pd.industry ?? 'technology';
     const dataTypes  = (pd.dataHandling?.dataTypes ?? []).join(', ') || 'customer data';

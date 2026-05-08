@@ -105,7 +105,7 @@ export class AuditMemoryController {
       where: { orgId: user.orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'the organisation';
     const industry    = pd.industry    ?? 'technology';
 
@@ -198,7 +198,7 @@ Return ONLY a JSON object (no markdown fences):
       where: { orgId: user.orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'the organisation';
 
     const c = cycle as any;

@@ -101,7 +101,7 @@ export class AuditorPortalController {
       }),
     ]);
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'the organization';
     const industry = pd.industry ?? 'technology';
     const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
@@ -230,7 +230,7 @@ Return ONLY a JSON object (no markdown):
       }),
     ]);
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'our organisation';
     const controlList = relevantControls.map((c) => `${c.control.code}: ${c.control.title} (${c.status})`).join('\n') || 'None';
     const policyList = relevantPolicies.map((p) => p.title).join(', ') || 'None';

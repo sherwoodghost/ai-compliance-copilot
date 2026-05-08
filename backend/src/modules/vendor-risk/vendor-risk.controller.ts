@@ -175,7 +175,7 @@ export class VendorRiskController {
       where: { orgId: user.orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const profileData = (profile?.profileData as any) ?? {};
+    const profileData = (profile as any) ?? {};
 
     const systemPrompt = `You are a vendor security and compliance analyst. Assess third-party vendors based on their known security practices, certifications, breach history, and compliance posture. Return ONLY valid JSON.`;
     const userPrompt = `Analyze this vendor for a ${profileData.industry ?? 'software'} company:
@@ -267,7 +267,7 @@ Return JSON with this structure:
       where: { orgId: user.orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
     const dataTypes  = (pd.dataHandling?.dataTypes ?? []).join(', ') || 'customer data';
     const a = (existing.assessment as any) ?? {};

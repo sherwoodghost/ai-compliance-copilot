@@ -99,7 +99,7 @@ export class TasksController {
       return { message: 'No open tasks — well done!', sprintItems: [], weekOf: new Date().toISOString() };
     }
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const readinessScore = (readiness as any)?.overallScore ?? 0;
     const today = new Date().toISOString().split('T')[0];
 

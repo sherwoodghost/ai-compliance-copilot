@@ -68,7 +68,7 @@ export class AuditExportsController {
       where: { orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'the organization';
     const industry = pd.industry ?? 'technology';
     const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(' and ');

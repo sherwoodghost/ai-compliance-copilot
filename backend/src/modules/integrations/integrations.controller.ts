@@ -75,7 +75,7 @@ export class IntegrationsController {
       this.prisma.vendorRisk.findMany({ where: { orgId }, take: 10 }),
     ]);
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const frameworks      = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
     const cloudProviders  = ((pd.infrastructure as any)?.cloudProviders ?? []).join(', ') || 'not specified';
     const hrSystem        = (pd.infrastructure as any)?.hrSystem ?? 'not specified';

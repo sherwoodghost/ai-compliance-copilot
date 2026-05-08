@@ -247,7 +247,7 @@ export class RisksController {
       where: { orgId: user.orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const profileData = (profile?.profileData as any) ?? {};
+    const profileData = (profile as any) ?? {};
 
     const systemPrompt = `You are a compliance risk analyst. Given a list of unimplemented compliance controls, identify the actual business and security risks that arise from those gaps. Return ONLY valid JSON.`;
 
@@ -354,7 +354,7 @@ Limit to the top ${Math.min(needsRisks.length, 20)} risks by priority. Assess re
       where: { orgId: user.orgId },
       orderBy: { createdAt: 'desc' },
     });
-    const profileData = (profile?.profileData as any) ?? {};
+    const profileData = (profile as any) ?? {};
 
     const systemPrompt = `You are a compliance and information security risk expert. Provide concrete, actionable mitigation strategies for identified risks. Return ONLY valid JSON.`;
     const userPrompt = `Generate mitigation advice for this risk:
@@ -559,7 +559,7 @@ Return JSON:
       return { message: 'No risks found — add risks to generate a portfolio analysis.' };
     }
 
-    const pd = (profile?.profileData as any) ?? {};
+    const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'the organisation';
     const industry    = pd.industry    ?? 'technology';
     const frameworks  = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
