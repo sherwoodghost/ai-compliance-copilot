@@ -7,7 +7,7 @@ import { apiClient as api } from '@/lib/api/client';
 import {
   FileText, Check, Archive, X, ChevronRight, Plus, Download,
   Clock, CheckCircle2, ArchiveIcon, AlertCircle, Search,
-  RotateCcw, Shield, Edit3, Save, GitBranch, Sparkles,
+  RotateCcw, Shield, Edit3, Save, GitBranch, Sparkles, BookOpen,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
@@ -373,6 +373,102 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
   );
 }
 
+// ─── Policy Coverage Panel ───────────────────────────────────────────────────
+
+type PolicyGap = { policyType: string; priority: string; framework: string; requirement: string; covered: boolean };
+type CoverageResult = { totalPolicies: number; frameworks: string; coverageScore: number; gaps: PolicyGap[]; recommendations: string[]; generatedAt: string };
+
+const GAP_PRIORITY_CFG: Record<string, { badge: string; dot: string }> = {
+  critical: { badge: 'bg-red-100 text-red-700',    dot: 'bg-red-500' },
+  high:     { badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
+  medium:   { badge: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' },
+};
+
+function CoveragePanel({ result, onClose }: { result: CoverageResult; onClose: () => void }) {
+  const missingCount = result.gaps.filter((g) => !g.covered).length;
+  const updateCount  = result.gaps.filter((g) => g.covered).length;
+  const scoreColor   = result.coverageScore >= 80 ? 'text-emerald-600' : result.coverageScore >= 50 ? 'text-amber-600' : 'text-red-600';
+
+  return (
+    <div className="mb-6 bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+            <BookOpen className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">AI Policy Coverage Check</p>
+            <p className="text-xs text-gray-500">
+              {result.frameworks} · <span className={cn('font-semibold', scoreColor)}>{result.coverageScore}% coverage</span>
+              {' · '}{missingCount} missing{updateCount > 0 ? ` · ${updateCount} need updating` : ''}
+            </p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Score bar */}
+      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs text-gray-500">Policy coverage</span>
+          <span className={cn('text-sm font-bold', scoreColor)}>{result.coverageScore}%</span>
+        </div>
+        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={cn('h-full rounded-full transition-all', result.coverageScore >= 80 ? 'bg-emerald-500' : result.coverageScore >= 50 ? 'bg-amber-500' : 'bg-red-500')}
+            style={{ width: `${result.coverageScore}%` }}
+          />
+        </div>
+      </div>
+
+      {result.gaps.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Policy Gaps</p>
+          <div className="space-y-2">
+            {result.gaps.map((gap, i) => {
+              const cfg = GAP_PRIORITY_CFG[gap.priority] ?? GAP_PRIORITY_CFG.medium;
+              return (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-3">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', cfg.dot)} />
+                    <p className="text-sm font-medium text-gray-900">{gap.policyType}</p>
+                    <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium ml-auto', cfg.badge)}>
+                      {gap.priority}
+                    </span>
+                    {gap.covered ? (
+                      <span className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full">needs update</span>
+                    ) : (
+                      <span className="text-xs bg-red-50 text-red-700 px-1.5 py-0.5 rounded-full">missing</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 ml-3.5">{gap.requirement}</p>
+                  <p className="text-xs text-gray-400 ml-3.5 mt-0.5">Framework: {gap.framework}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {result.recommendations.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Recommendations</p>
+          <ol className="space-y-1">
+            {result.recommendations.map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                {r}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
 function EmptyState({ onGenerate, isPending }: { onGenerate: () => void; isPending: boolean }) {
@@ -403,6 +499,7 @@ export default function PoliciesPage() {
   const [selected, setSelected] = useState<Policy | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
+  const [coverageResult, setCoverageResult] = useState<CoverageResult | null>(null);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -415,6 +512,11 @@ export default function PoliciesPage() {
     onSuccess: () => {
       setTimeout(() => qc.invalidateQueries({ queryKey: ['policies'] }), 5000);
     },
+  });
+
+  const coverageCheck = useMutation({
+    mutationFn: () => api.post<CoverageResult>('/policies/ai-coverage-check').then((r: any) => r.data),
+    onSuccess: (result) => setCoverageResult(result),
   });
 
   const policies: Policy[] = (data as Policy[]) ?? [];
@@ -453,11 +555,22 @@ export default function PoliciesPage() {
           </p>
         </div>
 
-        <button
-          className="btn-primary flex items-center gap-2 text-sm"
-          onClick={() => generate.mutate()}
-          disabled={generate.isPending}
-        >
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => coverageCheck.mutate()}
+            disabled={coverageCheck.isPending}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border
+                       bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            {coverageCheck.isPending
+              ? <><RotateCcw className="w-4 h-4 animate-spin" /> Checking…</>
+              : <><Sparkles className="w-4 h-4" /> Coverage Check</>}
+          </button>
+          <button
+            className="btn-primary flex items-center gap-2 text-sm"
+            onClick={() => generate.mutate()}
+            disabled={generate.isPending}
+          >
           {generate.isPending ? (
             <>
               <RotateCcw className="w-4 h-4 animate-spin" />
@@ -469,8 +582,14 @@ export default function PoliciesPage() {
               Generate policies
             </>
           )}
-        </button>
+          </button>
+        </div>
       </div>
+
+      {/* Coverage check panel */}
+      {coverageResult && (
+        <CoveragePanel result={coverageResult} onClose={() => setCoverageResult(null)} />
+      )}
 
       {isLoading ? (
         <div className="space-y-3">

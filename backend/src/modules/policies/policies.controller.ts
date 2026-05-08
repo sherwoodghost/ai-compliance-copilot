@@ -108,4 +108,11 @@ export class PoliciesController {
   ) {
     return this.policiesService.aiDraft(user.orgId, policyId);
   }
+
+  @Post('ai-coverage-check')
+  @Roles(UserRole.admin, UserRole.auditor, UserRole.member)
+  @ApiOperation({ summary: 'AI: check policy library coverage against target compliance frameworks and identify gaps' })
+  aiCoverageCheck(@CurrentUser() user: JwtPayload) {
+    return this.policiesService.aiCoverageCheck(user.orgId);
+  }
 }

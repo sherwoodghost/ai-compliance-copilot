@@ -232,4 +232,85 @@ Make it specific to the organization context above. Be concrete and actionable, 
     this.logger.log(`AI draft generated for policy ${policyId}`);
     return { content: generatedContent, policyId };
   }
+
+  // ── AI Policy Coverage Check ──────────────────────────────────────────────
+  async aiCoverageCheck(orgId: string) {
+    const [policies, profile] = await Promise.all([
+      this.prisma.policy.findMany({
+        where: { orgId },
+        select: { id: true, title: true, status: true, category: true, updatedAt: true },
+      }),
+      this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
+    ]);
+
+    const pd = (profile?.profileData as any) ?? {};
+    const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
+    const industry   = pd.industry ?? 'technology';
+    const dataTypes  = (pd.dataHandling?.dataTypes ?? []).join(', ') || 'customer data';
+
+    const existingPolicies = policies.map((p) =>
+      `"${p.title}" (${p.status}, category: ${p.category ?? 'uncategorized'})`,
+    ).join('\n') || 'None';
+
+    const systemPrompt = `You are a compliance auditor reviewing an organization's policy library for completeness. Identify required policies for the target compliance frameworks that are missing or incomplete.`;
+
+    const userPrompt = `Review the policy coverage for this organisation:
+
+Industry: ${industry}
+Target frameworks: ${frameworks}
+Data handled: ${dataTypes}
+
+EXISTING POLICIES:
+${existingPolicies}
+
+Identify policy gaps. For ${frameworks}, list which required policies are missing or need significant improvement.
+
+Return ONLY a JSON object (no markdown):
+{
+  "coverageScore": 72,
+  "gaps": [
+    {
+      "policyType": "Acceptable Use Policy",
+      "priority": "critical|high|medium",
+      "framework": "SOC 2",
+      "requirement": "1 sentence on why this is required",
+      "covered": false
+    }
+  ],
+  "recommendations": ["Specific action 1", "Specific action 2"]
+}
+
+coverageScore: estimate 0-100 based on how well existing policies cover ${frameworks} requirements.
+Include both missing policies (covered: false) and existing policies that need updating (covered: true but need review).
+Focus on the most important gaps first.`;
+
+    const raw = await this.llm.complete(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      { agentName: 'policy', temperature: 0.2 },
+    );
+
+    let result: any = {};
+    try {
+      result = JSON.parse(raw.content.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim());
+    } catch {
+      result = {};
+    }
+
+    const validPriorities = ['critical', 'high', 'medium'];
+
+    return {
+      totalPolicies:   policies.length,
+      frameworks,
+      coverageScore:   Math.min(100, Math.max(0, Number(result.coverageScore ?? 0))),
+      gaps:            (Array.isArray(result.gaps) ? result.gaps : []).slice(0, 12).map((g: any) => ({
+        policyType:    String(g.policyType ?? '').slice(0, 80),
+        priority:      validPriorities.includes(g.priority) ? g.priority : 'medium',
+        framework:     String(g.framework ?? '').slice(0, 40),
+        requirement:   String(g.requirement ?? '').slice(0, 200),
+        covered:       Boolean(g.covered),
+      })),
+      recommendations: (Array.isArray(result.recommendations) ? result.recommendations : []).slice(0, 5).map(String),
+      generatedAt:     new Date().toISOString(),
+    };
+  }
 }
