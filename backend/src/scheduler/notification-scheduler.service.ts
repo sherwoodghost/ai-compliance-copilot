@@ -198,4 +198,63 @@ export class NotificationSchedulerService {
       this.logger.error(`Workflow SLA check failed: ${err.message}`);
     }
   }
+
+  // ─── Every 30 min: Incident SLA breach alerts ────────────────────────────────
+  // CRITICAL=4h, HIGH=24h, MEDIUM=72h — notify assignee + SECURITY_LEAD on breach
+  @Cron('*/30 * * * *', { name: 'incident-sla-check', timeZone: 'UTC' })
+  async checkIncidentSlas(): Promise<void> {
+    const SLA_HOURS: Record<string, number> = {
+      CRITICAL: 4, HIGH: 24, MEDIUM: 72, LOW: 168, INFORMATIONAL: 720,
+    };
+
+    try {
+      const openIncidents = await this.prisma.securityIncident.findMany({
+        where:   { status: { not: 'closed' }, containedAt: null },
+        select:  { id: true, orgId: true, title: true, severity: true, detectedAt: true, assignedTo: true },
+      });
+
+      let breached = 0;
+
+      for (const incident of openIncidents) {
+        const slaHours = SLA_HOURS[incident.severity] ?? 168;
+        const deadline = new Date(incident.detectedAt.getTime() + slaHours * 3_600_000);
+
+        if (new Date() <= deadline) continue;
+
+        breached++;
+
+        // Notify the assigned responder
+        if (incident.assignedTo) {
+          await this.notifications.send(incident.orgId, incident.assignedTo, {
+            type:     'incident.sla_breach',
+            title:    `⚠️ Incident SLA breached: ${incident.title}`,
+            body:     `${incident.severity} incident exceeded ${slaHours}h containment SLA. Immediate action required.`,
+            href:     `/incidents`,
+            priority: 'high',
+          }).catch(() => {});
+        }
+
+        // Also notify the SECURITY_LEAD via role-based notification
+        const securityLead = await this.prisma.complianceResponsibility.findFirst({
+          where:  { orgId: incident.orgId, role: 'SECURITY_LEAD', isPrimary: true },
+          select: { userId: true },
+        });
+        if (securityLead && securityLead.userId !== incident.assignedTo) {
+          await this.notifications.send(incident.orgId, securityLead.userId, {
+            type:     'incident.sla_breach',
+            title:    `⚠️ SLA breach: ${incident.title}`,
+            body:     `${incident.severity} incident (${incident.id.slice(0, 8)}) has exceeded its ${slaHours}h containment SLA.`,
+            href:     `/incidents`,
+            priority: 'high',
+          }).catch(() => {});
+        }
+      }
+
+      if (breached > 0) {
+        this.logger.warn(`[IncidentSLA] ${breached} incident(s) have breached containment SLA`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Incident SLA check failed: ${err.message}`);
+    }
+  }
 }
