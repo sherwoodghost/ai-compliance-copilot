@@ -265,4 +265,45 @@ export const teamApi = {
 
   closeCorrectiveAction: (incidentId: string, actionId: string): Promise<any> =>
     apiClient.post(`/incidents/${incidentId}/corrective-actions/${actionId}/close`).then((r) => r.data),
+
+  // ─── Internal Audit (ISO Clause 9.2) ─────────────────────────────────────────
+
+  listInternalAudits: (): Promise<any[]> =>
+    apiClient.get('/internal-audit').then((r) => r.data),
+
+  getInternalAudit: (id: string): Promise<any> =>
+    apiClient.get(`/internal-audit/${id}`).then((r) => r.data),
+
+  createInternalAudit: (dto: {
+    title: string;
+    auditYear: number;
+    scope: string[];
+    auditorId: string;
+    plannedStartAt: string;
+    plannedEndAt: string;
+  }): Promise<any> =>
+    apiClient.post('/internal-audit', dto).then((r) => r.data),
+
+  startAuditFieldwork: (id: string): Promise<any> =>
+    apiClient.post(`/internal-audit/${id}/start-fieldwork`).then((r) => r.data),
+
+  startAuditReporting: (id: string): Promise<any> =>
+    apiClient.post(`/internal-audit/${id}/start-reporting`).then((r) => r.data),
+
+  closeInternalAudit: (id: string, dto?: { summary?: string }): Promise<any> =>
+    apiClient.post(`/internal-audit/${id}/close`, dto ?? {}).then((r) => r.data),
+
+  addAuditFinding: (auditId: string, dto: {
+    controlCode?: string;
+    title: string;
+    description: string;
+    severity: string;
+  }): Promise<any> =>
+    apiClient.post(`/internal-audit/${auditId}/findings`, dto).then((r) => r.data),
+
+  closeAuditFinding: (auditId: string, findingId: string): Promise<any> =>
+    apiClient.post(`/internal-audit/${auditId}/findings/${findingId}/close`).then((r) => r.data),
+
+  acceptRiskFinding: (auditId: string, findingId: string): Promise<any> =>
+    apiClient.post(`/internal-audit/${auditId}/findings/${findingId}/accept-risk`).then((r) => r.data),
 };

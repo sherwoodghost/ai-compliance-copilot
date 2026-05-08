@@ -54,6 +54,7 @@ import { TrainingModule } from './modules/training/training.module';
 import { ManagementReviewModule } from './modules/management-reviews/management-review.module';
 import { ControlEffectivenessModule } from './modules/control-effectiveness/control-effectiveness.module';
 import { IncidentModule } from './modules/incidents/incident.module';
+import { InternalAuditModule } from './modules/internal-audit/internal-audit.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { IncidentModule } from './modules/incidents/incident.module';
     ManagementReviewModule,
     ControlEffectivenessModule,
     IncidentModule,
+    InternalAuditModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,

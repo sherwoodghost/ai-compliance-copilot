@@ -60,6 +60,7 @@ const NAV = [
   { href: '/controls/exceptions', label: 'Exceptions',   icon: ShieldAlert },
   { href: '/auditor-portal',   label: 'Auditor Portal',  icon: Users },
   { href: '/audit-history',    label: 'Audit Memory',    icon: BookOpen },
+  { href: '/internal-audit',   label: 'Internal Audit',  icon: FileText },
 ];
 
 export function Sidebar() {

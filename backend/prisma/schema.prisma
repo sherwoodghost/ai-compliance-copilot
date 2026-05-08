@@ -2118,9 +2118,74 @@ model CorrectiveAction {
   completedAt    DateTime?              @map("completed_at")
   evidenceId     String?                @map("evidence_id")
   status         CorrectiveActionStatus @default(open)
-  incident       SecurityIncident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  incident         SecurityIncident?        @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  internalFinding  InternalAuditFinding?    @relation(fields: [auditFindingId], references: [id], onDelete: SetNull)
 
   @@index([orgId, status])
   @@index([incidentId])
   @@map("corrective_actions")
+}
+
+// ─── Internal Audit (ISO Clause 9.2) ─────────────────────────────────────────
+
+enum AuditPhase {
+  planning
+  fieldwork
+  reporting
+  closed
+}
+
+enum FindingSeverity {
+  major
+  minor
+  observation
+  opportunity
+}
+
+enum FindingStatus {
+  open
+  in_progress
+  closed
+  accepted_risk
+}
+
+model InternalAudit {
+  id              String     @id @default(uuid())
+  orgId           String     @map("org_id")
+  title           String
+  auditYear       Int        @map("audit_year")
+  scope           String[]
+  auditorId       String     @map("auditor_id")
+  status          AuditPhase @default(planning)
+  plannedStartAt  DateTime   @map("planned_start_at")
+  plannedEndAt    DateTime   @map("planned_end_at")
+  actualStartAt   DateTime?  @map("actual_start_at")
+  actualEndAt     DateTime?  @map("actual_end_at")
+  evidenceId      String?    @map("evidence_id")
+  findings        InternalAuditFinding[]
+
+  @@index([orgId, auditYear])
+  @@index([orgId, status])
+  @@map("internal_audits")
+}
+
+model InternalAuditFinding {
+  id                String          @id @default(uuid())
+  auditId           String          @map("audit_id")
+  orgId             String          @map("org_id")
+  controlId         String?         @map("control_id")
+  controlCode       String?         @map("control_code")
+  title             String
+  description       String
+  severity          FindingSeverity
+  status            FindingStatus   @default(open)
+  closedAt          DateTime?       @map("closed_at")
+  closedBy          String?         @map("closed_by")
+  evidenceId        String?         @map("evidence_id")
+  correctiveActions CorrectiveAction[]
+  audit             InternalAudit   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([orgId, status])
+  @@map("internal_audit_findings")
 }
