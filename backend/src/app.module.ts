@@ -55,6 +55,13 @@ import { ManagementReviewModule } from './modules/management-reviews/management-
 import { ControlEffectivenessModule } from './modules/control-effectiveness/control-effectiveness.module';
 import { IncidentModule } from './modules/incidents/incident.module';
 import { InternalAuditModule } from './modules/internal-audit/internal-audit.module';
+// P19 — Documents + Enterprise Infrastructure
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { ConnectorsModule } from './modules/connectors/connectors.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -117,6 +124,13 @@ import { InternalAuditModule } from './modules/internal-audit/internal-audit.mod
     CopilotModule,
     AuditMemoryModule,
     AgentSchedulerModule,
+    // P19 — Documents + Enterprise Infrastructure
+    EventEmitterModule.forRoot({ wildcard: false, delimiter: '.', global: true }),
+    DocumentsModule,
+    FeatureFlagsModule,
+    StorageModule,
+    ConnectorsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

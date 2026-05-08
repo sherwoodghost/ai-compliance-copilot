@@ -4457,6 +4457,34 @@ All code changes shall go through pull request review before merging. Production
   }
   console.log(`✅ Policy templates: ${templateCount} upserted`);
 
+  // ── Feature flags (P19) ────────────────────────────────────────────────────
+  const FLAGS = [
+    { key: 'documents.aiFeatures',        enabledGlobally: false, description: 'AI improve + gap detection in document editor' },
+    { key: 'documents.vectorSearch',      enabledGlobally: false, description: 'Vector/semantic search over documents (requires pgvector)' },
+    { key: 'documents.collaborativeEdit', enabledGlobally: false, description: 'Real-time collaborative editing (Yjs/Hocuspocus)' },
+    { key: 'documents.bulkExport',        enabledGlobally: true,  description: 'Bulk export of documents as ZIP' },
+    { key: 'connectors.slack',            enabledGlobally: true,  description: 'Slack notification connector' },
+    { key: 'connectors.googleDrive',      enabledGlobally: false, description: 'Google Drive document import connector' },
+  ];
+
+  let flagCount = 0;
+  for (const flag of FLAGS) {
+    await (prisma as any).featureFlag.upsert({
+      where:  { key: flag.key },
+      update: { description: flag.description, enabledGlobally: flag.enabledGlobally },
+      create: {
+        key:            flag.key,
+        description:    flag.description,
+        enabledGlobally: flag.enabledGlobally,
+        enabledOrgIds:  [],
+        disabledOrgIds: [],
+        rolloutPercent: 0,
+      },
+    });
+    flagCount++;
+  }
+  console.log(`✅ Feature flags: ${flagCount} upserted`);
+
   console.log('🎉 Seed complete!');
 }
 

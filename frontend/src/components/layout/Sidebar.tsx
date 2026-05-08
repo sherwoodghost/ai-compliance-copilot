@@ -45,6 +45,7 @@ const NAV = [
   { href: '/control-library',  label: 'Control Library', icon: Library },
   { href: '/evidence',         label: 'Evidence',        icon: FolderOpen },
   { href: '/policies',         label: 'Policies',        icon: FileText },
+  { href: '/documents',        label: 'Documents',       icon: BookOpen },
   { href: '/risks',            label: 'Risks',           icon: AlertTriangle },
   { href: '/incidents',        label: 'Incidents',       icon: Siren,        badge: 'incidents' },
   { href: '/tasks',            label: 'Tasks',           icon: ClipboardList },

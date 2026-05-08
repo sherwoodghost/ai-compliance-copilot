@@ -385,6 +385,30 @@ enum SampleResult {
   PARTIAL
 }
 
+// ─── P19 Enums ───────────────────────────────────────────────────────────────
+
+enum DocumentType {
+  policy
+  procedure
+  template
+  evidence_note
+  report
+}
+
+enum DocumentStatus {
+  draft
+  review
+  approved
+  archived
+}
+
+enum DocClassification {
+  public
+  internal
+  confidential
+  restricted
+}
+
 // ─── Tenancy Layer ────────────────────────────────────────────────────────────
 
 model Organization {
@@ -450,6 +474,13 @@ model Organization {
   trainingAssignments      TrainingAssignment[]
   controlEffectivenessSamples ControlEffectivenessSample[]
   managementReviews        ManagementReview[]
+  // P19 — Documents
+  documents                Document[]
+  aiTokenBudgetMonthly     Int       @default(500000) @map("ai_token_budget_monthly")
+  aiTokensUsedMonth        Int       @default(0)      @map("ai_tokens_used_month")
+  aiTokensResetAt          DateTime?                  @map("ai_tokens_reset_at")
+  documentRetentionDays    Int       @default(2555)   @map("document_retention_days")
+  evidenceRetentionDays    Int       @default(2555)   @map("evidence_retention_days")
 
   @@map("organizations")
 }
@@ -520,6 +551,9 @@ model User {
   accessReviewItems        AccessReviewItem[]     @relation("AccessReviewItemUser")
   trainingAssignments      TrainingAssignment[]   @relation("TrainingAssignee")
   trainingAssignedBy       TrainingAssignment[]   @relation("TrainingAssignedBy")
+  // P19 — Documents
+  ownedDocuments           Document[]             @relation("DocumentOwner")
+  approvedDocuments        Document[]             @relation("DocumentApprover")
 
   @@map("users")
 }
@@ -2188,4 +2222,143 @@ model InternalAuditFinding {
   @@index([auditId])
   @@index([orgId, status])
   @@map("internal_audit_findings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P19 — Compliance Document Editor & Workspace
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Document (primary model) ──────────────────────────────────────────────────
+
+model Document {
+  id              String            @id @default(uuid())
+  orgId           String            @map("org_id")
+  title           String
+  docType         DocumentType      @default(policy) @map("doc_type")
+  // Dual-storage: JSON is source of truth; HTML is render cache
+  content         Json              @default("{}")
+  contentHtml     String            @default("") @db.Text
+  contentText     String?           @db.Text
+  wordCount       Int               @default(0)  @map("word_count")
+  status          DocumentStatus    @default(draft)
+  classification  DocClassification @default(internal)
+  version         Int               @default(1)
+  controlIds      String[]          @default([]) @map("control_ids")
+  frameworkIds    String[]          @default([]) @map("framework_ids")
+  tags            String[]          @default([])
+  ownerId         String?           @map("owner_id")
+  reviewDue       DateTime?         @map("review_due")
+  approvedBy      String?           @map("approved_by")
+  approvedAt      DateTime?         @map("approved_at")
+  // Approval lock
+  lockedAt        DateTime?         @map("locked_at")
+  lockedBy        String?           @map("locked_by")
+  lockedReason    String?           @map("locked_reason")
+  // Retention & legal hold
+  retentionDays   Int?              @map("retention_days")
+  retainUntil     DateTime?         @map("retain_until")
+  legalHoldAt     DateTime?         @map("legal_hold_at")
+  legalHoldBy     String?           @map("legal_hold_by")
+  legalHoldReason String?           @map("legal_hold_reason")
+  deletedAt       DateTime?         @map("deleted_at")
+  purgedAt        DateTime?         @map("purged_at")
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt      @map("updated_at")
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  owner        User?           @relation("DocumentOwner",    fields: [ownerId],    references: [id])
+  approver     User?           @relation("DocumentApprover", fields: [approvedBy], references: [id])
+  versions     DocumentVersion[]
+
+  @@index([orgId, docType, status])
+  @@index([orgId, deletedAt])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String   @map("document_id")
+  version     Int
+  content     Json
+  contentHtml String   @db.Text
+  createdBy   String?  @map("created_by")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+// ── Workflow Engine ───────────────────────────────────────────────────────────
+
+model WorkflowDefinition {
+  id           String             @id @default(uuid())
+  orgId        String             @map("org_id")
+  name         String
+  entityType   String             @map("entity_type")
+  steps        Json               // WorkflowStep[]
+  isDefault    Boolean            @default(false) @map("is_default")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt      @map("updated_at")
+
+  instances WorkflowInstance[]
+
+  @@index([orgId, entityType])
+  @@map("workflow_definitions")
+}
+
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+  orgId        String   @map("org_id")
+  definitionId String   @map("definition_id")
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id")
+  currentStep  Int      @default(0) @map("current_step")
+  status       String   @default("active")
+  stepHistory  Json[]   @default([]) @map("step_history")
+  startedAt    DateTime @default(now())  @map("started_at")
+  completedAt  DateTime?               @map("completed_at")
+
+  definition WorkflowDefinition @relation(fields: [definitionId], references: [id])
+
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, status])
+  @@map("workflow_instances")
+}
+
+// ── Feature Flags ─────────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id               String   @id @default(uuid())
+  key              String   @unique
+  description      String?
+  enabledGlobally  Boolean  @default(false) @map("enabled_globally")
+  enabledOrgIds    String[] @default([])    @map("enabled_org_ids")
+  disabledOrgIds   String[] @default([])    @map("disabled_org_ids")
+  rolloutPercent   Int      @default(0)     @map("rollout_percent")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt      @map("updated_at")
+
+  @@map("feature_flags")
+}
+
+// ── Connector Credentials ─────────────────────────────────────────────────────
+
+model ConnectorCredential {
+  id           String    @id @default(uuid())
+  orgId        String    @map("org_id")
+  connectorId  String    @map("connector_id")
+  credentials  Json      // encrypted at rest
+  status       String    @default("active")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt      @map("updated_at")
+
+  @@unique([orgId, connectorId])
+  @@index([orgId])
+  @@map("connector_credentials")
 }

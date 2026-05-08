@@ -8,6 +8,7 @@ import {
   ArrowRightLeft, Ban, Zap, Clock, Plus, X, Sparkles, BarChart3, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PolicyEditor } from '@/components/editor/PolicyEditor';
 
 type RiskTreatment = {
   id: string;
@@ -415,12 +416,12 @@ function TreatmentForm({ riskId, onClose }: { riskId: string; onClose: () => voi
           );
         })}
       </div>
-      <textarea
-        className="w-full text-xs border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
-        rows={3}
+      <PolicyEditor
+        content={description}
+        onChange={setDescription}
         placeholder="Describe the treatment plan, rationale, or acceptance rationale…"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        minHeight={100}
+        showWordCount={false}
       />
       <div className="flex gap-3">
         <div className="flex-1">

@@ -9,6 +9,7 @@ import {
   AlertCircle, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PolicyEditor } from '@/components/editor/PolicyEditor';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -163,14 +164,13 @@ function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCr
           </div>
 
           <div>
-            <label htmlFor="inc-description" className="block text-xs font-medium text-gray-700 mb-1">Description *</label>
-            <textarea
-              id="inc-description"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={3}
+            <label className="block text-xs font-medium text-gray-700 mb-1">Description *</label>
+            <PolicyEditor
+              content={form.description}
+              onChange={(html) => setForm({ ...form, description: html })}
               placeholder="Describe what happened, when it was detected, and initial impact assessment..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              minHeight={100}
+              showWordCount={false}
             />
           </div>
 

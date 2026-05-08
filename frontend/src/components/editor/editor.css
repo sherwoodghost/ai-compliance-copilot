@@ -1,0 +1,188 @@
+/* ─── TipTap Editor Global Styles ────────────────────────────────────────────
+ * Scoped to .tiptap-editor class to avoid leaking into other Tailwind prose
+ * contexts. Classification watermarks and DRAFT overlay are also here.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* ── ProseMirror core focus ── */
+.tiptap-editor .ProseMirror {
+  outline: none;
+  min-height: inherit;
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af; /* gray-400 */
+  pointer-events: none;
+  height: 0;
+}
+
+/* ── Task list checkboxes ── */
+.tiptap-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-editor ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > label input[type="checkbox"] {
+  accent-color: #4f46e5; /* indigo-600 */
+  width: 0.95rem;
+  height: 0.95rem;
+  cursor: pointer;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.tiptap-editor ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+/* ── Tables ── */
+.tiptap-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
+.tiptap-editor table th,
+.tiptap-editor table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tiptap-editor table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.tiptap-editor table .selectedCell {
+  background-color: #eef2ff; /* indigo-50 */
+}
+
+/* ── Highlighted text ── */
+.tiptap-editor mark {
+  background-color: #fef9c3; /* yellow-100 */
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ── Code blocks ── */
+.tiptap-editor pre {
+  background-color: #111827; /* gray-900 */
+  color: #f3f4f6;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.tiptap-editor pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+/* ── Horizontal rule ── */
+.tiptap-editor hr {
+  border: none;
+  border-top: 2px solid #e5e7eb;
+  margin: 1.5rem 0;
+}
+
+/* ── Links ── */
+.tiptap-editor a {
+  color: #4f46e5;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tiptap-editor a:hover {
+  color: #3730a3;
+}
+
+/* ── Images ── */
+.tiptap-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  display: block;
+  margin: 0.75rem 0;
+}
+
+.tiptap-editor img.ProseMirror-selectednode {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* ── Selection ── */
+.tiptap-editor .ProseMirror ::selection {
+  background-color: #c7d2fe; /* indigo-200 */
+}
+
+/* ─── DRAFT watermark ──────────────────────────────────────────────────────── */
+
+.tiptap-watermark {
+  position: relative;
+}
+
+.tiptap-watermark::before {
+  content: attr(data-watermark);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  color: #1e1b4b; /* indigo-950 */
+  opacity: 0.04;
+  transform: rotate(-30deg);
+  pointer-events: none;
+  z-index: 0;
+  user-select: none;
+  white-space: nowrap;
+}
+
+/* ─── Classification badge colors ──────────────────────────────────────────── */
+
+.classification-public       { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+.classification-internal     { @apply bg-blue-50 text-blue-700 border border-blue-200; }
+.classification-confidential { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+.classification-restricted   { @apply bg-red-50 text-red-700 border border-red-200; }
+
+/* ─── Document status badge override (for ARCHIVED watermark) ─────────────── */
+.tiptap-watermark-archived::before {
+  content: 'ARCHIVED';
+}
+
+.tiptap-watermark-confidential::before {
+  content: 'CONFIDENTIAL';
+  opacity: 0.035;
+  color: #7c2d12; /* orange-900 */
+}
+
+.tiptap-watermark-restricted::before {
+  content: 'RESTRICTED';
+  opacity: 0.035;
+  color: #7f1d1d; /* red-900 */
+}
