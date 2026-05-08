@@ -50,6 +50,24 @@ export function useComplianceSocket() {
     // ── Personal notification event ──────────────────────────────────────────
     socket.on('notification', (data: any) => {
       add(data);
+
+      // Auto-invalidate relevant query caches based on notification type
+      // so pages refresh automatically without polling
+      const type: string = data?.type ?? '';
+      if (type.startsWith('document.')) {
+        qc.invalidateQueries({ queryKey: ['documents'] });
+      }
+      if (type.startsWith('incident.')) {
+        qc.invalidateQueries({ queryKey: ['incidents'] });
+        qc.invalidateQueries({ queryKey: ['incident-metrics'] });
+      }
+      if (type === 'evidence.expiring' || type === 'task.assigned') {
+        qc.invalidateQueries({ queryKey: ['tasks'] });
+        qc.invalidateQueries({ queryKey: ['guided-program'] });
+      }
+      if (type === 'control.failed') {
+        qc.invalidateQueries({ queryKey: ['org-stats'] });
+      }
     });
 
     return () => {

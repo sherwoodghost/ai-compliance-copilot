@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
 import { complianceApi } from '@/lib/api/compliance';
+import { risksApi } from '@/lib/api/risks';
 import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
 import {
@@ -470,7 +471,7 @@ export default function OverviewPage() {
 
   const { data: riskStats } = useQuery({
     queryKey: ['risk-stats'],
-    queryFn: () => api.get('/risks/stats').then((r: any) => r.data),
+    queryFn: () => risksApi.getStats(),
   });
 
   const assess = useMutation({
@@ -603,7 +604,7 @@ export default function OverviewPage() {
                 value={riskStats?.highRisks ?? 0}
                 icon={AlertTriangle}
                 sub="open critical+high"
-                accent={riskStats?.highRisks > 0 ? 'red' : 'green'}
+                accent={(riskStats?.highRisks ?? 0) > 0 ? 'red' : 'green'}
               />
               <StatCard
                 label="Control Score"

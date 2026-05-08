@@ -2,38 +2,15 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { apiClient as api } from '@/lib/api/client';
+import {
+  risksApi, Risk, RiskTreatment, PortfolioAnalysis as PortfolioResult,
+} from '@/lib/api/risks';
 import {
   AlertTriangle, Shield, CheckCircle, ChevronDown, ChevronRight,
   ArrowRightLeft, Ban, Zap, Clock, Plus, X, Sparkles, BarChart3, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PolicyEditor } from '@/components/editor/PolicyEditor';
-
-type RiskTreatment = {
-  id: string;
-  treatmentType: 'mitigate' | 'accept' | 'transfer' | 'avoid';
-  treatmentDescription: string;
-  status: string;
-  targetCompletionDate?: string;
-  residualRiskAfter?: string;
-  acceptedAt?: string;
-  createdAt: string;
-};
-
-type Risk = {
-  id: string;
-  title: string;
-  description: string;
-  likelihood: string;
-  impact: string;
-  riskScore: number;
-  severity: string;
-  status: string;
-  mitigationAdvice?: string;
-  riskTreatments: RiskTreatment[];
-  createdAt: string;
-};
 
 const SEVERITY_CONFIG: Record<string, { label: string; rowCls: string; badge: string; icon: string }> = {
   critical: { label: 'Critical', rowCls: 'border-l-4 border-red-500', badge: 'bg-red-100 text-red-800', icon: 'text-red-500' },
@@ -49,22 +26,7 @@ const TREATMENT_CONFIG: Record<string, { label: string; color: string; icon: Rea
   avoid:    { label: 'Avoid',    color: 'bg-gray-50 text-gray-700 border-gray-200',  icon: Ban },
 };
 
-// ─── Portfolio Analysis Types & Panel ────────────────────────────────────────
-
-type PortfolioStats = { total: number; critical: number; high: number; open: number; mitigated: number; accepted: number; unowned: number };
-type ExposureArea   = { area: string; riskCount: number; concern: string };
-type PortfolioResult = {
-  stats: PortfolioStats;
-  overallRiskRating: string;
-  executiveSummary: string;
-  topExposureAreas: ExposureArea[];
-  systemicPatterns: string[];
-  criticalUntreated: string[];
-  quickWins: string[];
-  boardRecommendations: string[];
-  riskAppetiteAssessment: string;
-  generatedAt: string;
-};
+// ─── Portfolio Analysis Panel ─────────────────────────────────────────────────
 
 const RATING_CFG: Record<string, { bg: string; text: string; border: string }> = {
   Critical: { bg: 'bg-red-50',    text: 'text-red-800',    border: 'border-red-200' },
@@ -224,14 +186,14 @@ function RiskModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post('/risks', {
+      risksApi.create({
         title,
         description: description || undefined,
-        likelihood,
-        impact,
+        likelihood: likelihood as Risk['likelihood'],
+        impact: impact as Risk['impact'],
         owner: owner || undefined,
         mitigationAdvice: mitigationAdvice || undefined,
-      }).then((r: any) => r.data),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['risks'] });
       qc.invalidateQueries({ queryKey: ['risk-stats'] });
@@ -382,12 +344,12 @@ function TreatmentForm({ riskId, onClose }: { riskId: string; onClose: () => voi
   const [targetDate, setTargetDate] = useState('');
 
   const create = useMutation({
-    mutationFn: () => api.post(`/risks/${riskId}/treatments`, {
+    mutationFn: () => risksApi.addTreatment(riskId, {
       treatmentType: type,
       treatmentDescription: description,
       residualRiskAfter: residual || undefined,
       targetCompletionDate: targetDate || undefined,
-    }).then((r: any) => r.data),
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['risks'] });
       onClose();
@@ -464,8 +426,7 @@ function RiskRow({ risk }: { risk: Risk }) {
   const latestTreatment = risk.riskTreatments?.[0];
 
   const getAiAdvice = useMutation({
-    mutationFn: () =>
-      api.post(`/risks/${risk.id}/ai-advice`, {}).then((r: any) => r.data),
+    mutationFn: () => risksApi.getAiAdvice(risk.id),
     onSuccess: (data) => {
       setAiAdvice(data);
       qc.invalidateQueries({ queryKey: ['risks'] });
@@ -473,14 +434,12 @@ function RiskRow({ risk }: { risk: Risk }) {
   });
 
   const acceptTreatment = useMutation({
-    mutationFn: (treatmentId: string) =>
-      api.patch(`/risks/${risk.id}/treatments/${treatmentId}/accept`).then((r: any) => r.data),
+    mutationFn: (treatmentId: string) => risksApi.acceptTreatment(risk.id, treatmentId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['risks'] }),
   });
 
   const completeTreatment = useMutation({
-    mutationFn: (treatmentId: string) =>
-      api.patch(`/risks/${risk.id}/treatments/${treatmentId}/complete`).then((r: any) => r.data),
+    mutationFn: (treatmentId: string) => risksApi.completeTreatment(risk.id, treatmentId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['risks'] }),
   });
 
@@ -670,23 +629,22 @@ export default function RisksPage() {
   const [portfolio, setPortfolio] = useState<PortfolioResult | null>(null);
 
   const portfolioMutation = useMutation({
-    mutationFn: () => api.post('/risks/ai-portfolio-analysis', {}).then((r: any) => r.data as PortfolioResult),
+    mutationFn: () => risksApi.portfolioAnalysis(),
     onSuccess: (result) => setPortfolio(result),
   });
 
   const { data = [], isLoading } = useQuery<Risk[]>({
     queryKey: ['risks'],
-    queryFn: () => api.get('/risks').then((r: any) => r.data),
+    queryFn: () => risksApi.list(),
   });
 
   const { data: stats } = useQuery({
     queryKey: ['risk-stats'],
-    queryFn: () => api.get('/risks/stats').then((r: any) => r.data),
+    queryFn: () => risksApi.getStats(),
   });
 
   const generateRisks = useMutation({
-    mutationFn: () =>
-      api.post('/risks/generate-from-gaps', {}).then((r: any) => r.data as { created: number; risks: any[] }),
+    mutationFn: () => risksApi.generateFromGaps(),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['risks'] });
       qc.invalidateQueries({ queryKey: ['risk-stats'] });

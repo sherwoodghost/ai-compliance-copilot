@@ -1,30 +1,13 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { complianceApi } from '@/lib/api/compliance';
-import { apiClient as api } from '@/lib/api/client';
+import { tasksApi, Task, SprintPlan as SprintResult, SprintItem } from '@/lib/api/tasks';
 import {
   ClipboardList, AlertCircle, Clock, CheckCircle2,
   Calendar, LayoutGrid, List, Filter, Plus, X, Sparkles, Zap, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useMemo } from 'react';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Task = {
-  id: string;
-  title: string;
-  description?: string;
-  status: 'open' | 'in_progress' | 'blocked' | 'done' | 'accepted';
-  priority: 'critical' | 'high' | 'medium' | 'low';
-  dueDate?: string | null;
-  // Backend returns nested control object (Task → Control relation)
-  control?: { id: string; code: string; title: string } | null;
-  // Backend returns assignee relation (assignedTo is the FK, assignee is the relation)
-  assignee?: { id: string; fullName: string; email: string } | null;
-  source?: string;
-};
 
 type ViewMode = 'board' | 'list';
 type PriorityFilter = 'all' | 'critical' | 'high' | 'medium' | 'low';
@@ -53,30 +36,7 @@ const NEXT_STATUS: Record<string, string[]> = {
   accepted:    [],
 };
 
-// ─── Sprint Planner Types & Panel ────────────────────────────────────────────
-
-type SprintItem = {
-  rank: number;
-  taskId: string;
-  title: string;
-  priority: string;
-  status: string;
-  controlCode: string | null;
-  controlCategory: string | null;
-  assignee: string | null;
-  dueDate?: string;
-  urgencyLevel: 'overdue' | 'critical' | 'high' | 'medium';
-  reason: string;
-  estimatedHours: number;
-};
-
-type SprintResult = {
-  weekOf: string;
-  readinessScore: number;
-  weekFocus: string;
-  sprintItems: SprintItem[];
-  totalOpen: number;
-};
+// ─── Sprint Planner Panel ─────────────────────────────────────────────────────
 
 const URGENCY_CFG: Record<string, { badge: string; border: string }> = {
   overdue:  { badge: 'bg-red-100 text-red-700 border-red-200',       border: 'border-l-red-400' },
@@ -163,12 +123,12 @@ function TaskModal({ onClose }: { onClose: () => void }) {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post('/tasks', {
+      tasksApi.create({
         title,
         description: description || undefined,
         priority,
         dueDate: dueDate || undefined,
-      }).then((r: any) => r.data),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       onClose();
@@ -422,25 +382,24 @@ export default function TasksPage() {
   const [sprintResult, setSprintResult] = useState<SprintResult | null>(null);
 
   const sprintMutation = useMutation({
-    mutationFn: () => api.post('/tasks/ai-sprint-planner', {}).then((r: any) => r.data as SprintResult),
+    mutationFn: () => tasksApi.sprintPlan(),
     onSuccess: (result) => setSprintResult(result),
   });
 
   const { data, isLoading } = useQuery({
     queryKey: ['tasks'],
-    queryFn: () => complianceApi.getTasks() as Promise<Task[]>,
+    queryFn: () => tasksApi.list(),
     refetchInterval: 30_000,
   });
 
   const updateTask = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      complianceApi.updateTask(id, { status }),
+      tasksApi.update(id, { status: status as Task['status'] }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   });
 
   const generateTasks = useMutation({
-    mutationFn: () =>
-      api.post('/tasks/generate-from-gaps', {}).then((r: any) => r.data as { created: number; tasks: any[] }),
+    mutationFn: () => tasksApi.generateFromGaps(),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       setAiResult({ created: result.created });

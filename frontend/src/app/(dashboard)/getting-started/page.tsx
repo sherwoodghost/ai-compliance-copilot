@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi, GuidedTask, GuidedProgram } from '@/lib/api/team';
-import { complianceApi } from '@/lib/api/compliance';
+import { tasksApi } from '@/lib/api/tasks';
 import { apiClient as api } from '@/lib/api/client';
 import Link from 'next/link';
 import {
@@ -138,12 +138,12 @@ function TaskDetailPanel({ task, onClose }: { task: GuidedTask; onClose: () => v
   const KindIcon = kindCfg.icon;
 
   const completeTask = useMutation({
-    mutationFn: () => api.patch(`/tasks/${task.id}`, { status: 'done' }).then((r: any) => r.data),
+    mutationFn: () => tasksApi.update(task.id, { status: 'done' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['guided-program'] }),
   });
 
   const startTask = useMutation({
-    mutationFn: () => api.patch(`/tasks/${task.id}`, { status: 'in_progress' }).then((r: any) => r.data),
+    mutationFn: () => tasksApi.update(task.id, { status: 'in_progress' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['guided-program'] }),
   });
 
