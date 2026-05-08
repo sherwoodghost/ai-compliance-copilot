@@ -57,7 +57,9 @@ export class AuthService {
           email: dto.email.toLowerCase(),
           passwordHash,
           fullName: dto.fullName,
-          role: 'admin', // First user of an org is always admin
+          role: 'admin',           // legacy role: first user is admin
+          platformRole: 'owner',   // new ABAC role: first user is org owner
+          status: 'active',
           isActive: true,
         },
       });
@@ -67,7 +69,7 @@ export class AuthService {
 
     this.logger.log(`New organization registered: ${organization.slug} | User: ${user.email}`);
 
-    const tokens = await this.generateTokens(user.id, user.email, user.orgId, user.role);
+    const tokens = await this.generateTokens(user.id, user.email, user.orgId, user.role, (user as any).platformRole ?? 'owner', (user as any).status ?? 'active');
     const session = await this.createSession(user.id, user.orgId, tokens.refreshToken, ipAddress, userAgent);
 
     return {
@@ -79,6 +81,7 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        platformRole: (user as any).platformRole ?? 'owner',
         orgId: user.orgId,
       },
     };
@@ -113,7 +116,9 @@ export class AuthService {
     });
     const onboardingComplete = businessProfile?.isComplete ?? false;
 
-    const tokens = await this.generateTokens(user.id, user.email, user.orgId, user.role);
+    const platformRole = (user as any).platformRole ?? 'contributor';
+    const status = (user as any).status ?? 'active';
+    const tokens = await this.generateTokens(user.id, user.email, user.orgId, user.role, platformRole, status);
     await this.createSession(user.id, user.orgId, tokens.refreshToken, ipAddress, userAgent);
 
     this.logger.log(`User logged in: ${user.email}`);
@@ -127,6 +132,8 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        platformRole: (user as any).platformRole ?? 'contributor',
+        status: (user as any).status ?? 'active',
         orgId: user.orgId,
         onboardingComplete,
       },
@@ -139,8 +146,10 @@ export class AuthService {
     orgId: string,
     role: string,
     oldRefreshToken: string,
+    platformRole?: string,
+    status?: string,
   ): Promise<RefreshResponseDto> {
-    const tokens = await this.generateTokens(userId, email, orgId, role);
+    const tokens = await this.generateTokens(userId, email, orgId, role, platformRole ?? 'contributor', status ?? 'active');
 
     // Rotate refresh token — revoke old, create new session
     await this.prisma.$transaction(async (tx) => {
@@ -201,8 +210,10 @@ export class AuthService {
     email: string,
     orgId: string,
     role: string,
+    platformRole: string = 'contributor',
+    status: string = 'active',
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const basePayload = { sub: userId, email, orgId, role };
+    const basePayload = { sub: userId, email, orgId, role, platformRole, status };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(

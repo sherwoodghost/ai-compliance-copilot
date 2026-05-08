@@ -5,6 +5,8 @@ export class AuthUserDto {
   @ApiProperty() email: string;
   @ApiProperty() fullName: string;
   @ApiProperty() role: string;
+  @ApiProperty({ required: false }) platformRole?: string;
+  @ApiProperty({ required: false }) status?: string;
   @ApiProperty() orgId: string;
   @ApiProperty({ required: false }) onboardingComplete?: boolean;
 }

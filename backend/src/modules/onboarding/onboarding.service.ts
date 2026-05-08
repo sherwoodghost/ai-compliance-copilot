@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { QUEUE_NAMES, DEFAULT_JOB_OPTIONS } from '../../orchestrator/queue.config';
 import { DialogueManagerService } from '../../agents/onboarding/dialogue-manager.service';
 import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
+import { TasksService } from '../tasks/tasks.service';
 
 /** Minimum completeness fraction (0–1) required to allow finalize */
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
@@ -183,6 +184,7 @@ export class OnboardingService {
     @InjectQueue(QUEUE_NAMES.AGENT_ONBOARDING) private readonly onboardingQueue: Queue,
     private readonly dialogueManager: DialogueManagerService,
     private readonly gateway: LlmGatewayService,
+    private readonly tasksService: TasksService,
   ) {}
 
   async getOrCreateSession(orgId: string, userId: string) {
@@ -900,6 +902,14 @@ export class OnboardingService {
         pipelineErr.stack,
       );
     }
+
+    // Generate guided compliance task program — non-blocking, runs after controls are seeded by pipeline
+    // Small delay to allow pipeline to create OrganizationControl records first
+    setTimeout(() => {
+      this.tasksService.generateGuidedProgram(orgId).catch((err) =>
+        this.logger.warn(`Guided program generation failed (non-fatal): ${err.message}`),
+      );
+    }, 30_000); // 30s delay — controls should be seeded by then
 
     return { workflowId, journeyId };
   }

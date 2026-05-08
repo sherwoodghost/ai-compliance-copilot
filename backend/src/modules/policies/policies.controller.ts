@@ -59,7 +59,7 @@ export class PoliciesController {
 
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreatePolicyDto) {
-    return this.policiesService.create(user.orgId, dto);
+    return this.policiesService.create(user.orgId, dto, user.sub);
   }
 
   @Patch(':policyId')

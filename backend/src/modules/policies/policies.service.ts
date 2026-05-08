@@ -8,6 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { LlmService } from '../../llm/llm.service';
 import { CreatePolicyDto, UpdatePolicyDto } from './dto/policies.dto';
 import { RagIndexerService } from '../../llm-gateway/rag/rag-indexer.service';
+import { PermissionService } from '../../common/permissions/permission.service';
 
 @Injectable()
 export class PoliciesService {
@@ -17,6 +18,7 @@ export class PoliciesService {
     private readonly prisma: PrismaService,
     private readonly ragIndexer: RagIndexerService,
     private readonly llm: LlmService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   async findAll(orgId: string, controlId?: string, status?: string) {
@@ -46,7 +48,7 @@ export class PoliciesService {
     return policy;
   }
 
-  async create(orgId: string, dto: CreatePolicyDto) {
+  async create(orgId: string, dto: CreatePolicyDto, creatorId?: string) {
     const orgControl = await this.prisma.organizationControl.findUnique({
       where: { orgId_controlId: { orgId, controlId: dto.controlId } },
     });
@@ -68,6 +70,7 @@ export class PoliciesService {
         version: (latestVersion?.version ?? 0) + 1,
         status: 'draft',
         generatedBy: dto.generatedBy ?? 'human',
+        ...(creatorId && { authorId: creatorId }),
       },
       include: {
         control: { select: { id: true, code: true, title: true } },
@@ -107,6 +110,20 @@ export class PoliciesService {
     if (policy.status === 'archived') {
       throw new BadRequestException('Cannot approve an archived policy');
     }
+
+    // SoD: the approver must not be the policy author (ISO A.5.3 / SOC 2 CC1.3)
+    const policyAny = policy as any;
+    await this.permissionService.checkSoD(
+      { id: approverId, orgId, role: 'admin', platformRole: 'approver', status: 'active' },
+      {
+        action: 'policy.approve',
+        resourceOwnerId: policyAny.authorId,
+        resourceDescription: `policy "${policy.title}"`,
+        orgId,
+        targetType: 'Policy',
+        targetId: policyId,
+      },
+    );
 
     const updated = await this.prisma.policy.update({
       where: { id: policyId },

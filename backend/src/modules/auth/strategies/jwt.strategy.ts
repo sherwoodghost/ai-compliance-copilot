@@ -25,11 +25,16 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, orgId: true, role: true, isActive: true },
+      select: { id: true, email: true, orgId: true, role: true, isActive: true, platformRole: true, status: true },
     });
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found or inactive');
+    }
+
+    // Hard deny deactivated/suspended users at the JWT validation layer
+    if (user.status === 'deactivated' || user.status === 'suspended') {
+      throw new UnauthorizedException('Account is not active');
     }
 
     return {
@@ -37,6 +42,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: user.email,
       orgId: user.orgId,
       role: user.role,
+      platformRole: (user as any).platformRole ?? 'contributor',
+      status: (user as any).status ?? 'active',
       type: 'access',
     };
   }

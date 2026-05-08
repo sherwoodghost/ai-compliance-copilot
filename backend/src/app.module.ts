@@ -47,6 +47,8 @@ import { AuditorPortalModule } from './modules/auditor-portal/auditor-portal.mod
 import { CopilotModule } from './modules/copilot/copilot.module';
 import { AuditMemoryModule } from './modules/audit-memory/audit-memory.module';
 import { AgentSchedulerModule } from './scheduler/scheduler.module';
+import { PermissionsModule } from './common/permissions/permissions.module';
+import { TeamModule } from './modules/team/team.module';
 
 @Module({
   imports: [
@@ -57,6 +59,8 @@ import { AgentSchedulerModule } from './scheduler/scheduler.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     DatabaseModule,
+    PermissionsModule,
+    TeamModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,

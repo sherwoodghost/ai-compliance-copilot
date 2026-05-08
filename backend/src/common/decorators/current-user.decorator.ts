@@ -5,6 +5,8 @@ export interface JwtPayload {
   email: string;
   orgId: string;
   role: string;
+  platformRole?: string; // PlatformRole (owner | admin | contributor | approver | viewer | auditor_external)
+  status?: string;       // UserStatus (active | suspended | offboarding | deactivated)
   type: 'access' | 'refresh';
 }
 

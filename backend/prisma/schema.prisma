@@ -298,6 +298,93 @@ enum AgentEventType {
   replay_triggered
 }
 
+// ─── Team Management Enums ───────────────────────────────────────────────────
+
+enum PlatformRole {
+  owner
+  admin
+  contributor
+  approver
+  viewer
+  auditor_external
+}
+
+enum UserStatus {
+  active
+  suspended
+  offboarding
+  deactivated
+}
+
+enum EmploymentType {
+  full_time
+  part_time
+  contractor
+  vendor
+}
+
+enum ComplianceRole {
+  SECURITY_LEAD
+  COMPLIANCE_LEAD
+  DPO
+  IT_ADMIN
+  ENGINEERING_LEAD
+  HR_LEAD
+  LEGAL
+  RISK_OWNER
+  CONTROL_OWNER
+  EVIDENCE_REVIEWER
+  INCIDENT_RESPONDER
+  VENDOR_MANAGER
+}
+
+enum RaciLetter {
+  R
+  A
+  C
+  I
+}
+
+enum TaskKind {
+  EVIDENCE_UPLOAD
+  POLICY_AUTHORING
+  ACCESS_REVIEW
+  TRAINING
+  RISK_ASSESSMENT
+  VENDOR_REVIEW
+  INCIDENT_DRILL
+  ATTESTATION
+  CONFIGURATION
+  APPROVAL
+}
+
+enum AccessReviewStatus {
+  pending
+  in_progress
+  signed
+  overdue
+}
+
+enum ReviewDecision {
+  APPROVE
+  MODIFY
+  REVOKE
+}
+
+enum TrainingKind {
+  SECURITY_AWARENESS
+  PHISHING
+  DATA_HANDLING
+  INCIDENT_REPORTING
+  ROLE_SPECIFIC
+}
+
+enum SampleResult {
+  PASS
+  FAIL
+  PARTIAL
+}
+
 // ─── Tenancy Layer ────────────────────────────────────────────────────────────
 
 model Organization {
@@ -354,6 +441,15 @@ model Organization {
   // Phase C (Compliance Memory)
   auditCycles         AuditCycle[]
   auditFindings       AuditFinding[]
+  // Team Management (Phase D)
+  raciAssignments          RaciAssignment[]
+  complianceResponsibilities ComplianceResponsibility[]
+  teamAuditLogs            TeamAuditLog[]
+  controlEvidence          ControlEvidence[]
+  accessReviews            AccessReview[]
+  trainingAssignments      TrainingAssignment[]
+  controlEffectivenessSamples ControlEffectivenessSample[]
+  managementReviews        ManagementReview[]
 
   @@map("organizations")
 }
@@ -397,6 +493,33 @@ model User {
   // Phase C (Compliance Memory)
   auditCyclesCreated       AuditCycle[]           @relation("AuditCycleCreator")
   findingsResolved         AuditFinding[]         @relation("FindingResolver")
+  // Phase D (Team Management)
+  platformRole             PlatformRole           @default(contributor) @map("platform_role")
+  status                   UserStatus             @default(active)
+  jobTitle                 String?                @map("job_title")
+  department               String?
+  managerId                String?                @map("manager_id")
+  manager                  User?                  @relation("DirectReports", fields: [managerId], references: [id])
+  directReports            User[]                 @relation("DirectReports")
+  employmentType           EmploymentType?        @map("employment_type")
+  startDate                DateTime?              @map("start_date")
+  ndaSignedAt              DateTime?              @map("nda_signed_at")
+  aupSignedAt              DateTime?              @map("aup_signed_at")
+  backgroundCheckAt        DateTime?              @map("background_check_at")
+  lastAccessReviewAt       DateTime?              @map("last_access_review_at")
+  delegateId               String?                @map("delegate_id")
+  delegateUntil            DateTime?              @map("delegate_until")
+  delegate                 User?                  @relation("Delegate", fields: [delegateId], references: [id])
+  delegatedFrom            User[]                 @relation("Delegate")
+  responsibilities         ComplianceResponsibility[]
+  raciAssignments          RaciAssignment[]
+  authoredPolicies         Policy[]               @relation("PolicyAuthor")
+  approvedTasks            Task[]                 @relation("TaskApprover")
+  teamAuditLogsActed       TeamAuditLog[]         @relation("TeamAuditActor")
+  accessReviewsConducted   AccessReview[]         @relation("AccessReviewer")
+  accessReviewItems        AccessReviewItem[]     @relation("AccessReviewItemUser")
+  trainingAssignments      TrainingAssignment[]   @relation("TrainingAssignee")
+  trainingAssignedBy       TrainingAssignment[]   @relation("TrainingAssignedBy")
 
   @@map("users")
 }
@@ -464,6 +587,8 @@ model Control {
   exceptions           ControlException[]
   auditorRfis          AuditorRfi[]
   auditFindings        AuditFinding[]
+  controlEvidence      ControlEvidence[]
+  raciAssignments      RaciAssignment[]
 
   @@unique([frameworkId, code])
   @@map("controls")
@@ -510,10 +635,11 @@ model Evidence {
   frozenAt    DateTime?      @map("frozen_at")
   contentHash String?        @map("content_hash")  // SHA-256 of evidence data
 
-  organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  control       Control             @relation(fields: [controlId], references: [id], onDelete: Cascade)
-  reviewer      User?               @relation("EvidenceReviewer", fields: [reviewedBy], references: [id])
-  testResults   ControlTestResult[]
+  organization    Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control         Control             @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  reviewer        User?               @relation("EvidenceReviewer", fields: [reviewedBy], references: [id])
+  testResults     ControlTestResult[]
+  controlMappings ControlEvidence[]
 
   @@map("evidence")
 }
@@ -529,12 +655,16 @@ model Policy {
   approvedBy  String?      @map("approved_by")
   approvedAt  DateTime?    @map("approved_at")
   generatedBy GeneratedBy  @default(agent) @map("generated_by")
+  authorId    String?      @map("author_id")
+  templateId  String?      @map("template_id")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
-  approver     User?        @relation("PolicyApprover", fields: [approvedBy], references: [id])
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control        @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  approver     User?          @relation("PolicyApprover", fields: [approvedBy], references: [id])
+  author       User?          @relation("PolicyAuthor", fields: [authorId], references: [id])
+  template     PolicyTemplate? @relation(fields: [templateId], references: [id])
 
   @@map("policies")
 }
@@ -619,14 +749,27 @@ model Task {
   status      TaskStatus   @default(open)
   assignedTo  String?      @map("assigned_to")
   dueDate     DateTime?    @map("due_date")
-  source      TaskSource   @default(agent)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  source           TaskSource   @default(agent)
+  // Guided task fields (Phase D)
+  kind             TaskKind     @default(EVIDENCE_UPLOAD)
+  isGuided         Boolean      @default(false) @map("is_guided")
+  guidance         Json?
+  dependsOn        String[]     @default([]) @map("depends_on")
+  approvalRequired Boolean      @default(false) @map("approval_required")
+  approverId       String?      @map("approver_id")
+  approvedAt       DateTime?    @map("approved_at")
+  recurrence       Json?
+  estimatedMinutes Int?         @map("estimated_minutes")
+  slaHours         Int?         @map("sla_hours")
+  templateId       String?      @map("template_id")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   control      Control?     @relation(fields: [controlId], references: [id])
   workflow     Workflow?    @relation(fields: [workflowId], references: [id])
   assignee     User?        @relation("TaskAssignee", fields: [assignedTo], references: [id])
+  approver     User?        @relation("TaskApprover", fields: [approverId], references: [id])
 
   @@map("tasks")
 }
@@ -1629,4 +1772,223 @@ model AuditFinding {
 
   @@index([orgId, status])
   @@map("audit_findings")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE D — TEAM MANAGEMENT + GUIDED COMPLIANCE ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Evidence Multi-Control Join Table ────────────────────────────────────────
+
+model ControlEvidence {
+  id         String   @id @default(uuid())
+  evidenceId String   @map("evidence_id")
+  controlId  String   @map("control_id")
+  orgId      String   @map("org_id")
+  confidence Int      @default(100)     // AI-assigned 0-100
+  mappedBy   String?  @map("mapped_by") // user ID or 'ai'
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  evidence     Evidence     @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  control      Control      @relation(fields: [controlId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, controlId])
+  @@index([orgId])
+  @@map("control_evidence")
+}
+
+// ─── RACI Assignments ─────────────────────────────────────────────────────────
+
+model RaciAssignment {
+  id         String     @id @default(uuid())
+  orgId      String     @map("org_id")
+  controlId  String     @map("control_id")
+  userId     String     @map("user_id")
+  raci       RaciLetter
+  assignedBy String     @map("assigned_by")
+  assignedAt DateTime   @default(now()) @map("assigned_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  control      Control      @relation(fields: [controlId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, controlId, userId, raci])
+  @@index([orgId, controlId])
+  @@map("raci_assignments")
+}
+
+// ─── Compliance Responsibilities ──────────────────────────────────────────────
+
+model ComplianceResponsibility {
+  id         String         @id @default(uuid())
+  userId     String         @map("user_id")
+  orgId      String         @map("org_id")
+  role       ComplianceRole
+  isPrimary  Boolean        @default(false) @map("is_primary")
+  assignedBy String         @map("assigned_by")
+  assignedAt DateTime       @default(now()) @map("assigned_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, role, userId])
+  @@index([orgId])
+  @@map("compliance_responsibilities")
+}
+
+// ─── Team Audit Log ───────────────────────────────────────────────────────────
+
+model TeamAuditLog {
+  id         String   @id @default(uuid())
+  orgId      String   @map("org_id")
+  actorId    String   @map("actor_id")
+  action     String   // "role.change" | "raci.assign" | "user.invite" | "sod.violation.blocked" | ...
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  before     Json?
+  after      Json?
+  reason     String?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor        User         @relation("TeamAuditActor", fields: [actorId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([orgId, actorId])
+  @@map("team_audit_log")
+}
+
+// ─── Access Reviews ───────────────────────────────────────────────────────────
+
+model AccessReview {
+  id            String             @id @default(uuid())
+  orgId         String             @map("org_id")
+  reviewerId    String             @map("reviewer_id") // manager conducting review
+  dueDate       DateTime           @map("due_date")
+  completedAt   DateTime?          @map("completed_at")
+  signedAt      DateTime?          @map("signed_at")
+  signatureHash String?            @map("signature_hash") // HMAC-SHA256
+  status        AccessReviewStatus @default(pending)
+  evidenceId    String?            @map("evidence_id") // auto-generated on sign-off
+
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  reviewer     User               @relation("AccessReviewer", fields: [reviewerId], references: [id])
+  items        AccessReviewItem[]
+
+  @@index([orgId, status])
+  @@map("access_reviews")
+}
+
+model AccessReviewItem {
+  id          String          @id @default(uuid())
+  reviewId    String          @map("review_id")
+  userId      String          @map("user_id") // user being reviewed
+  system      String          // "GitHub", "AWS Console", etc.
+  accessLevel String          @map("access_level") // "Admin", "Read-only", etc.
+  lastUsedAt  DateTime?       @map("last_used_at")
+  decision    ReviewDecision?
+  reason      String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  review AccessReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User         @relation("AccessReviewItemUser", fields: [userId], references: [id])
+
+  @@index([reviewId])
+  @@map("access_review_items")
+}
+
+// ─── Training ─────────────────────────────────────────────────────────────────
+
+model TrainingModule {
+  id          String       @id @default(uuid())
+  title       String
+  kind        TrainingKind
+  durationMin Int          @map("duration_min")
+  controls    String[]     // control codes this satisfies
+  content     Json         // { sections: [...] }
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  assignments TrainingAssignment[]
+
+  @@map("training_modules")
+}
+
+model TrainingAssignment {
+  id          String    @id @default(uuid())
+  orgId       String    @map("org_id")
+  userId      String    @map("user_id")
+  moduleId    String    @map("module_id")
+  assignedBy  String    @map("assigned_by")
+  dueDate     DateTime  @map("due_date")
+  completedAt DateTime? @map("completed_at")
+  score       Int?
+  evidenceId  String?   @map("evidence_id") // auto-generated on completion
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User          @relation("TrainingAssignee", fields: [userId], references: [id])
+  assignor     User          @relation("TrainingAssignedBy", fields: [assignedBy], references: [id])
+  module       TrainingModule @relation(fields: [moduleId], references: [id])
+
+  @@index([orgId, userId])
+  @@map("training_assignments")
+}
+
+// ─── Policy Templates ─────────────────────────────────────────────────────────
+
+model PolicyTemplate {
+  id        String   @id @default(uuid())
+  title     String
+  controls  String[] // control codes this policy satisfies (e.g. ["A.5.1","CC1.1"])
+  content   String   @db.Text // markdown with {{variable}} placeholders
+  framework String   // "ISO27001" | "SOC2" | "BOTH"
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  policies Policy[]
+
+  @@map("policy_templates")
+}
+
+// ─── Control Operating Effectiveness ──────────────────────────────────────────
+
+model ControlEffectivenessSample {
+  id        String       @id @default(uuid())
+  orgId     String       @map("org_id")
+  controlId String       @map("control_id")
+  sampledAt DateTime     @map("sampled_at")
+  result    SampleResult
+  method    String       // "integration_check" | "manual_review" | "automated_test"
+  notes     String?
+  evidenceId String?     @map("evidence_id")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, controlId, sampledAt])
+  @@map("control_effectiveness_samples")
+}
+
+// ─── Management Reviews (ISO Clause 9.3) ──────────────────────────────────────
+
+model ManagementReview {
+  id          String    @id @default(uuid())
+  orgId       String    @map("org_id")
+  scheduledAt DateTime  @map("scheduled_at")
+  completedAt DateTime? @map("completed_at")
+  attendees   String[]
+  agendaItems Json      @map("agenda_items") // standard ISO 9.3 input items
+  minutes     String?   @db.Text            // markdown
+  actions     Json      @default("[]")       // [{ item, owner, dueDate, status }]
+  signedBy    String?   @map("signed_by")
+  evidenceId  String?   @map("evidence_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("management_reviews")
 }

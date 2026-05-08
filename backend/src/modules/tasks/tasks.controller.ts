@@ -41,6 +41,22 @@ export class TasksController {
     return this.tasksService.generateFromGaps(user.orgId);
   }
 
+  @Post('generate-guided-program')
+  @ApiOperation({ summary: 'Generate the full guided compliance task program (4-layer: library + LLM + DAG + RACI)' })
+  generateGuidedProgram(@CurrentUser() user: JwtPayload) {
+    return this.tasksService.generateGuidedProgram(user.orgId);
+  }
+
+  @Get('guided-program')
+  @ApiOperation({ summary: 'Get guided tasks grouped by section (This Week / Ready / Blocked / Recurring)' })
+  getGuidedProgram(
+    @CurrentUser() user: JwtPayload,
+    @Query('mine') mine?: string,
+  ) {
+    const userId = mine === 'true' ? user.sub : undefined;
+    return this.tasksService.getGuidedProgram(user.orgId, userId);
+  }
+
   @Get()
   findAll(
     @CurrentUser() user: JwtPayload,
