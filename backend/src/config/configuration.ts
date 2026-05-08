@@ -1,7 +1,10 @@
 export default () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3001', 10),
-  apiPrefix: process.env.API_PREFIX ?? 'api/v1',
+  // Note: the version suffix ('/v1') is handled by NestJS URI versioning in main.ts.
+  // Setting this to 'api' + enableVersioning keeps URLs identical (GET /api/v1/...)
+  // while enabling proper per-controller versioning for future v2 endpoints.
+  apiPrefix: process.env.API_PREFIX ?? 'api',
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
 
   database: {

@@ -1,7 +1,7 @@
 // ⚠️ OTel MUST be imported before all other modules for auto-instrumentation to work
 import './telemetry/otel';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
@@ -99,8 +99,15 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'x-org-id'],
   });
 
-  // Global prefix
+  // Global prefix (e.g. 'api' → all routes under /api/)
   app.setGlobalPrefix(apiPrefix);
+
+  // URI versioning: routes become /api/v{N}/... Existing clients use v1 URLs unchanged.
+  // New controllers should declare @Controller({ version: '1', path: '...' }).
+  app.enableVersioning({
+    type:           VersioningType.URI,
+    defaultVersion: '1',
+  });
 
   // Global pipes
   app.useGlobalPipes(
@@ -135,11 +142,12 @@ async function bootstrap() {
       .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
+    // Swagger UI is served outside the versioned routes (no /v1/ prefix needed for docs)
+    SwaggerModule.setup(`${apiPrefix}/v1/docs`, app, document, {
       swaggerOptions: { persistAuthorization: true },
     });
 
-    logger.log(`Swagger docs: http://localhost:${port}/${apiPrefix}/docs`);
+    logger.log(`Swagger docs: http://localhost:${port}/${apiPrefix}/v1/docs`);
   }
 
   await app.listen(port);

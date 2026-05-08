@@ -121,6 +121,34 @@ export class StorageService {
   }
 
   /**
+   * Download a file from S3 and return its content as a Buffer.
+   * Used by background workers (e.g. PDF import job) to fetch files without
+   * exposing a signed URL to the application layer.
+   */
+  async download(key: string): Promise<Buffer> {
+    if (!this.s3 || !this.bucket) {
+      this.logger.warn(`S3 not configured; returning empty buffer for key ${key}`);
+      return Buffer.alloc(0);
+    }
+
+    try {
+      const command  = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+      const response = await this.s3.send(command);
+      const stream   = response.Body as NodeJS.ReadableStream;
+
+      return new Promise<Buffer>((resolve, reject) => {
+        const chunks: Uint8Array[] = [];
+        stream.on('data', (chunk: Uint8Array) => chunks.push(chunk));
+        stream.on('end',  () => resolve(Buffer.concat(chunks)));
+        stream.on('error', reject);
+      });
+    } catch (err: any) {
+      this.logger.error(`S3 download failed for key ${key}: ${err.message}`);
+      throw new InternalServerErrorException(`File download failed: ${err.message}`);
+    }
+  }
+
+  /**
    * Generate a presigned GET URL (default 1 hour expiry).
    * If S3 not configured, returns the raw URL unchanged.
    */

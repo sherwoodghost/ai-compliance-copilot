@@ -164,6 +164,39 @@ export class DocumentsService {
     return this.findOrThrow(orgId, id);
   }
 
+  /** Alias for `get()` — used by the document worker for tenant-safe lookup */
+  async findOne(orgId: string, id: string) {
+    return this.findOrThrow(orgId, id);
+  }
+
+  /**
+   * Update only the HTML content (and derived text/wordCount) of a document.
+   * Used by the document worker after async operations like PDF import.
+   * Bypasses lock check because the worker is called as part of the import flow
+   * (doc is in a transient "processing" state, not under review).
+   */
+  async updateContent(
+    orgId:     string,
+    id:        string,
+    actorId:   string,
+    dto:       { contentHtml: string; title?: string },
+  ) {
+    const sanitized   = this.sanitizer.sanitize(dto.contentHtml);
+    const contentText = this.deriveText(sanitized);
+    const wordCount   = this.sanitizer.countWords(contentText);
+
+    return this.prisma.document.update({
+      where: { id },
+      data: {
+        ...(dto.title && { title: dto.title }),
+        contentHtml: sanitized,
+        contentText,
+        wordCount,
+        updatedAt:   new Date(),
+      },
+    });
+  }
+
   // ── Create ──────────────────────────────────────────────────────────────────
 
   async create(orgId: string, actorId: string, dto: CreateDocumentDto) {

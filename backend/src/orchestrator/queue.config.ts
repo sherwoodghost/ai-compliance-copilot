@@ -1,6 +1,7 @@
 export const QUEUE_NAMES = {
-  WORKFLOW: 'workflow',
-  AGENT_ONBOARDING: 'agent.onboarding',
+  WORKFLOW:          'workflow',
+  DOCUMENTS:         'documents',     // Background document jobs (PDF import, AI gaps, bulk export)
+  AGENT_ONBOARDING:  'agent.onboarding',
   AGENT_INFERENCE: 'agent.inference',
   AGENT_SCOPING: 'agent.scoping',
   AGENT_CONTROL_MAPPER: 'agent.control_mapper',
