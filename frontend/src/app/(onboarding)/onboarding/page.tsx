@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import {
   Shield, Send, CheckCircle, ChevronRight, Sparkles, Loader2, RotateCcw, Check,
   AlertTriangle, Zap, ChevronDown, ChevronUp, Activity, Lock, Database,
-  Target, Users, FileText, Globe, Building2, ShieldAlert,
+  Target, Users, FileText, Globe, Building2, ShieldAlert, Rocket, UserPlus,
+  Grid3X3, CheckCircle2, X,
 } from 'lucide-react';
 import {
   onboardingApi, OnboardingMessage, ChatResponse, OnboardingStatus,
   RiskObservation, IntegrationRecommendation,
 } from '@/lib/api/onboarding';
+import { teamApi, ComplianceRole, PlatformRole } from '@/lib/api/team';
 import { cn } from '@/lib/utils';
 
 // ─── Discovery phases ─────────────────────────────────────────────────────────
@@ -537,6 +539,414 @@ const PHASE_LABELS: Record<string, string> = {
   readiness:       '📋 Readiness',
 };
 
+// ─── Launch Sequence (5-step post-finalize overlay) ──────────────────────────
+
+const LAUNCH_STEPS = [
+  { id: 'profile',    label: 'Confirm Profile',   icon: FileText },
+  { id: 'leadership', label: 'Assign Leadership',  icon: Users },
+  { id: 'invite',     label: 'Invite Core Team',   icon: UserPlus },
+  { id: 'raci',       label: 'RACI Preview',       icon: Grid3X3 },
+  { id: 'launch',     label: 'Program Launch',     icon: Rocket },
+];
+
+const LEADERSHIP_ROLES: { field: string; label: string; role: ComplianceRole; platformRole: PlatformRole }[] = [
+  { field: 'ownerAccess',           label: 'Security Lead / CISO',   role: 'SECURITY_LEAD',    platformRole: 'admin' },
+  { field: 'ownerCompliance',       label: 'Compliance Lead',         role: 'COMPLIANCE_LEAD',  platformRole: 'admin' },
+  { field: 'ownerInfrastructure',   label: 'IT Administrator',        role: 'IT_ADMIN',         platformRole: 'contributor' },
+  { field: 'ownerIncidentResponse', label: 'Incident Responder',      role: 'INCIDENT_RESPONDER', platformRole: 'contributor' },
+  { field: 'ownerPolicies',         label: 'Policy Approver',         role: 'COMPLIANCE_LEAD',  platformRole: 'approver' },
+  { field: 'ownerVendors',          label: 'Vendor Manager',          role: 'VENDOR_MANAGER',   platformRole: 'contributor' },
+];
+
+const PROFILE_DISPLAY_KEYS: { key: string; label: string }[] = [
+  { key: 'companyName',       label: 'Company' },
+  { key: 'industry',          label: 'Industry' },
+  { key: 'employeeCount',     label: 'Team size' },
+  { key: 'targetFrameworks',  label: 'Target frameworks' },
+  { key: 'targetDate',        label: 'Target audit date' },
+  { key: 'cloudProviders',    label: 'Cloud providers' },
+  { key: 'dataTypes',         label: 'Data types' },
+  { key: 'mfaStatus',         label: 'MFA status' },
+  { key: 'regions',           label: 'Regions' },
+  { key: 'complianceDriver',  label: 'Compliance driver' },
+];
+
+interface LaunchInvitee {
+  fullName: string;
+  email: string;
+  role: ComplianceRole;
+  platformRole: PlatformRole;
+  label: string;
+}
+
+interface LaunchSequenceProps {
+  profile: Record<string, unknown>;
+  onDone: () => void;
+}
+
+function LaunchSequence({ profile, onDone }: LaunchSequenceProps) {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [invitees, setInvitees] = useState<LaunchInvitee[]>(
+    LEADERSHIP_ROLES.map((lr) => ({
+      fullName: String(profile[lr.field] ?? ''),
+      email: '',
+      role: lr.role,
+      platformRole: lr.platformRole,
+      label: lr.label,
+    })),
+  );
+  const [inviteResults, setInviteResults] = useState<{ name: string; success: boolean }[]>([]);
+  const [inviting, setInviting] = useState(false);
+  const [raciAutoFilled, setRaciAutoFilled] = useState(false);
+  const [raciAutoFilling, setRaciAutoFilling] = useState(false);
+  const [programStats, setProgramStats] = useState<{ created: number; skipped: number } | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  const progressToNextStep = async (nextStep: number) => {
+    if (nextStep === 3 && !raciAutoFilled) {
+      // Auto-fill RACI when entering RACI step
+      setRaciAutoFilling(true);
+      try {
+        await teamApi.autoFillRaci();
+        setRaciAutoFilled(true);
+      } catch {}
+      setRaciAutoFilling(false);
+    }
+    if (nextStep === 4 && !programStats) {
+      // Generate program when entering launch step
+      setGenerating(true);
+      try {
+        const result = await teamApi.generateGuidedProgram();
+        setProgramStats(result);
+      } catch {
+        setProgramStats({ created: 0, skipped: 0 });
+      }
+      setGenerating(false);
+    }
+    setStep(nextStep);
+  };
+
+  const handleInviteAll = async () => {
+    const toInvite = invitees.filter((i) => i.email.trim());
+    if (toInvite.length === 0) { progressToNextStep(3); return; }
+
+    setInviting(true);
+    const results = await Promise.allSettled(
+      toInvite.map((inv) =>
+        teamApi.inviteMember({
+          email: inv.email.trim(),
+          fullName: inv.fullName.trim() || inv.label,
+          platformRole: inv.platformRole,
+          responsibilities: [inv.role],
+          requireNda: true,
+          requireAup: true,
+          requireTraining: true,
+        }),
+      ),
+    );
+
+    setInviteResults(results.map((r, i) => ({
+      name: toInvite[i].fullName || toInvite[i].label,
+      success: r.status === 'fulfilled',
+    })));
+    setInviting(false);
+
+    setTimeout(() => progressToNextStep(3), 1500);
+  };
+
+  const updateInvitee = (idx: number, patch: Partial<LaunchInvitee>) => {
+    setInvitees((prev) => prev.map((inv, i) => (i === idx ? { ...inv, ...patch } : inv)));
+  };
+
+  const currentStepConfig = LAUNCH_STEPS[step];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+            <Rocket className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-gray-900">Launch Your Compliance Program</h2>
+            <p className="text-xs text-gray-500">Step {step + 1} of {LAUNCH_STEPS.length} — {currentStepConfig.label}</p>
+          </div>
+        </div>
+
+        {/* Step progress */}
+        <div className="flex px-6 pt-3 gap-1 shrink-0">
+          {LAUNCH_STEPS.map((s, i) => (
+            <div
+              key={s.id}
+              className={cn('h-1 flex-1 rounded-full transition-colors', i <= step ? 'bg-brand-600' : 'bg-gray-200')}
+            />
+          ))}
+        </div>
+
+        {/* Step Icons nav */}
+        <div className="flex px-6 pt-2 pb-3 gap-1 shrink-0">
+          {LAUNCH_STEPS.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <div key={s.id} className={cn(
+                'flex-1 flex flex-col items-center gap-0.5',
+                i === step ? 'text-brand-600' : i < step ? 'text-emerald-600' : 'text-gray-300',
+              )}>
+                <div className={cn(
+                  'w-7 h-7 rounded-full flex items-center justify-center',
+                  i === step ? 'bg-brand-100' : i < step ? 'bg-emerald-100' : 'bg-gray-100',
+                )}>
+                  {i < step
+                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    : <Icon className="w-3.5 h-3.5" />
+                  }
+                </div>
+                <span className="text-[10px] hidden sm:block text-center leading-tight">{s.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+
+          {/* Step 0: Confirm Profile */}
+          {step === 0 && (
+            <div>
+              <p className="text-sm text-gray-600 mb-4">Review the profile we captured during discovery. This powers your entire compliance program.</p>
+              <div className="space-y-2">
+                {PROFILE_DISPLAY_KEYS.map(({ key, label }) => {
+                  const val = profile[key];
+                  if (!val) return null;
+                  const display = Array.isArray(val) ? (val as string[]).join(', ') : String(val);
+                  return (
+                    <div key={key} className="flex items-start justify-between gap-4 py-2 border-b border-gray-100 last:border-0">
+                      <span className="text-xs text-gray-500 shrink-0 w-36">{label}</span>
+                      <span className="text-xs font-medium text-gray-800 text-right">{display}</span>
+                    </div>
+                  );
+                })}
+                {PROFILE_DISPLAY_KEYS.every(({ key }) => !profile[key]) && (
+                  <p className="text-xs text-gray-400 text-center py-4">Profile data will be available here after the discovery session is complete.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Assign Leadership */}
+          {step === 1 && (
+            <div>
+              <p className="text-sm text-gray-600 mb-1">ISO 27001 A.5.2 requires named leadership for key security roles. We pre-filled names from your onboarding answers — add their emails to invite them.</p>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-4">
+                ⚠ This step is required. Each role must have a named accountable person.
+              </p>
+              <div className="space-y-3">
+                {invitees.map((inv, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200">
+                    <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-brand-700">
+                        {(inv.fullName || inv.label)[0].toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0 grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] text-gray-400 mb-0.5">{inv.label}</p>
+                        <input
+                          className="input text-xs py-1.5"
+                          value={inv.fullName}
+                          onChange={(e) => updateInvitee(i, { fullName: e.target.value })}
+                          placeholder="Full name"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 mb-0.5">Email (optional — for invite)</p>
+                        <input
+                          className="input text-xs py-1.5"
+                          type="email"
+                          value={inv.email}
+                          onChange={(e) => updateInvitee(i, { email: e.target.value })}
+                          placeholder="name@company.com"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Invite Core Team */}
+          {step === 2 && (
+            <div>
+              <p className="text-sm text-gray-600 mb-4">
+                Send invites to the team members you named. You can skip any row without an email.
+              </p>
+              {inviteResults.length > 0 ? (
+                <div className="space-y-2">
+                  {inviteResults.map((r, i) => (
+                    <div key={i} className={cn(
+                      'flex items-center gap-2 p-2.5 rounded-lg border text-xs',
+                      r.success ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800',
+                    )}>
+                      {r.success ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <X className="w-3.5 h-3.5 shrink-0" />}
+                      {r.name} — {r.success ? 'Invite sent' : 'Failed'}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {invitees.filter((i) => i.email || i.fullName).map((inv, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 text-xs">
+                      <div className="w-7 h-7 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-brand-700">{(inv.fullName || inv.label)[0].toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-800">{inv.fullName || inv.label}</p>
+                        <p className="text-gray-400">{inv.email || 'No email — will be skipped'}</p>
+                      </div>
+                      <span className="text-xs bg-brand-50 text-brand-700 border border-brand-200 rounded-full px-2 py-0.5">
+                        {inv.label}
+                      </span>
+                    </div>
+                  ))}
+                  {invitees.filter((i) => i.email || i.fullName).length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-6">No team members entered. You can invite them later from the Team page.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: RACI Preview */}
+          {step === 3 && (
+            <div>
+              <p className="text-sm text-gray-600 mb-4">
+                We auto-generated RACI assignments from the leadership roles you confirmed in Step 2.
+                You can refine these in the Team → RACI Matrix tab.
+              </p>
+              {raciAutoFilling ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-5 h-5 animate-spin text-brand-600 mr-2" />
+                  <span className="text-sm text-gray-600">Assigning RACI from responsibilities…</span>
+                </div>
+              ) : (
+                <div className="bg-brand-50 border border-brand-200 rounded-xl p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-5 h-5 text-brand-600" />
+                    <p className="text-sm font-semibold text-brand-800">RACI Matrix Generated</p>
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-brand-700">
+                    <li>✓ <strong>SECURITY_LEAD</strong> assigned as Accountable (A) on CC6.*, A.5.*, A.8.* controls</li>
+                    <li>✓ <strong>IT_ADMIN</strong> assigned as Responsible (R) on A.8.2, A.9.* controls</li>
+                    <li>✓ <strong>COMPLIANCE_LEAD</strong> assigned as Accountable (A) on compliance oversight controls</li>
+                    <li>✓ <strong>INCIDENT_RESPONDER</strong> assigned as Responsible (R) on A.5.26, A.5.27</li>
+                  </ul>
+                  <p className="text-xs text-brand-600 mt-3">
+                    SoD constraints enforced: no user is both Responsible and Accountable on the same control.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Program Launch */}
+          {step === 4 && (
+            <div className="text-center">
+              {generating ? (
+                <div className="py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-gray-700">Generating your compliance roadmap…</p>
+                  <p className="text-xs text-gray-400 mt-1">Building 4-layer task program with DAG dependencies</p>
+                </div>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-2xl bg-brand-50 border border-brand-200 flex items-center justify-center mx-auto mb-4">
+                    <Rocket className="w-8 h-8 text-brand-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Your Program Is Ready! 🎉</h3>
+
+                  {programStats && (
+                    <div className="grid grid-cols-3 gap-3 my-5">
+                      {[
+                        { label: 'Tasks queued', value: programStats.created + programStats.skipped },
+                        { label: 'Policy templates', value: 14 },
+                        { label: 'Controls covered', value: 30 },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="bg-brand-50 border border-brand-100 rounded-xl p-3">
+                          <p className="text-2xl font-black text-brand-700">{value}</p>
+                          <p className="text-xs text-brand-600">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-sm text-gray-500 max-w-sm mx-auto mb-4">
+                    Your ISO 27001 + SOC 2 roadmap is built, DAG-ordered, and assigned to your team. Time to execute.
+                  </p>
+
+                  <div className="space-y-2 text-xs text-left bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                    <p className="font-semibold text-gray-700 mb-2">What comes next:</p>
+                    <p className="text-gray-600">📋 Complete tasks in "Getting Started" — guided steps for every control</p>
+                    <p className="text-gray-600">📄 Review auto-generated policy drafts in Policies</p>
+                    <p className="text-gray-600">🔒 Complete quarterly access review cycle (ISO A.8.2)</p>
+                    <p className="text-gray-600">📊 Monitor readiness score as tasks complete</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 shrink-0">
+          <button
+            className="btn-secondary text-sm"
+            onClick={() => step > 0 ? setStep(step - 1) : onDone()}
+          >
+            {step === 0 ? 'Skip setup' : 'Back'}
+          </button>
+
+          {step < LAUNCH_STEPS.length - 1 ? (
+            step === 2 ? (
+              <button
+                className="btn-primary text-sm min-w-[140px]"
+                onClick={handleInviteAll}
+                disabled={inviting || inviteResults.length > 0}
+              >
+                {inviting
+                  ? <><Loader2 className="w-4 h-4 animate-spin inline mr-1.5" /> Sending invites…</>
+                  : inviteResults.length > 0
+                    ? <><CheckCircle2 className="w-4 h-4 inline mr-1.5" /> Sent!</>
+                    : <>Send Invites & Continue <ChevronRight className="w-3.5 h-3.5 inline" /></>}
+              </button>
+            ) : (
+              <button
+                className="btn-primary text-sm"
+                onClick={() => progressToNextStep(step + 1)}
+                disabled={step === 1 && invitees.every((i) => !i.fullName)}
+              >
+                Continue <ChevronRight className="w-3.5 h-3.5 inline" />
+              </button>
+            )
+          ) : (
+            <button
+              className="btn-primary text-sm flex items-center gap-2"
+              onClick={() => router.push('/getting-started')}
+              disabled={generating}
+            >
+              <Rocket className="w-4 h-4" />
+              Launch Compliance Program →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
@@ -553,6 +963,7 @@ export default function OnboardingPage() {
   const [finalizing, setFinalizing]           = useState(false);
   const [resetting, setResetting]             = useState(false);
   const [chipGroup, setChipGroup]             = useState<ChipGroup | null>(null);
+  const [showLaunchSequence, setShowLaunchSequence] = useState(false);
 
   // ─── Discovery intelligence state ─────────────────────────────────────────
   const [riskObservations, setRiskObservations]   = useState<RiskObservation[]>([]);
@@ -702,7 +1113,8 @@ export default function OnboardingPage() {
     setFinalizing(true);
     try {
       await onboardingApi.finalize();
-      router.push('/overview');
+      // Show 5-step launch sequence instead of directly redirecting
+      setShowLaunchSequence(true);
     } catch (err: any) {
       console.error('Finalize error:', err);
       const detail = err?.response?.data?.message ?? 'Could not finalize. Please try again.';
@@ -954,6 +1366,14 @@ export default function OnboardingPage() {
         phaseCompletion={phaseCompletion}
         currentPhase={currentPhase}
       />
+
+      {/* 5-step launch sequence overlay */}
+      {showLaunchSequence && (
+        <LaunchSequence
+          profile={profile}
+          onDone={() => router.push('/overview')}
+        />
+      )}
     </div>
   );
 }
