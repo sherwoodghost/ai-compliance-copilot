@@ -200,6 +200,14 @@ export class DocumentsService {
   async update(orgId: string, id: string, actorId: string, dto: UpdateDocumentDto) {
     const doc = await this.findOrThrow(orgId, id);
 
+    // Block edits under legal hold (423 Locked — ISO A.5.33 / SOC2 CC6.5)
+    if ((doc as any).legalHoldAt) {
+      throw new ConflictException(
+        `Document is under legal hold${(doc as any).legalHoldReason ? ': ' + (doc as any).legalHoldReason : ''}. ` +
+        `Release the hold before editing.`,
+      );
+    }
+
     // Block edits when document is locked for approval
     if (doc.lockedAt) {
       throw new ConflictException(`Document is locked: ${doc.lockedReason ?? 'pending approval'}`);
@@ -329,6 +337,7 @@ export class DocumentsService {
   // ── New version ──────────────────────────────────────────────────────────────
 
   async newVersion(orgId: string, id: string, actorId: string, dto: NewVersionDto) {
+    await this.retention.assertNotLocked(id, orgId);
     const doc = await this.findOrThrow(orgId, id);
 
     // Snapshot current version

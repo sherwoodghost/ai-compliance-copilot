@@ -183,6 +183,32 @@ export class OrganizationsService {
     };
   }
 
+  // ── Retention settings ──────────────────────────────────────────────────────
+
+  async getRetentionSettings(orgId: string) {
+    const org = await this.findById(orgId);
+    return {
+      documentRetentionDays: (org as any).documentRetentionDays ?? 2555,
+      evidenceRetentionDays: (org as any).evidenceRetentionDays ?? 2555,
+    };
+  }
+
+  async updateRetentionSettings(
+    orgId: string,
+    dto: { documentRetentionDays?: number; evidenceRetentionDays?: number },
+  ) {
+    await this.findById(orgId);
+    const data: Record<string, unknown> = {};
+    if (dto.documentRetentionDays !== undefined) data['documentRetentionDays'] = dto.documentRetentionDays;
+    if (dto.evidenceRetentionDays !== undefined) data['evidenceRetentionDays'] = dto.evidenceRetentionDays;
+
+    return this.prisma.organization.update({
+      where: { id: orgId },
+      data:  data as any,
+      select: { id: true } as any,
+    }).then(() => this.getRetentionSettings(orgId));
+  }
+
   /**
    * Wipe all org-specific compliance data so the demo can be restarted from the
    * onboarding flow. Preserves: user accounts, org record, framework/control

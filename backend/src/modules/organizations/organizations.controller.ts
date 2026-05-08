@@ -98,6 +98,22 @@ export class OrganizationsController {
     return this.organizationsService.testLlmKey(body.apiKey);
   }
 
+  @Get('me/retention-settings')
+  @ApiOperation({ summary: 'Get document and evidence retention settings' })
+  async getRetentionSettings(@CurrentUser() user: JwtPayload) {
+    return this.organizationsService.getRetentionSettings(user.orgId);
+  }
+
+  @Patch('me/retention-settings')
+  @Roles(UserRole.admin)
+  @ApiOperation({ summary: 'Update document/evidence retention days (admin only)' })
+  async updateRetentionSettings(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { documentRetentionDays?: number; evidenceRetentionDays?: number },
+  ) {
+    return this.organizationsService.updateRetentionSettings(user.orgId, body);
+  }
+
   @Post('me/reset-demo')
   @Roles(UserRole.admin)
   @HttpCode(HttpStatus.OK)

@@ -365,6 +365,98 @@ function NotificationsSection() {
   );
 }
 
+function RetentionSection() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ documentRetentionDays: 2555, evidenceRetentionDays: 2555 });
+  const [saved, setSaved] = useState(false);
+
+  const { data } = useQuery({
+    queryKey: ['retention-settings'],
+    queryFn: () => apiClient.get('/organizations/me/retention-settings').then(r => r.data),
+  });
+
+  useEffect(() => {
+    if (data) setForm({
+      documentRetentionDays: data.documentRetentionDays ?? 2555,
+      evidenceRetentionDays: data.evidenceRetentionDays ?? 2555,
+    });
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: () => apiClient.patch('/organizations/me/retention-settings', form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['retention-settings'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    },
+  });
+
+  const PRESETS = [
+    { label: '1 year',   days: 365 },
+    { label: '3 years',  days: 1095 },
+    { label: '5 years',  days: 1825 },
+    { label: '7 years',  days: 2555 },
+    { label: '10 years', days: 3650 },
+  ];
+
+  return (
+    <Section title="Data Retention" icon={Lock}>
+      <div className="space-y-6 max-w-md">
+        <p className="text-xs text-gray-500">
+          Retention policies control when documents and evidence are automatically archived
+          and purged. Required for ISO A.5.33 and SOC 2 CC6.5.
+        </p>
+
+        {(['documentRetentionDays', 'evidenceRetentionDays'] as const).map((field) => (
+          <div key={field}>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {field === 'documentRetentionDays' ? 'Document retention' : 'Evidence retention'}
+            </label>
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                type="number"
+                min={30}
+                max={7300}
+                className="input w-28 text-sm"
+                value={form[field]}
+                onChange={e => setForm(f => ({ ...f, [field]: parseInt(e.target.value, 10) || 2555 }))}
+              />
+              <span className="text-sm text-gray-500">days</span>
+              <span className="text-xs text-gray-400">
+                (~{Math.round(form[field] / 365 * 10) / 10} years)
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESETS.map(p => (
+                <button
+                  key={p.days}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, [field]: p.days }))}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    form[field] === p.days
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <button
+          className="btn-primary"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
+          {saved ? 'Saved!' : save.isPending ? 'Saving…' : 'Save retention policy'}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 function DangerZoneSection() {
   const [confirm, setConfirm] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -488,6 +580,7 @@ export default function SettingsPage() {
       <OrgSection />
       <AIConfigSection />
       <NotificationsSection />
+      <RetentionSection />
 
       <div className="card p-6">
         <div className="flex items-center gap-2.5 mb-4">
