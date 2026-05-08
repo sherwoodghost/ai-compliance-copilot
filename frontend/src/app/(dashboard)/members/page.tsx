@@ -1228,8 +1228,15 @@ export default function MembersPage() {
     queryFn: teamApi.getMembers,
   });
 
-  const activeCount  = members.filter((m) => m.status === 'active').length;
-  const pendingCount = members.filter((m) => m.status === 'suspended').length;
+  const { data: sodConflicts = [] } = useQuery({
+    queryKey: ['team-sod-conflicts-count'],
+    queryFn: teamApi.getSodConflicts,
+    staleTime: 60_000,
+  });
+
+  const activeCount    = members.filter((m) => m.status === 'active').length;
+  const pendingCount   = members.filter((m) => m.status === 'suspended').length;
+  const conflictCount  = sodConflicts.length;
 
   return (
     <div className="p-6 max-w-screen-xl mx-auto">
@@ -1263,8 +1270,8 @@ export default function MembersPage() {
         {[
           { label: 'Active Members', value: activeCount, icon: Users, color: 'text-brand-600' },
           { label: 'Pending Activation', value: pendingCount, icon: Clock, color: 'text-amber-600' },
-          { label: 'RACI Gaps', value: '—', icon: AlertTriangle, color: 'text-orange-500' },
-          { label: 'SoD Conflicts', value: '—', icon: AlertCircle, color: 'text-red-500' },
+          { label: 'RACI Gaps', value: members.filter((m: any) => !m.stats?.raciAccountable).length || 0, icon: AlertTriangle, color: 'text-orange-500' },
+          { label: 'SoD Conflicts', value: conflictCount, icon: AlertCircle, color: conflictCount > 0 ? 'text-red-600' : 'text-emerald-600' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">

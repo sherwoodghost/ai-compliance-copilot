@@ -97,9 +97,11 @@ function PolicyCard({ policy, onSelect }: { policy: Policy; onSelect: () => void
             )}
           </div>
 
-          {policy.approvedAt && policy.approvedBy && (
+          {policy.approvedAt && (
             <p className="text-xs text-emerald-600 mt-2">
-              Approved by {policy.approvedBy.fullName} on{' '}
+              {policy.approvedBy?.fullName
+                ? `Approved by ${policy.approvedBy.fullName} on `
+                : 'Approved on '}
               {new Date(policy.approvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </p>
           )}
