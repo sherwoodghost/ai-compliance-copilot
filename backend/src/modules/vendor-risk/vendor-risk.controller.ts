@@ -253,6 +253,81 @@ Return JSON with this structure:
     };
   }
 
+  @Post(':id/ai-questionnaire')
+  @ApiOperation({ summary: 'AI: generate a vendor security questionnaire tailored to this vendor\'s risk profile' })
+  async generateQuestionnaire(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const existing = await this.prisma.vendorRisk.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Vendor not found');
+    if (existing.orgId !== user.orgId) throw new ForbiddenException();
+
+    const profile = await this.prisma.businessProfile.findFirst({
+      where: { orgId: user.orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const pd = (profile?.profileData as any) ?? {};
+    const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
+    const dataTypes  = (pd.dataHandling?.dataTypes ?? []).join(', ') || 'customer data';
+    const a = (existing.assessment as any) ?? {};
+
+    const systemPrompt = `You are a vendor risk manager creating a security questionnaire to send to a third-party vendor. Write questions that are specific, answerable, and directly relevant to the vendor's risk profile.`;
+
+    const userPrompt = `Generate a vendor security questionnaire for this vendor:
+
+Vendor: ${existing.vendorName}
+Category: ${existing.category ?? 'unknown'}
+Risk Level: ${existing.riskLevel}
+${a.summary ? `Risk Summary: ${a.summary}` : ''}
+${(a.findings ?? []).length > 0 ? `Known Risk Areas: ${(a.findings as string[]).slice(0, 4).join('; ')}` : ''}
+
+Our Organisation's Compliance Frameworks: ${frameworks}
+Data we share with this vendor: ${dataTypes}
+
+Generate 12-15 questions covering: Data Security, Access Controls, Incident Response, Business Continuity, Compliance Certifications, Subprocessors, Data Retention, Penetration Testing, Employee Security Training.
+
+Return ONLY a JSON array (no markdown):
+[
+  {
+    "category": "Data Security|Access Controls|Incident Response|Business Continuity|Compliance|Subprocessors|Data Retention|Penetration Testing|Employee Security",
+    "question": "The specific question to ask",
+    "required": true|false,
+    "notes": "Brief note on what a good answer looks like (optional, 1 sentence max)"
+  }
+]`;
+
+    const raw = await this.llm.complete(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      { agentName: 'vendor-risk', temperature: 0.2 },
+    );
+
+    let questions: any[] = [];
+    try {
+      const match = raw.content.match(/\[[\s\S]*\]/);
+      if (match) questions = JSON.parse(match[0]);
+      if (!Array.isArray(questions)) questions = [];
+    } catch {
+      questions = [];
+    }
+
+    const validCategories = ['Data Security', 'Access Controls', 'Incident Response', 'Business Continuity', 'Compliance', 'Subprocessors', 'Data Retention', 'Penetration Testing', 'Employee Security'];
+
+    return {
+      vendorId:   existing.id,
+      vendorName: existing.vendorName,
+      riskLevel:  existing.riskLevel,
+      frameworks,
+      questions:  questions.slice(0, 15).map((q: any) => ({
+        category: validCategories.includes(q.category) ? q.category : 'Data Security',
+        question: String(q.question ?? '').slice(0, 400),
+        required: Boolean(q.required ?? true),
+        notes:    q.notes ? String(q.notes).slice(0, 150) : null,
+      })),
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a vendor risk entry' })
   async remove(

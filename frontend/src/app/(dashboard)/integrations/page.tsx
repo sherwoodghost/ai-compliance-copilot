@@ -9,8 +9,9 @@ import {
   CheckCircle, XCircle, RefreshCw, Trash2, Plus, X,
   Mail, Lock, Shield, Cloud, Code, Monitor, Users,
   Laptop, Ticket, Activity, ChevronRight, Search,
-  AlertTriangle, Zap, ExternalLink,
+  AlertTriangle, Zap, ExternalLink, Sparkles, TrendingUp, ArrowRight,
 } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 // NEXT_PUBLIC_API_URL is like https://host/api/v1 — strip /api/v1 for OAuth redirects
@@ -471,6 +472,112 @@ function ProviderCard({ provider, onConnect }: {
   );
 }
 
+// ─── AI Advisor Types & Panel ─────────────────────────────────────────────────
+
+type IntegrationRec = {
+  providerKey: string;
+  providerName: string;
+  priority: 'critical' | 'high' | 'medium';
+  reason: string;
+  controlsCovered: string[];
+  estimatedEvidenceItems: number;
+  category: string;
+};
+
+type AdvisorResult = {
+  connectedCount: number;
+  gapCategories: string[];
+  recommendations: IntegrationRec[];
+  generatedAt: string;
+};
+
+const PRIORITY_CFG: Record<string, { badge: string; dot: string }> = {
+  critical: { badge: 'bg-red-100 text-red-700 border border-red-200',    dot: 'bg-red-500' },
+  high:     { badge: 'bg-orange-100 text-orange-700 border border-orange-200', dot: 'bg-orange-400' },
+  medium:   { badge: 'bg-blue-100 text-blue-700 border border-blue-200', dot: 'bg-blue-400' },
+};
+
+function AdvisorPanel({
+  result,
+  onClose,
+  onConnect,
+}: {
+  result: AdvisorResult;
+  onClose: () => void;
+  onConnect: (key: string) => void;
+}) {
+  return (
+    <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 mb-6">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-4 h-4 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">AI Integration Advisor</p>
+            <p className="text-xs text-purple-700">
+              Based on your compliance gaps · {result.recommendations.length} integration{result.recommendations.length !== 1 ? 's' : ''} recommended
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-purple-100"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {result.recommendations.length === 0 ? (
+        <div className="text-center py-4">
+          <CheckCircle className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+          <p className="text-sm font-medium text-gray-700">You&apos;re well-connected!</p>
+          <p className="text-xs text-gray-500 mt-0.5">No critical integration gaps identified for your compliance goals.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {result.recommendations.map((rec) => {
+            const cfg = PRIORITY_CFG[rec.priority] ?? PRIORITY_CFG.medium;
+            return (
+              <div key={rec.providerKey} className="bg-white rounded-xl border border-purple-100 p-3">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', cfg.badge)}>
+                      {rec.priority}
+                    </span>
+                    <p className="text-sm font-semibold text-gray-900">{rec.providerName}</p>
+                    <span className="text-xs text-gray-400">{rec.category}</span>
+                  </div>
+                  <button
+                    onClick={() => onConnect(rec.providerKey)}
+                    className="flex items-center gap-1 text-xs bg-purple-600 text-white px-2.5 py-1 rounded-lg hover:bg-purple-700 transition-colors shrink-0"
+                  >
+                    <ArrowRight className="w-3 h-3" /> Connect
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 mb-2">{rec.reason}</p>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    {rec.controlsCovered.slice(0, 4).join(', ')}
+                    {rec.controlsCovered.length > 4 && ` +${rec.controlsCovered.length - 4}`}
+                  </span>
+                  {rec.estimatedEvidenceItems > 0 && (
+                    <span className="flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3 text-emerald-500" />
+                      ~{rec.estimatedEvidenceItems} evidence items
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function IntegrationsContent() {
@@ -478,8 +585,14 @@ function IntegrationsContent() {
   const [requestingProvider, setRequestingProvider] = useState<Provider | null>(null);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [advisorResult, setAdvisorResult] = useState<AdvisorResult | null>(null);
   const searchParams = useSearchParams();
   const qcPage = useQueryClient();
+
+  const advisorMutation = useMutation({
+    mutationFn: () => apiClient.post<AdvisorResult>('/integrations/ai-recommend'),
+    onSuccess: (res) => setAdvisorResult((res as any).data ?? res),
+  });
 
   // Handle OAuth callbacks
   useEffect(() => {
@@ -531,6 +644,11 @@ function IntegrationsContent() {
     }
   }
 
+  function handleConnectByKey(key: string) {
+    const provider = PROVIDERS.find((p) => p.key === key);
+    if (provider) handleConnect(provider);
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Toast notification */}
@@ -557,11 +675,32 @@ function IntegrationsContent() {
             Connect your tools to automatically collect compliance evidence
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">
-          <span className="font-semibold text-gray-700">{integrations.length}</span> connected ·
-          <span className="font-semibold text-gray-700">{PROVIDERS.filter(p => p.status === 'available').length}</span> available
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => advisorMutation.mutate()}
+            disabled={advisorMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border
+                       bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors"
+          >
+            {advisorMutation.isPending
+              ? <><RefreshCw className="w-4 h-4 animate-spin" /> Analyzing…</>
+              : <><Sparkles className="w-4 h-4" /> AI Advisor</>}
+          </button>
+          <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">
+            <span className="font-semibold text-gray-700">{integrations.length}</span> connected ·
+            <span className="font-semibold text-gray-700">{PROVIDERS.filter(p => p.status === 'available').length}</span> available
+          </div>
         </div>
       </div>
+
+      {/* AI Advisor panel */}
+      {advisorResult && (
+        <AdvisorPanel
+          result={advisorResult}
+          onClose={() => setAdvisorResult(null)}
+          onConnect={handleConnectByKey}
+        />
+      )}
 
       {/* Connected section */}
       {isLoading ? (

@@ -7,7 +7,7 @@ import { formatDate } from '@/lib/utils';
 import {
   Building2, AlertTriangle, CheckCircle, Search, ChevronDown, ChevronUp,
   Calendar, ShieldAlert, ShieldCheck, Package, ExternalLink, Plus,
-  Pencil, Trash2, X, Save, Sparkles,
+  Pencil, Trash2, X, Save, Sparkles, ClipboardList, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -244,6 +244,109 @@ function DeleteDialog({ vendorName, onConfirm, onCancel, deleting }: {
   );
 }
 
+// ─── Vendor Security Questionnaire Modal ─────────────────────────────────────
+
+type VsqQuestion = { category: string; question: string; required: boolean; notes: string | null };
+type VsqResult = { vendorId: string; vendorName: string; riskLevel: string; frameworks: string; questions: VsqQuestion[]; generatedAt: string };
+
+const VSQ_CATEGORY_COLOR: Record<string, string> = {
+  'Data Security':        'bg-blue-50 text-blue-700',
+  'Access Controls':      'bg-purple-50 text-purple-700',
+  'Incident Response':    'bg-red-50 text-red-700',
+  'Business Continuity':  'bg-orange-50 text-orange-700',
+  'Compliance':           'bg-emerald-50 text-emerald-700',
+  'Subprocessors':        'bg-indigo-50 text-indigo-700',
+  'Data Retention':       'bg-teal-50 text-teal-700',
+  'Penetration Testing':  'bg-yellow-50 text-yellow-700',
+  'Employee Security':    'bg-pink-50 text-pink-700',
+};
+
+function VendorQsnModal({ result, onClose }: { result: VsqResult; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const categories = [...new Set(result.questions.map((q) => q.category))];
+
+  function copyAll() {
+    const text = categories.map((cat) => {
+      const qs = result.questions.filter((q) => q.category === cat);
+      return `## ${cat}\n${qs.map((q, i) => `${i + 1}. ${q.question}${q.notes ? `\n   (${q.notes})` : ''}`).join('\n')}`;
+    }).join('\n\n');
+
+    navigator.clipboard.writeText(
+      `VENDOR SECURITY QUESTIONNAIRE\nVendor: ${result.vendorName}\nFrameworks: ${result.frameworks}\n\n${text}`,
+    );
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Vendor Security Questionnaire</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {result.vendorName} · {result.questions.length} questions · {result.frameworks}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyAll}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              {copied ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <Calendar className="w-3.5 h-3.5" />}
+              {copied ? 'Copied!' : 'Copy All'}
+            </button>
+            <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto p-5 space-y-5">
+          {categories.map((cat) => {
+            const qs = result.questions.filter((q) => q.category === cat);
+            const cls = VSQ_CATEGORY_COLOR[cat] ?? 'bg-gray-50 text-gray-600';
+            return (
+              <div key={cat}>
+                <div className={cn('inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full mb-3', cls)}>
+                  {cat}
+                </div>
+                <ol className="space-y-3">
+                  {qs.map((q, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium flex items-center justify-center shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800 leading-relaxed">
+                          {q.question}
+                          {q.required && (
+                            <span className="ml-1.5 text-xs font-medium text-red-500">*</span>
+                          )}
+                        </p>
+                        {q.notes && (
+                          <p className="text-xs text-gray-400 mt-0.5 italic">{q.notes}</p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 text-xs text-gray-400 text-center shrink-0">
+          * Required questions · Generated by AI based on vendor risk profile and compliance frameworks
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Vendor Card ──────────────────────────────────────────────────────────────
 
 function VendorCard({
@@ -260,11 +363,30 @@ function VendorCard({
   analyzing: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [questionnaire, setQuestionnaire] = useState<VsqResult | null>(null);
+  const [generatingQsn, setGeneratingQsn] = useState(false);
   const cfg = RISK_CONFIG[vendor.riskLevel] ?? RISK_CONFIG.low;
+
+  async function generateQuestionnaire(e: React.MouseEvent) {
+    e.stopPropagation();
+    setGeneratingQsn(true);
+    try {
+      const res = await apiClient.post<VsqResult>(`/vendor-risk/${vendor.id}/ai-questionnaire`);
+      setQuestionnaire((res as any).data ?? res);
+    } catch {
+      // silent error
+    } finally {
+      setGeneratingQsn(false);
+    }
+  }
   const findingCount = vendor.findings?.length ?? 0;
   const mitigationCount = vendor.mitigations?.length ?? 0;
 
   return (
+    <>
+    {questionnaire && (
+      <VendorQsnModal result={questionnaire} onClose={() => setQuestionnaire(null)} />
+    )}
     <div className={cn('card overflow-hidden transition-shadow hover:shadow-md', cfg.border)}>
       {/* Clickable header */}
       <button onClick={() => setExpanded((p) => !p)} className="w-full text-left p-5">
@@ -395,6 +517,17 @@ function VendorCard({
             </button>
             <span className="text-gray-200">|</span>
             <button
+              onClick={generateQuestionnaire}
+              disabled={generatingQsn}
+              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 transition-colors disabled:opacity-50"
+            >
+              {generatingQsn
+                ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                : <ClipboardList className="w-3.5 h-3.5" />}
+              {generatingQsn ? 'Generating…' : 'VSQ'}
+            </button>
+            <span className="text-gray-200">|</span>
+            <button
               onClick={(e) => { e.stopPropagation(); onEdit(vendor); }}
               className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-brand-600 transition-colors"
             >
@@ -411,6 +544,7 @@ function VendorCard({
         </div>
       )}
     </div>
+    </>
   );
 }
 

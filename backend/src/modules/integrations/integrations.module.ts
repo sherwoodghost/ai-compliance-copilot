@@ -15,9 +15,10 @@ import { AzureAdAdapter } from './adapters/azure-ad.adapter';
 import { GithubOauthController } from './oauth/github-oauth.controller';
 import { IntegrationsCoreModule } from '../../integrations/integrations-core.module';
 import { DatabaseModule } from '../../database/database.module';
+import { LlmModule } from '../../llm/llm.module';
 
 @Module({
-  imports: [IntegrationsCoreModule, DatabaseModule],
+  imports: [IntegrationsCoreModule, DatabaseModule, LlmModule],
   providers: [
     IntegrationsService,
     GitHubAdapter, AwsAdapter, OktaAdapter,
