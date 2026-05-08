@@ -52,6 +52,7 @@ import { TeamModule } from './modules/team/team.module';
 import { AccessReviewModule } from './modules/access-reviews/access-review.module';
 import { TrainingModule } from './modules/training/training.module';
 import { ManagementReviewModule } from './modules/management-reviews/management-review.module';
+import { ControlEffectivenessModule } from './modules/control-effectiveness/control-effectiveness.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { ManagementReviewModule } from './modules/management-reviews/management-
     AccessReviewModule,
     TrainingModule,
     ManagementReviewModule,
+    ControlEffectivenessModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,

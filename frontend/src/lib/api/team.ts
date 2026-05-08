@@ -211,4 +211,17 @@ export const teamApi = {
 
   signOffManagementReview: (reviewId: string): Promise<any> =>
     apiClient.post(`/management-reviews/${reviewId}/sign-off`).then((r) => r.data),
+
+  // Control effectiveness sampling (ISO A.5.35)
+  getControlEffectivenessSummary: (): Promise<any> =>
+    apiClient.get('/control-effectiveness/summary').then((r) => r.data),
+
+  getControlEffectivenessSamples: (controlId?: string): Promise<any[]> =>
+    apiClient.get('/control-effectiveness/samples', { params: controlId ? { controlId } : {} }).then((r) => r.data),
+
+  sampleControl: (controlId: string, notes?: string): Promise<any> =>
+    apiClient.post(`/control-effectiveness/sample/${controlId}`, { notes }).then((r) => r.data),
+
+  runBatchSample: (): Promise<{ sampled: number; results: any[]; evidenceId: string | null }> =>
+    apiClient.post('/control-effectiveness/batch-sample').then((r) => r.data),
 };

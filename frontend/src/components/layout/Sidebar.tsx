@@ -32,6 +32,7 @@ import {
   Bell,
   Rocket,
   UserCircle2,
+  Activity,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -48,6 +49,7 @@ const NAV = [
   { href: '/risks',            label: 'Risks',           icon: AlertTriangle },
   { href: '/tasks',            label: 'Tasks',           icon: ClipboardList },
   { href: '/members',          label: 'Team',            icon: UserCircle2 },
+  { href: '/control-effectiveness', label: 'Effectiveness', icon: Activity },
   { href: '/scope',            label: 'Scope',           icon: Target },
   { href: '/readiness',        label: 'Readiness',       icon: BarChart3 },
   { href: '/audit-exports',    label: 'Audit Exports',   icon: Download },
