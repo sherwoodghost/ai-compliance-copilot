@@ -18,10 +18,12 @@ type Task = {
   description?: string;
   status: 'open' | 'in_progress' | 'blocked' | 'done' | 'accepted';
   priority: 'critical' | 'high' | 'medium' | 'low';
-  dueDate?: string;
-  controlCode?: string;
+  dueDate?: string | null;
+  // Backend returns nested control object (Task → Control relation)
+  control?: { id: string; code: string; title: string } | null;
+  // Backend returns assignee relation (assignedTo is the FK, assignee is the relation)
+  assignee?: { id: string; fullName: string; email: string } | null;
   source?: string;
-  assignedTo?: { fullName: string; email: string };
 };
 
 type ViewMode = 'board' | 'list';
@@ -290,9 +292,9 @@ function TaskCard({ task, onMove }: { task: Task; onMove: (status: string) => vo
         <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', p.cls)}>
           {p.label}
         </span>
-        {task.controlCode && (
+        {task.control?.code && (
           <span className="text-xs font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-            {task.controlCode}
+            {task.control.code}
           </span>
         )}
       </div>
@@ -307,14 +309,14 @@ function TaskCard({ task, onMove }: { task: Task; onMove: (status: string) => vo
             {overdue && ' · Overdue'}
           </span>
         )}
-        {task.assignedTo && (
+        {task.assignee && (
           <span className="flex items-center gap-1 ml-auto">
             <div className="w-4 h-4 rounded-full bg-brand-100 flex items-center justify-center">
               <span className="text-[9px] font-bold text-brand-600">
-                {task.assignedTo.fullName.charAt(0)}
+                {task.assignee.fullName.charAt(0)}
               </span>
             </div>
-            {task.assignedTo.fullName.split(' ')[0]}
+            {task.assignee.fullName.split(' ')[0]}
           </span>
         )}
       </div>
@@ -360,9 +362,9 @@ function TaskRow({ task, onMove }: { task: Task; onMove: (status: string) => voi
       <p className="text-sm text-gray-900 flex-1 min-w-0 truncate">{task.title}</p>
 
       {/* Control code */}
-      {task.controlCode ? (
+      {task.control?.code ? (
         <span className="text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0 hidden sm:block">
-          {task.controlCode}
+          {task.control.code}
         </span>
       ) : <span className="w-16 shrink-0 hidden sm:block" />}
 
@@ -393,7 +395,7 @@ function TaskRow({ task, onMove }: { task: Task; onMove: (status: string) => voi
 
       {/* Assignee */}
       <span className="text-xs text-gray-400 shrink-0 hidden lg:block w-24 truncate text-right">
-        {task.assignedTo?.fullName.split(' ')[0] ?? '—'}
+        {task.assignee?.fullName.split(' ')[0] ?? '—'}
       </span>
 
       {/* Move */}
@@ -446,7 +448,8 @@ export default function TasksPage() {
     },
   });
 
-  const tasks: Task[] = data ?? [];
+  // Backend returns an array; guard against unexpected shapes
+  const tasks: Task[] = Array.isArray(data) ? data : [];
 
   const filtered = useMemo(() => {
     if (priorityFilter === 'all') return tasks;

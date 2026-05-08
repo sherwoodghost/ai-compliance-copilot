@@ -10,6 +10,8 @@ import {
   Param,
   ParseUUIDPipe,
   BadRequestException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -94,6 +96,14 @@ export class OrganizationsController {
   ) {
     if (!body.apiKey) throw new BadRequestException('apiKey is required');
     return this.organizationsService.testLlmKey(body.apiKey);
+  }
+
+  @Post('me/reset-demo')
+  @Roles(UserRole.admin)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'DANGER: Wipe all org compliance data to restart the demo from onboarding (admin only)' })
+  async resetDemo(@CurrentUser() user: JwtPayload) {
+    return this.organizationsService.resetDemoData(user.orgId);
   }
 
   @Get('me/audit-logs')

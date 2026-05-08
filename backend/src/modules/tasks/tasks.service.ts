@@ -128,7 +128,7 @@ export class TasksService {
 
   async generateFromGaps(orgId: string): Promise<{ created: number; tasks: any[] }> {
     // 1. Fetch not-started / in-progress controls (these are the gaps)
-    const gapControls = await this.prisma.orgControl.findMany({
+    const gapControls = await this.prisma.organizationControl.findMany({
       where: { orgId, status: { in: ['not_started', 'in_progress'] } },
       include: {
         control: {
@@ -148,10 +148,11 @@ export class TasksService {
       where: { orgId, status: { in: ['open', 'in_progress', 'blocked'] } },
       select: { title: true, controlId: true },
     });
+    // Task.controlId references the global Control model, as does gc.controlId
     const existingControlIds = new Set(existingTitles.map((t) => t.controlId).filter(Boolean));
 
     // Only generate for controls that don't already have open tasks
-    const needsTasks = gapControls.filter((gc) => !existingControlIds.has(gc.id));
+    const needsTasks = gapControls.filter((gc) => !existingControlIds.has(gc.controlId));
     if (needsTasks.length === 0) {
       return { created: 0, tasks: [] };
     }
@@ -193,15 +194,15 @@ export class TasksService {
 
     if (aiTasks.length === 0) return { created: 0, tasks: [] };
 
-    // 6. Build a code → orgControlId lookup
-    const codeToOrgControl = new Map(
-      needsTasks.map((gc) => [gc.control.code, gc.id]),
+    // 6. Build a code → global Control ID lookup (Task.controlId → Control, not OrgControl)
+    const codeToControlId = new Map(
+      needsTasks.map((gc) => [gc.control.code, gc.controlId]),
     );
 
     // 7. Create tasks in DB
     const createdTasks: any[] = [];
     for (const t of aiTasks) {
-      const controlId = codeToOrgControl.get(t.controlCode) ?? null;
+      const controlId = codeToControlId.get(t.controlCode) ?? null;
       const dueDate   = new Date();
       dueDate.setDate(dueDate.getDate() + (t.dueDaysFromNow ?? 30));
 
@@ -216,7 +217,7 @@ export class TasksService {
           priority:    priority as TaskPriority,
           controlId,
           dueDate,
-          source:      'ai',
+          source:      'agent',
           status:      'open',
         },
         include: {

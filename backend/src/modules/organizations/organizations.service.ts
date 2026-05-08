@@ -183,6 +183,62 @@ export class OrganizationsService {
     };
   }
 
+  /**
+   * Wipe all org-specific compliance data so the demo can be restarted from the
+   * onboarding flow. Preserves: user accounts, org record, framework/control
+   * definitions (they are global), and LLM settings.
+   *
+   * DELETE ORDER matters — respects FK constraints (no-cascade relations must
+   * delete children before parents):
+   *   OnboardingSession.agentRunId → AgentRun (no cascade)
+   *   AgentRun.workflowId          → Workflow  (no cascade)
+   *   Task.workflowId              → Workflow  (no cascade)
+   *   ComplianceJourney.workflowId → Workflow  (no cascade)
+   */
+  async resetDemoData(orgId: string): Promise<{ reset: true; message: string }> {
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Agent events (plain orgId FK, no FK chain issues)
+      await tx.agentEvent.deleteMany({ where: { orgId } });
+      // 2. Human checkpoints (FK→ComplianceJourney cascade, safe to delete before)
+      await tx.humanCheckpoint.deleteMany({ where: { orgId } });
+      // 3. Compliance journeys (FK→Workflow no-cascade; must be before Workflow delete)
+      await tx.complianceJourney.deleteMany({ where: { orgId } });
+      // 4. Onboarding sessions (FK→AgentRun no-cascade; must be before AgentRun delete)
+      await tx.onboardingSession.deleteMany({ where: { orgId } });
+      // 5. Agent runs (FK→Workflow no-cascade; must be before Workflow delete)
+      await tx.agentRun.deleteMany({ where: { orgId } });
+      // 6. Tasks (FK→Workflow no-cascade; must be before Workflow delete)
+      await tx.task.deleteMany({ where: { orgId } });
+      // 7. Workflows (now safe — all child FKs cleared)
+      await tx.workflow.deleteMany({ where: { orgId } });
+      // 8. Readiness
+      await tx.readinessScore.deleteMany({ where: { orgId } });
+      // 9. Risks (RiskTreatment cascades from RiskItem)
+      await tx.riskTreatment.deleteMany({ where: { orgId } });
+      await tx.riskItem.deleteMany({ where: { orgId } });
+      // 10. Core compliance artefacts
+      await tx.evidence.deleteMany({ where: { orgId } });
+      await tx.policy.deleteMany({ where: { orgId } });
+      await tx.organizationControl.deleteMany({ where: { orgId } });
+      // 11. Scoping (IsoSOA cascades from Iso27001Scope)
+      await tx.isoStatementOfApplicability.deleteMany({ where: { orgId } });
+      await tx.iso27001Scope.deleteMany({ where: { orgId } });
+      await tx.soc2Scope.deleteMany({ where: { orgId } });
+      await tx.controlApplicability.deleteMany({ where: { orgId } });
+      // 12. Auditor portal (AuditorRfi cascades from AuditorSession)
+      await tx.auditorRfi.deleteMany({ where: { orgId } });
+      await tx.auditorSession.deleteMany({ where: { orgId } });
+      // 13. Business profile (versions cascade from profile)
+      await tx.businessProfileVersion.deleteMany({ where: { orgId } });
+      await tx.businessProfile.deleteMany({ where: { orgId } });
+    });
+
+    return {
+      reset: true,
+      message: 'All compliance data cleared. You can now restart onboarding.',
+    };
+  }
+
   async getAuditLogs(orgId: string, limit = 100, offset = 0) {
     const [logs, total] = await Promise.all([
       this.prisma.auditLog.findMany({

@@ -6,7 +6,7 @@ import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api/auth';
-import { User, Building, Lock, LogOut, Bot, Key, CheckCircle2, XCircle, Loader2, Bell, Webhook } from 'lucide-react';
+import { User, Building, Lock, LogOut, Bot, Key, CheckCircle2, XCircle, Loader2, Bell, Webhook, RotateCcw, AlertTriangle } from 'lucide-react';
 
 function Section({ title, icon: Icon, children }: {
   title: string;
@@ -365,6 +365,107 @@ function NotificationsSection() {
   );
 }
 
+function DangerZoneSection() {
+  const [confirm, setConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const reset = useMutation({
+    mutationFn: () => apiClient.post('/organizations/me/reset-demo').then((r) => r.data),
+    onSuccess: () => {
+      // Clear query cache so stale data doesn't persist
+      if (typeof window !== 'undefined') {
+        window.location.href = '/onboarding';
+      }
+    },
+  });
+
+  return (
+    <div className="card p-6 border-red-200 bg-red-50/30">
+      <div className="flex items-center gap-2.5 mb-4">
+        <AlertTriangle className="w-4 h-4 text-red-500" />
+        <h2 className="text-sm font-semibold text-red-700">Danger Zone</h2>
+      </div>
+
+      <div className="space-y-4">
+        <div className="bg-white rounded-xl border border-red-200 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-red-500 shrink-0" />
+                Restart Onboarding
+              </p>
+              <p className="text-xs text-gray-500">
+                Wipes all compliance data for this organisation — controls, evidence, tasks, policies,
+                risks, workflows, journeys, scope documents, and readiness scores.
+                Your user account and LLM key are preserved. Use this to experience the full
+                onboarding flow from scratch.
+              </p>
+            </div>
+            {!confirm && (
+              <button
+                onClick={() => setConfirm(true)}
+                className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border border-red-300
+                           text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Reset data
+              </button>
+            )}
+          </div>
+
+          {confirm && (
+            <div className="mt-4 space-y-3 border-t border-red-100 pt-4">
+              <p className="text-xs font-medium text-red-700">
+                Type <span className="font-mono bg-red-100 px-1 rounded">RESET</span> to confirm
+              </p>
+              <input
+                autoFocus
+                className="w-full text-sm border border-red-300 rounded-lg px-3 py-2 focus:outline-none
+                           focus:ring-2 focus:ring-red-400 font-mono"
+                placeholder="Type RESET"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setConfirm(false); setConfirmText(''); }}
+                  className="flex-1 text-xs py-2 rounded-lg border border-gray-200 text-gray-500
+                             hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => reset.mutate()}
+                  disabled={confirmText !== 'RESET' || reset.isPending}
+                  className="flex-1 text-xs py-2 rounded-lg bg-red-600 text-white font-medium
+                             hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                             flex items-center justify-center gap-1.5"
+                >
+                  {reset.isPending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Resetting…
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Wipe &amp; restart
+                    </>
+                  )}
+                </button>
+              </div>
+              {reset.isError && (
+                <p className="text-xs text-red-600">
+                  Reset failed — please try again or contact support.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { clearUser } = useAuthStore();
@@ -398,6 +499,8 @@ export default function SettingsPage() {
           Sign out everywhere
         </button>
       </div>
+
+      <DangerZoneSection />
     </div>
   );
 }
