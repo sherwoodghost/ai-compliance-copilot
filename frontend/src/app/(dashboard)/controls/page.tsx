@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { complianceApi } from '@/lib/api/compliance';
-import { apiClient as api } from '@/lib/api/client';
+import { controlsApi, ControlStatus } from '@/lib/api/controls';
 import { HeatmapChart } from '@/components/charts/HeatmapChart';
 import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
 import { CheckCircle, XCircle, AlertCircle, Clock, BarChart2, Plus, CheckSquare, RotateCcw, ArrowLeftRight, ChevronRight, Activity, Sparkles, X } from 'lucide-react';
@@ -189,16 +188,16 @@ export default function ControlsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['controls', status],
-    queryFn: () => complianceApi.getControls(status ? { status } : undefined),
+    queryFn: () => controlsApi.list(status ? { status: status as ControlStatus } : undefined),
   });
 
   const { data: stats } = useQuery({
     queryKey: ['control-stats'],
-    queryFn: complianceApi.getControlStats,
+    queryFn: () => controlsApi.getStats(),
   });
 
   const initControls = useMutation({
-    mutationFn: () => complianceApi.initializeControls('soc2'),
+    mutationFn: () => controlsApi.initialize('soc2'),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['controls'] });
       qc.invalidateQueries({ queryKey: ['control-stats'] });
@@ -207,8 +206,8 @@ export default function ControlsPage() {
 
   // AI test failure analysis
   const analyzeTests = useMutation({
-    mutationFn: () => api.post('/control-tests/ai-analyze').then((r: any) => r.data),
-    onSuccess: (data: any) => setTestAnalysis(data),
+    mutationFn: () => controlsApi.aiAnalyze(),
+    onSuccess: (data) => setTestAnalysis(data),
   });
 
   const controls: any[] = data ?? [];
@@ -230,7 +229,7 @@ export default function ControlsPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Controls</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {stats?.byStatus?.implemented ?? 0} implemented · {stats?.byStatus?.in_progress ?? 0} in progress · {(stats?.byStatus?.not_started ?? 0) + (stats?.byStatus?.failed ?? 0)} gaps
+            {stats?.implemented ?? 0} implemented · {stats?.inProgress ?? 0} in progress · {stats?.notStarted ?? 0} gaps
             {crosswalkCredited > 0 && (
               <span className="ml-2 text-teal-600">· {crosswalkCredited} auto-credited via crosswalk</span>
             )}

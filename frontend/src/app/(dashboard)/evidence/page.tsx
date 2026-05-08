@@ -2,7 +2,8 @@
 
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { complianceApi } from '@/lib/api/compliance';
+import { evidenceApi } from '@/lib/api/evidence';
+import { controlsApi } from '@/lib/api/controls';
 import { apiClient } from '@/lib/api/client';
 import { formatDate, formatRelative } from '@/lib/utils';
 import {
@@ -25,11 +26,11 @@ type Evidence = {
   isValid?: boolean;
   collectedAt?: string;
   createdAt: string;
-  expiresAt?: string;
+  expiresAt?: string | null;
   fileUrl?: string;
   storageUrl?: string;
   controlId?: string;
-  control?: { id: string; code: string; title: string };
+  control?: { id: string; code: string; title: string } | null;
   metadata?: {
     aiConfidence?: number;
     aiSummary?: string;
@@ -192,7 +193,7 @@ function EvidenceCard({
   async function triggerRevalidate() {
     setRevalidating(true);
     try {
-      await apiClient.post(`/evidence/${item.id}/revalidate`);
+      await evidenceApi.revalidate(item.id);
       // Poll for updated result after 4 seconds
       setTimeout(() => { onRevalidate(); setRevalidating(false); }, 4000);
     } catch {
@@ -207,10 +208,14 @@ function EvidenceCard({
     setLoadingSuggestions(true);
     setShowMappings(true);
     try {
-      const res = await apiClient.get<{ suggestions: MappingSuggestion[] }>(
-        `/evidence/${item.id}/suggest-mappings`,
+      const res = await evidenceApi.getMappingSuggestions(item.id);
+      setSuggestions(
+        (res.suggestions ?? []).map((s) => ({
+          controlId: s.controlId,
+          code: s.controlCode,
+          title: s.reason,
+        })),
       );
-      setSuggestions((res as any).data?.suggestions ?? []);
     } catch {
       setSuggestions([]);
     } finally {
@@ -479,7 +484,7 @@ function UploadModal({
   // Fetch org controls for the dropdown
   const { data: controls = [] } = useQuery({
     queryKey: ['controls-for-upload'],
-    queryFn: () => complianceApi.getControls(),
+    queryFn: () => controlsApi.list(),
   });
 
   const upload = useMutation({
@@ -492,7 +497,7 @@ function UploadModal({
       fd.append('type', type);
       fd.append('controlId', controlId);
       if (expiresAt) fd.append('expiresAt', new Date(expiresAt).toISOString());
-      return complianceApi.uploadEvidence(fd);
+      return evidenceApi.upload(fd);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['evidence'] });
@@ -656,8 +661,8 @@ export default function EvidencePage() {
   }
 
   const bulkMap = useMutation({
-    mutationFn: () => apiClient.post<BulkMapResult>('/evidence/ai-bulk-map'),
-    onSuccess: (res) => setBulkMapResult((res as any).data ?? res),
+    mutationFn: () => apiClient.post<BulkMapResult>('/evidence/ai-bulk-map').then((r: any) => r.data),
+    onSuccess: (res) => setBulkMapResult(res),
   });
 
   async function applyMapping(
@@ -683,16 +688,16 @@ export default function EvidencePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['evidence'],
-    queryFn: () => complianceApi.getEvidence(),
+    queryFn: () => evidenceApi.list(),
   });
 
   const { data: expiryReport } = useQuery({
     queryKey: ['evidence-expiry'],
-    queryFn: complianceApi.getExpiryReport,
+    queryFn: () => evidenceApi.getExpiryReport(),
   });
 
   const deleteEvidence = useMutation({
-    mutationFn: complianceApi.deleteEvidence,
+    mutationFn: (id: string) => evidenceApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['evidence'] });
       qc.invalidateQueries({ queryKey: ['evidence-expiry'] });
@@ -700,8 +705,16 @@ export default function EvidencePage() {
   });
 
   const evidence: Evidence[] = data ?? [];
-  const expiredCount      = expiryReport?.expired?.length ?? 0;
-  const expiringSoonCount = expiryReport?.expiringSoon?.length ?? 0;
+  const now = new Date();
+  const soon = new Date(Date.now() + 30 * 86_400_000);
+  const expiredCount = evidence.filter(
+    (e) => !e.metadata?.isPendingSuggestion && !!e.expiresAt && new Date(e.expiresAt) < now,
+  ).length;
+  const expiringSoonCount = evidence.filter(
+    (e) => !e.metadata?.isPendingSuggestion && !!e.expiresAt &&
+           new Date(e.expiresAt) >= now && new Date(e.expiresAt) < soon,
+  ).length;
+  // expiryReport is kept for potential banner/widget usage (critical/warning/ok fields)
   const pendingCount      = evidence.filter((e) => e.metadata?.isPendingSuggestion).length;
   const aiIssuesCount     = evidence.filter((e) =>
     !e.metadata?.isPendingSuggestion &&

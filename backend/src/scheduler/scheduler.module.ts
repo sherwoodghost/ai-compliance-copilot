@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { AgentSchedulerService } from './agent-scheduler.service';
 import { NotificationSchedulerService } from './notification-scheduler.service';
+import { DocumentSchedulerService } from './document-scheduler.service';
 import { ComplianceJourneyModule } from '../compliance-journey/compliance-journey.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ApprovalWorkflowModule } from '../modules/approval-workflow/approval-workflow.module';
@@ -20,7 +21,7 @@ import { QUEUE_NAMES } from '../orchestrator/queue.config';
     NotificationsModule,
     ApprovalWorkflowModule,
   ],
-  providers: [AgentSchedulerService, NotificationSchedulerService],
-  exports: [AgentSchedulerService, NotificationSchedulerService],
+  providers: [AgentSchedulerService, NotificationSchedulerService, DocumentSchedulerService],
+  exports: [AgentSchedulerService, NotificationSchedulerService, DocumentSchedulerService],
 })
 export class AgentSchedulerModule {}

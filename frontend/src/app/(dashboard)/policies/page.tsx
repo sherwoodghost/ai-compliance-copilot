@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { complianceApi } from '@/lib/api/compliance';
+import { policiesApi, Policy, CoverageResult, PolicyGap } from '@/lib/api/policies';
 import { apiClient as api } from '@/lib/api/client';
 import {
   FileText, Check, Archive, X, ChevronRight, Plus, Download,
@@ -14,19 +14,6 @@ import { cn } from '@/lib/utils';
 import { PolicyEditor, markdownToSimpleHtml } from '@/components/editor/PolicyEditor';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type Policy = {
-  id: string;
-  title: string;
-  status: 'draft' | 'approved' | 'archived' | 'out_of_date';
-  version: number;
-  content?: string;
-  framework?: string;
-  updatedAt: string;
-  approvedAt?: string;
-  approvedBy?: { fullName: string };
-  controlCount?: number;
-};
 
 type StatusFilter = 'all' | 'draft' | 'approved' | 'archived';
 
@@ -99,7 +86,7 @@ function PolicyCard({ policy, onSelect }: { policy: Policy; onSelect: () => void
 
           {policy.approvedAt && (
             <p className="text-xs text-emerald-600 mt-2">
-              {policy.approvedBy?.fullName
+              {typeof policy.approvedBy === 'object' && policy.approvedBy?.fullName
                 ? `Approved by ${policy.approvedBy.fullName} on `
                 : 'Approved on '}
               {new Date(policy.approvedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -122,13 +109,13 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
 
   const { data: fullPolicy } = useQuery({
     queryKey: ['policy', policy.id],
-    queryFn: () => complianceApi.getPolicy(policy.id),
+    queryFn: () => policiesApi.get(policy.id),
   });
 
   const displayPolicy = (fullPolicy ?? policy) as Policy;
 
   const approve = useMutation({
-    mutationFn: () => complianceApi.approvePolicy(policy.id),
+    mutationFn: () => policiesApi.approve(policy.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['policies'] });
       qc.invalidateQueries({ queryKey: ['policy', policy.id] });
@@ -136,7 +123,7 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
   });
 
   const archive = useMutation({
-    mutationFn: () => complianceApi.archivePolicy(policy.id),
+    mutationFn: () => policiesApi.archive(policy.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['policies'] });
       onClose();
@@ -144,7 +131,7 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
   });
 
   const saveEdit = useMutation({
-    mutationFn: () => api.patch(`/policies/${policy.id}`, { content: editContent }),
+    mutationFn: () => policiesApi.update(policy.id, { content: editContent }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['policies'] });
       qc.invalidateQueries({ queryKey: ['policy', policy.id] });
@@ -153,7 +140,7 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
   });
 
   const createNewVersion = useMutation({
-    mutationFn: () => api.post(`/policies/${policy.id}/new-version`, { content: editContent }),
+    mutationFn: () => policiesApi.newVersion(policy.id, { content: editContent }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['policies'] });
       setEditing(false);
@@ -161,8 +148,7 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
   });
 
   const aiDraft = useMutation({
-    mutationFn: () =>
-      api.post(`/policies/${policy.id}/ai-draft`, {}).then((r: any) => r.data as { content: string }),
+    mutationFn: () => policiesApi.aiDraft(policy.id),
     onSuccess: (data) => {
       // Convert markdown to simple html for the editor
       setEditContent(markdownToSimpleHtml(data.content));
@@ -377,8 +363,7 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
 
 // ─── Policy Coverage Panel ───────────────────────────────────────────────────
 
-type PolicyGap = { policyType: string; priority: string; framework: string; requirement: string; covered: boolean };
-type CoverageResult = { totalPolicies: number; frameworks: string; coverageScore: number; gaps: PolicyGap[]; recommendations: string[]; generatedAt: string };
+// PolicyGap and CoverageResult are imported from @/lib/api/policies
 
 const GAP_PRIORITY_CFG: Record<string, { badge: string; dot: string }> = {
   critical: { badge: 'bg-red-100 text-red-700',    dot: 'bg-red-500' },
@@ -506,7 +491,7 @@ export default function PoliciesPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['policies'],
-    queryFn: complianceApi.getPolicies,
+    queryFn: () => policiesApi.list(),
   });
 
   const generate = useMutation({
@@ -517,7 +502,7 @@ export default function PoliciesPage() {
   });
 
   const coverageCheck = useMutation({
-    mutationFn: () => api.post<CoverageResult>('/policies/ai-coverage-check').then((r: any) => r.data),
+    mutationFn: () => policiesApi.aiCoverageCheck(),
     onSuccess: (result) => setCoverageResult(result),
   });
 
