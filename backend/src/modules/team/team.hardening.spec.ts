@@ -112,12 +112,28 @@ const makePrisma = (overrides: Record<string, any> = {}) => ({
     findMany: jest.fn().mockResolvedValue([]),
     update: jest.fn().mockResolvedValue({ id: 'ces-1' }),
   },
+  inviteToken: {
+    create: jest.fn().mockResolvedValue({ id: 'it-1', tokenHash: 'hash', userId: 'new-user', orgId: 'org-A' }),
+    update: jest.fn().mockResolvedValue({ id: 'it-1' }),
+  },
+  organization: {
+    findUnique: jest.fn().mockResolvedValue({ id: 'org-A', name: 'ACME Corp' }),
+  },
   $transaction: jest.fn().mockImplementation((fn: any) => {
     if (typeof fn === 'function') return fn(overrides);
     return Promise.all(fn);
   }),
   ...overrides,
 });
+
+// ─── Shared mock services ─────────────────────────────────────────────────────
+
+const mockResend = {
+  sendInviteEmail:        jest.fn().mockResolvedValue(undefined),
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+  sendTaskAssignment:     jest.fn().mockResolvedValue(undefined),
+};
+const mockConfig = { get: jest.fn().mockReturnValue('http://localhost:3001') };
 
 // ─── RACI Service setup ───────────────────────────────────────────────────────
 
@@ -291,7 +307,7 @@ describe('SoD — Segregation of Duties', () => {
 describe('Tenant Isolation — Team Management Tables', () => {
   const makeTeamService = (prismaOverrides: Record<string, any> = {}) => {
     const prisma = makePrisma(prismaOverrides);
-    return { service: new TeamService(prisma as any), prisma };
+    return { service: new TeamService(prisma as any, mockResend as any, mockConfig as any), prisma };
   };
 
   it('TI11 — getMembers() filters by orgId', async () => {
@@ -310,8 +326,6 @@ describe('Tenant Isolation — Team Management Tables', () => {
   });
 
   it('TI13 — RACI assign() includes orgId in created record', async () => {
-    const { service, prisma } = makeRaciService().service;
-
     // Direct service test via RaciService
     const raciPrisma = makePrisma({
       raciAssignment: {
@@ -496,7 +510,7 @@ describe('Audit Log — Every team action logs to TeamAuditLog', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
     });
-    const svc = new TeamService(prisma as any);
+    const svc = new TeamService(prisma as any, mockResend as any, mockConfig as any);
 
     await svc.updateMember('org-A', 'user-1', { platformRole: 'approver' }, 'actor-1');
 
@@ -551,7 +565,7 @@ describe('User Lifecycle — Status Transitions', () => {
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
       trainingAssignment: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ta-1' }) },
     };
-    const svc = new TeamService(prisma as any);
+    const svc = new TeamService(prisma as any, mockResend as any, mockConfig as any);
 
     await svc.inviteMember('org-A', {
       email: 'new@co.com',
@@ -579,7 +593,7 @@ describe('User Lifecycle — Status Transitions', () => {
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
       trainingAssignment: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ta-1' }) },
     };
-    const svc = new TeamService(prisma as any);
+    const svc = new TeamService(prisma as any, mockResend as any, mockConfig as any);
 
     await svc.inviteMember('org-A', {
       email: 'nda@co.com',
@@ -615,7 +629,7 @@ describe('User Lifecycle — Status Transitions', () => {
         count: jest.fn().mockResolvedValue(0),
       },
     });
-    const svc = new TeamService(prisma as any);
+    const svc = new TeamService(prisma as any, mockResend as any, mockConfig as any);
 
     await svc.initiateOffboarding('org-A', 'user-1', new Date('2026-12-31'), 'actor-1');
 
@@ -631,7 +645,7 @@ describe('User Lifecycle — Status Transitions', () => {
     const prisma = makePrisma({
       user: { ...makePrisma().user, findFirst: jest.fn().mockResolvedValue(mockUser) },
     });
-    const svc = new TeamService(prisma as any);
+    const svc = new TeamService(prisma as any, mockResend as any, mockConfig as any);
 
     await expect(
       svc.initiateOffboarding('org-A', 'user-1', new Date('2026-12-31'), 'actor-1'),
@@ -642,7 +656,7 @@ describe('User Lifecycle — Status Transitions', () => {
     const prisma = makePrisma({
       user: { ...makePrisma().user, findFirst: jest.fn().mockResolvedValue(null) },
     });
-    const svc = new TeamService(prisma as any);
+    const svc = new TeamService(prisma as any, mockResend as any, mockConfig as any);
 
     await expect(
       svc.initiateOffboarding('org-A', 'user-from-org-B', new Date('2026-12-31'), 'actor-1'),

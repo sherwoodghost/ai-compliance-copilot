@@ -83,4 +83,35 @@ export class AuthController {
   async me(@CurrentUser() user: any) {
     return this.authService.getMe(user.sub, user.email, user.orgId, user.role);
   }
+
+  @Post('accept-invite')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Accept an invite token and set password to activate account' })
+  @ApiResponse({ status: 200, type: AuthResponseDto })
+  @ApiResponse({ status: 400, description: 'Invalid / expired token or weak password' })
+  async acceptInvite(
+    @Body() body: { token: string; password: string },
+    @Req() req: Request & { ip: string; headers: Record<string, string> },
+  ): Promise<AuthResponseDto> {
+    return this.authService.acceptInvite(body.token, body.password, req.ip, req.headers['user-agent']);
+  }
+
+  @Post('request-password-reset')
+  @Public()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Send a password reset email (always returns 204)' })
+  async requestPasswordReset(@Body() body: { email: string }): Promise<void> {
+    await this.authService.requestPasswordReset(body.email);
+  }
+
+  @Post('reset-password')
+  @Public()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Consume a reset token and set a new password' })
+  @ApiResponse({ status: 204, description: 'Password updated; all sessions revoked' })
+  @ApiResponse({ status: 400, description: 'Invalid / expired token' })
+  async resetPassword(@Body() body: { token: string; password: string }): Promise<void> {
+    await this.authService.resetPassword(body.token, body.password);
+  }
 }

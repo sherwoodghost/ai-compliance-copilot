@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ManagementReviewService } from './management-review.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('management-reviews')
 @UseGuards(JwtAuthGuard)

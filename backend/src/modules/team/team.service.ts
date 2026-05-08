@@ -5,7 +5,9 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
+import { ResendService } from '../../notifications/resend.service';
 import { PlatformRole, ComplianceRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -37,7 +39,11 @@ export interface UpdateMemberDto {
 export class TeamService {
   private readonly logger = new Logger(TeamService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resend: ResendService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * Get all org members with per-member compliance stats.
@@ -200,6 +206,16 @@ export class TeamService {
       return newUser;
     });
 
+    // Persist InviteToken for redemption via /auth/accept-invite
+    await this.prisma.inviteToken.create({
+      data: {
+        tokenHash,
+        userId: user.id,
+        orgId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
     // Log the invite
     await this.prisma.teamAuditLog.create({
       data: {
@@ -214,8 +230,24 @@ export class TeamService {
 
     this.logger.log(`Member invited: ${user.email} (${dto.platformRole}) by ${actorId}`);
 
-    // In production, send email with invite link containing rawToken
-    // For now, return the token in the response (frontend will handle email sending)
+    // Send invite email with magic link
+    const appUrl = this.config.get<string>('APP_URL') ?? 'http://localhost:3001';
+    const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
+
+    // Get inviter's name for the email
+    const inviter = await this.prisma.user.findUnique({ where: { id: actorId }, select: { fullName: true } });
+    const org     = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
+
+    await this.resend.sendInviteEmail({
+      to:          user.email,
+      inviteeName: user.fullName,
+      inviterName: inviter?.fullName ?? 'Your admin',
+      orgName:     org?.name ?? 'Your organization',
+      role:        dto.platformRole,
+      acceptUrl,
+      expiresIn:   '7 days',
+    });
+
     return {
       user: {
         id: user.id,
@@ -224,7 +256,6 @@ export class TeamService {
         platformRole: dto.platformRole,
         status: 'suspended',
       },
-      inviteToken: rawToken, // Frontend uses this to construct the invite email
     };
   }
 

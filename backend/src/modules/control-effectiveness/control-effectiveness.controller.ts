@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ControlEffectivenessService } from './control-effectiveness.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('control-effectiveness')
 @UseGuards(JwtAuthGuard)

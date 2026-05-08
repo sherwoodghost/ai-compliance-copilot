@@ -273,6 +273,109 @@ export class ResendService {
     });
   }
 
+  // ─── Invite Email ─────────────────────────────────────────────────────────
+
+  async sendInviteEmail(opts: {
+    to:          string;
+    inviteeName: string;
+    inviterName: string;
+    orgName:     string;
+    role:        string;
+    acceptUrl:   string;
+    expiresIn:   string; // e.g. "7 days"
+  }): Promise<void> {
+    const { to, inviteeName, inviterName, orgName, role, acceptUrl, expiresIn } = opts;
+
+    await this.send({
+      to,
+      subject: `You've been invited to ${orgName}'s compliance program`,
+      html: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#4f46e5;color:#fff;padding:20px 28px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0;font-size:20px">You're invited to join ${orgName}</h2>
+          </div>
+          <div style="padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;background:#fff">
+            <p style="margin:0 0 16px;font-size:15px;color:#374151">
+              Hi ${inviteeName},
+            </p>
+            <p style="margin:0 0 16px;color:#374151">
+              <strong>${inviterName}</strong> has invited you to join <strong>${orgName}</strong>'s
+              ISO 27001 / SOC 2 compliance program on Compliance Copilot as a
+              <strong style="color:#4f46e5">${role}</strong>.
+            </p>
+            <div style="background:#f5f3ff;border-radius:8px;padding:16px;margin:20px 0;border:1px solid #ddd6fe">
+              <p style="margin:0;color:#4c1d95;font-size:13px">
+                ⚡ Set your password to activate your account. This invite link expires in ${expiresIn}.
+              </p>
+            </div>
+            <div style="text-align:center;margin:28px 0">
+              <a href="${acceptUrl}"
+                 style="display:inline-block;background:#4f46e5;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">
+                Set Password & Activate Account →
+              </a>
+            </div>
+            <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center">
+              Or copy this link: <span style="font-family:monospace;font-size:11px">${acceptUrl}</span>
+            </p>
+            <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb"/>
+            <p style="color:#9ca3af;font-size:12px;margin:0">
+              If you weren't expecting this invite, you can safely ignore this email.
+              This invite was sent by ${inviterName} from ${orgName}.
+            </p>
+          </div>
+        </div>
+      `,
+    });
+  }
+
+  // ─── Password Reset Email ─────────────────────────────────────────────────
+
+  async sendPasswordResetEmail(opts: {
+    to:        string;
+    userName:  string;
+    resetUrl:  string;
+    expiresIn: string; // e.g. "1 hour"
+  }): Promise<void> {
+    const { to, userName, resetUrl, expiresIn } = opts;
+
+    await this.send({
+      to,
+      subject: 'Reset your Compliance Copilot password',
+      html: `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+          <div style="background:#1e293b;color:#fff;padding:20px 28px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0;font-size:20px">Password Reset Request</h2>
+          </div>
+          <div style="padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;background:#fff">
+            <p style="margin:0 0 16px;font-size:15px;color:#374151">Hi ${userName},</p>
+            <p style="margin:0 0 16px;color:#374151">
+              We received a request to reset your Compliance Copilot password.
+              Click the button below to set a new password.
+            </p>
+            <div style="background:#fef9ee;border-radius:8px;padding:14px 16px;margin:20px 0;border:1px solid #fde68a">
+              <p style="margin:0;color:#92400e;font-size:13px">
+                ⚠️ This link expires in ${expiresIn}. If you didn't request a reset, you can safely ignore this email.
+              </p>
+            </div>
+            <div style="text-align:center;margin:28px 0">
+              <a href="${resetUrl}"
+                 style="display:inline-block;background:#1e293b;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px">
+                Reset Password →
+              </a>
+            </div>
+            <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center">
+              Or copy this link: <span style="font-family:monospace;font-size:11px">${resetUrl}</span>
+            </p>
+            <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb"/>
+            <p style="color:#9ca3af;font-size:12px;margin:0">
+              For security, this link can only be used once and expires in ${expiresIn}.
+            </p>
+          </div>
+        </div>
+      `,
+    });
+  }
+
   // ─── Slack Webhook Notification ───────────────────────────────────────────
   async sendSlackNotification(webhookUrl: string, message: {
     text: string;

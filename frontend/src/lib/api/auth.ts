@@ -45,4 +45,21 @@ export const authApi = {
     const { data } = await apiClient.get('/auth/me');
     return data;
   },
+
+  /** Accept an invite link and set a password to activate the account. */
+  async acceptInvite(token: string, password: string): Promise<AuthResponse> {
+    const { data } = await apiClient.post<AuthResponse>('/auth/accept-invite', { token, password });
+    setTokens(data.accessToken, data.refreshToken);
+    return data;
+  },
+
+  /** Request a password-reset email (always succeeds silently). */
+  async requestPasswordReset(email: string): Promise<void> {
+    await apiClient.post('/auth/request-password-reset', { email });
+  },
+
+  /** Consume a reset token and set a new password. */
+  async resetPassword(token: string, password: string): Promise<void> {
+    await apiClient.post('/auth/reset-password', { token, password });
+  },
 };

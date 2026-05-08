@@ -2,13 +2,17 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import slugify from 'slugify';
 import { PrismaService } from '../../database/prisma.service';
+import { ResendService } from '../../notifications/resend.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto, RefreshResponseDto } from './dto/auth-response.dto';
@@ -24,6 +28,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly resend: ResendService,
   ) {}
 
   async register(dto: RegisterDto, ipAddress?: string, userAgent?: string): Promise<AuthResponseDto> {
@@ -201,6 +206,171 @@ export class AuthService {
       role,
       onboardingComplete: businessProfile?.isComplete ?? false,
     };
+  }
+
+  // ─── Invite Acceptance ──────────────────────────────────────────────────────
+
+  async acceptInvite(
+    rawToken: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<AuthResponseDto> {
+    if (!password || password.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    const invite = await this.prisma.inviteToken.findUnique({ where: { tokenHash } });
+
+    if (!invite) {
+      throw new BadRequestException('Invalid or expired invite link');
+    }
+    if (invite.usedAt) {
+      throw new BadRequestException('This invite link has already been used');
+    }
+    if (invite.expiresAt < new Date()) {
+      throw new BadRequestException('This invite link has expired. Ask your admin to resend the invite');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: invite.userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    // Activate the user + mark token used in a transaction
+    const activated = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          status:   'active',
+          isActive: true,
+          ndaSignedAt: (user as any).ndaSignedAt ?? null, // preserve if already set
+        },
+      });
+
+      await tx.inviteToken.update({
+        where: { id: invite.id },
+        data: { usedAt: new Date() },
+      });
+
+      return updated;
+    });
+
+    this.logger.log(`Invite accepted + account activated: ${activated.email}`);
+
+    const platformRole = (activated as any).platformRole ?? 'contributor';
+    const tokens = await this.generateTokens(activated.id, activated.email, activated.orgId, activated.role, platformRole, 'active');
+    await this.createSession(activated.id, activated.orgId, tokens.refreshToken, ipAddress, userAgent);
+
+    // Check onboarding status
+    const businessProfile = await this.prisma.businessProfile.findUnique({
+      where: { orgId: activated.orgId },
+      select: { isComplete: true },
+    });
+
+    return {
+      accessToken:  tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresIn:    ACCESS_TOKEN_EXPIRY_SECONDS,
+      user: {
+        id:                activated.id,
+        email:             activated.email,
+        fullName:          activated.fullName,
+        role:              activated.role,
+        platformRole,
+        orgId:             activated.orgId,
+        onboardingComplete: businessProfile?.isComplete ?? false,
+      },
+    };
+  }
+
+  // ─── Password Reset ──────────────────────────────────────────────────────────
+
+  async requestPasswordReset(email: string): Promise<void> {
+    // Always return success — never leak whether an email exists
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true, fullName: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      // Silently succeed — timing attack prevention
+      await new Promise((r) => setTimeout(r, 150 + Math.random() * 100));
+      return;
+    }
+
+    // Invalidate any existing tokens for this user
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        tokenHash,
+        userId:    user.id,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      },
+    });
+
+    const appUrl   = this.configService.get<string>('APP_URL') ?? 'http://localhost:3001';
+    const resetUrl = `${appUrl}/reset-password?token=${rawToken}`;
+
+    await this.resend.sendPasswordResetEmail({
+      to:        email,
+      userName:  user.fullName,
+      resetUrl,
+      expiresIn: '1 hour',
+    });
+
+    this.logger.log(`Password reset email sent to ${email}`);
+  }
+
+  async resetPassword(rawToken: string, newPassword: string): Promise<void> {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('Password must be at least 8 characters');
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const record    = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+
+    if (!record) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+    if (record.usedAt) {
+      throw new BadRequestException('This reset link has already been used');
+    }
+    if (record.expiresAt < new Date()) {
+      throw new BadRequestException('This reset link has expired. Please request a new one');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: record.userId },
+        data: { passwordHash },
+      });
+
+      await tx.passwordResetToken.update({
+        where: { id: record.id },
+        data: { usedAt: new Date() },
+      });
+
+      // Revoke all active sessions (security: force re-login after password change)
+      await tx.session.updateMany({
+        where: { userId: record.userId, isRevoked: false },
+        data: { isRevoked: true },
+      });
+    });
+
+    this.logger.log(`Password reset completed for userId: ${record.userId}`);
   }
 
   // ─── Private Helpers ────────────────────────────────────────────────────────
