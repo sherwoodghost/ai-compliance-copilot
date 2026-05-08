@@ -37,25 +37,25 @@ export class InternalAuditController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   createAudit(@CurrentUser() user: any, @Body() dto: CreateAuditDto) {
-    return this.auditService.createAudit(user.orgId, user.id, dto);
+    return this.auditService.createAudit(user.orgId, user.sub, dto);
   }
 
   @Post(':id/start-fieldwork')
   @HttpCode(HttpStatus.OK)
   startFieldwork(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.auditService.startFieldwork(user.orgId, id, user.id);
+    return this.auditService.startFieldwork(user.orgId, id, user.sub);
   }
 
   @Post(':id/start-reporting')
   @HttpCode(HttpStatus.OK)
   startReporting(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.auditService.startReporting(user.orgId, id, user.id);
+    return this.auditService.startReporting(user.orgId, id, user.sub);
   }
 
   @Post(':id/close')
   @HttpCode(HttpStatus.OK)
   closeAudit(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: CloseAuditDto) {
-    return this.auditService.closeAudit(user.orgId, id, user.id, dto);
+    return this.auditService.closeAudit(user.orgId, id, user.sub, dto);
   }
 
   // ─── Findings ─────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ export class InternalAuditController {
   @Post(':id/findings')
   @HttpCode(HttpStatus.CREATED)
   addFinding(@CurrentUser() user: any, @Param('id') auditId: string, @Body() dto: AddFindingDto) {
-    return this.auditService.addFinding(user.orgId, auditId, user.id, dto);
+    return this.auditService.addFinding(user.orgId, auditId, user.sub, dto);
   }
 
   @Post(':id/findings/:findingId/close')
@@ -73,7 +73,7 @@ export class InternalAuditController {
     @Param('id') auditId: string,
     @Param('findingId') findingId: string,
   ) {
-    return this.auditService.closeFinding(user.orgId, auditId, findingId, user.id);
+    return this.auditService.closeFinding(user.orgId, auditId, findingId, user.sub);
   }
 
   @Post(':id/findings/:findingId/accept-risk')
@@ -83,6 +83,6 @@ export class InternalAuditController {
     @Param('id') auditId: string,
     @Param('findingId') findingId: string,
   ) {
-    return this.auditService.acceptRiskFinding(user.orgId, auditId, findingId, user.id);
+    return this.auditService.acceptRiskFinding(user.orgId, auditId, findingId, user.sub);
   }
 }

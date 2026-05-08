@@ -46,7 +46,7 @@ export class IncidentController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   createIncident(@CurrentUser() user: any, @Body() dto: CreateIncidentDto) {
-    return this.incidentService.createIncident(user.orgId, user.id, dto);
+    return this.incidentService.createIncident(user.orgId, user.sub, dto);
   }
 
   // ─── Update ───────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ export class IncidentController {
     @Param('id') id: string,
     @Body() dto: UpdateIncidentDto,
   ) {
-    return this.incidentService.updateIncident(user.orgId, id, user.id, dto);
+    return this.incidentService.updateIncident(user.orgId, id, user.sub, dto);
   }
 
   @Post(':id/status')
@@ -67,7 +67,7 @@ export class IncidentController {
     @Param('id') id: string,
     @Body() body: { status: string; note?: string },
   ) {
-    return this.incidentService.updateStatus(user.orgId, id, user.id, body.status, body.note);
+    return this.incidentService.updateStatus(user.orgId, id, user.sub, body.status, body.note);
   }
 
   @Post(':id/close')
@@ -77,7 +77,7 @@ export class IncidentController {
     @Param('id') id: string,
     @Body() dto: CloseIncidentDto,
   ) {
-    return this.incidentService.closeIncident(user.orgId, id, user.id, dto);
+    return this.incidentService.closeIncident(user.orgId, id, user.sub, dto);
   }
 
   // ─── Corrective Actions ───────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ export class IncidentController {
     @Param('id') incidentId: string,
     @Body() dto: CreateCorrectiveActionDto,
   ) {
-    return this.incidentService.addCorrectiveAction(user.orgId, incidentId, user.id, dto);
+    return this.incidentService.addCorrectiveAction(user.orgId, incidentId, user.sub, dto);
   }
 
   @Post(':id/corrective-actions/:actionId/close')
@@ -99,6 +99,6 @@ export class IncidentController {
     @Param('id') incidentId: string,
     @Param('actionId') actionId: string,
   ) {
-    return this.incidentService.closeCorrectiveAction(user.orgId, incidentId, actionId, user.id);
+    return this.incidentService.closeCorrectiveAction(user.orgId, incidentId, actionId, user.sub);
   }
 }
