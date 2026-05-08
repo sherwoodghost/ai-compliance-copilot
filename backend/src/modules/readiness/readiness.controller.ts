@@ -233,7 +233,7 @@ Return 4–5 coaching items ordered by impact/effort ratio (highest first).`;
       forecast.daysToCompletion != null ? `Estimated audit-ready in: ${forecast.daysToCompletion} days` : '',
       ``,
       `HIGH-PRIORITY OPEN RISKS (${openRisks.length}):`,
-      ...openRisks.map((r) => `  - [${r.severity.toUpperCase()}] ${r.title} (score: ${r.riskScore})`),
+      ...openRisks.map((r) => `  - [${(r.severity ?? 'unknown').toUpperCase()}] ${r.title} (score: ${r.riskScore})`),
       ``,
       `OVERDUE TASKS (${overdueTasks.length}):`,
       ...overdueTasks.map((t: any) => `  - "${t.title}" — due ${new Date(t.dueDate).toLocaleDateString()} — owner: ${t.assignee?.fullName ?? 'unassigned'}`),

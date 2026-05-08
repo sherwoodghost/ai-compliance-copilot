@@ -78,7 +78,7 @@ export class AuditorPortalController {
 
     const [profile, readiness, controls, policies, evidence, risks] = await Promise.all([
       this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.readinessScore.findFirst({ where: { orgId }, orderBy: { calculatedAt: 'desc' } }),
+      this.prisma.readinessScore.findFirst({ where: { orgId }, orderBy: { snapshotAt: 'desc' } }),
       this.prisma.organizationControl.findMany({
         where: { orgId },
         include: { control: { select: { code: true, title: true, category: true } } },
@@ -91,10 +91,10 @@ export class AuditorPortalController {
       }),
       this.prisma.evidence.findMany({
         where: { orgId },
-        select: { title: true, controlId: true, status: true, expiresAt: true },
+        select: { title: true, controlId: true, isValid: true, expiresAt: true },
         take: 30,
       }),
-      this.prisma.risk.findMany({
+      this.prisma.riskItem.findMany({
         where: { orgId, status: { not: 'mitigated' } },
         select: { title: true, severity: true, status: true },
         take: 10,
@@ -108,13 +108,13 @@ export class AuditorPortalController {
     const dataTypes = (pd.dataHandling?.dataTypes ?? []).join(', ') || 'customer data';
     const cloudProviders = (pd.infrastructure?.cloudProviders ?? []).join(', ') || 'cloud infrastructure';
 
-    const implemented = controls.filter((c) => c.status === 'implemented').length;
-    const inProgress = controls.filter((c) => c.status === 'in_progress').length;
-    const notStarted = controls.filter((c) => c.status === 'not_started').length;
+    const implemented = controls.filter((c: any) => c.status === 'implemented').length;
+    const inProgress = controls.filter((c: any) => c.status === 'in_progress').length;
+    const notStarted = controls.filter((c: any) => c.status === 'not_started').length;
     const overallScore = (readiness as any)?.overallScore ?? 0;
-    const approvedPolicies = policies.filter((p) => p.status === 'approved');
+    const approvedPolicies = policies.filter((p: any) => p.status === 'approved');
 
-    const controlsByCategory = controls.reduce((acc: Record<string, number>, c) => {
+    const controlsByCategory = controls.reduce((acc: Record<string, number>, c: any) => {
       const cat = c.control.category ?? 'General';
       acc[cat] = (acc[cat] ?? 0) + 1;
       return acc;
@@ -212,7 +212,7 @@ Return ONLY a JSON object (no markdown):
 
     const [profile, readiness, relevantControls, relevantPolicies, relevantEvidence] = await Promise.all([
       this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.readinessScore.findFirst({ where: { orgId }, orderBy: { calculatedAt: 'desc' } }),
+      this.prisma.readinessScore.findFirst({ where: { orgId }, orderBy: { snapshotAt: 'desc' } }),
       this.prisma.organizationControl.findMany({
         where: { orgId, status: { in: ['implemented', 'in_progress'] } },
         include: { control: { select: { code: true, title: true, category: true } } },
@@ -224,8 +224,8 @@ Return ONLY a JSON object (no markdown):
         take: 5,
       }),
       this.prisma.evidence.findMany({
-        where: { orgId, status: { in: ['collected', 'validated'] } },
-        select: { title: true, evidenceType: true },
+        where: { orgId, isValid: true },
+        select: { title: true, type: true },
         take: 15,
       }),
     ]);
@@ -234,7 +234,7 @@ Return ONLY a JSON object (no markdown):
     const companyName = pd.companyName ?? 'our organisation';
     const controlList = relevantControls.map((c) => `${c.control.code}: ${c.control.title} (${c.status})`).join('\n') || 'None';
     const policyList = relevantPolicies.map((p) => p.title).join(', ') || 'None';
-    const evidenceList = relevantEvidence.map((e) => `${e.evidenceType}: ${e.title}`).join('\n') || 'None';
+    const evidenceList = relevantEvidence.map((e) => `${e.type}: ${e.title}`).join('\n') || 'None';
 
     const systemPrompt = `You are a compliance manager responding professionally to an auditor's Request for Information (RFI). Write clear, factual, professional responses. Reference specific controls, policies, and evidence.`;
 

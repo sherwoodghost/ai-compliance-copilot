@@ -96,7 +96,7 @@ COMPLIANCE POSTURE:
 - Overall readiness score: ${score}%
 - Controls: ${implemented} implemented / ${inProgress} in progress / ${notStarted} not started (${total} total)
 - Open high/critical risks: ${openHighRisks.length}
-  ${openHighRisks.map((r) => `  • [${r.severity.toUpperCase()}] ${r.title}`).join('\n')}
+  ${openHighRisks.map((r) => `  • [${(r.severity ?? 'unknown').toUpperCase()}] ${r.title}`).join('\n')}
 - Overdue tasks: ${overdueTasks}
 - Evidence expiring in 30 days: ${expiringEvidence}
 - Pending exceptions: ${pendingExceptions}

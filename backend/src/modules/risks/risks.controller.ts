@@ -229,7 +229,7 @@ export class RisksController {
 
     // 2. Find existing open risk titles to avoid duplicates
     const existingRisks = await this.prisma.riskItem.findMany({
-      where: { orgId: user.orgId, status: { in: ['open', 'in_progress'] } },
+      where: { orgId: user.orgId, status: { in: ['open', 'accepted', 'transferred'] } },
       select: { title: true, controlId: true },
     });
     const existingControlIds = new Set(existingRisks.map((r) => r.controlId).filter(Boolean));
@@ -547,7 +547,7 @@ Return JSON:
       this.prisma.riskItem.findMany({
         where: { orgId },
         include: {
-          treatments: { select: { treatmentType: true, status: true } },
+          riskTreatments: { select: { treatmentType: true, status: true } },
         },
         orderBy: { riskScore: 'desc' as any },
         take: 50,
@@ -577,7 +577,7 @@ Return JSON:
     const topRisks = risks.slice(0, 15).map((r) => ({
       title:    r.title,
       severity: r.severity,
-      category: r.category ?? 'Uncategorized',
+      category: (r as any).category ?? 'Uncategorized',
       status:   r.status,
       score:    r.riskScore,
       owner:    r.owner ?? 'Unassigned',

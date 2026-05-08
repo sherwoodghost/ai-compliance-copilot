@@ -238,7 +238,7 @@ Make it specific to the organization context above. Be concrete and actionable, 
     const [policies, profile] = await Promise.all([
       this.prisma.policy.findMany({
         where: { orgId },
-        select: { id: true, title: true, status: true, category: true, updatedAt: true },
+        select: { id: true, title: true, status: true, updatedAt: true },
       }),
       this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
     ]);
@@ -249,7 +249,7 @@ Make it specific to the organization context above. Be concrete and actionable, 
     const dataTypes  = (pd.dataHandling?.dataTypes ?? []).join(', ') || 'customer data';
 
     const existingPolicies = policies.map((p) =>
-      `"${p.title}" (${p.status}, category: ${p.category ?? 'uncategorized'})`,
+      `"${p.title}" (${p.status})`,
     ).join('\n') || 'None';
 
     const systemPrompt = `You are a compliance auditor reviewing an organization's policy library for completeness. Identify required policies for the target compliance frameworks that are missing or incomplete.`;

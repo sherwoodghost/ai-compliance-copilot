@@ -92,7 +92,7 @@ export class TasksController {
         take: 40,
       }),
       this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.readinessScore.findFirst({ where: { orgId }, orderBy: { calculatedAt: 'desc' } }),
+      this.prisma.readinessScore.findFirst({ where: { orgId }, orderBy: { snapshotAt: 'desc' } }),
     ]);
 
     if (openTasks.length === 0) {

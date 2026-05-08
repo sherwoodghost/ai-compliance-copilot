@@ -305,7 +305,7 @@ If no strong matches, return [].`;
   async bulkSuggestMappings(orgId: string) {
     // Fetch up to 12 real (non-pending) evidence items
     const evidenceItems = await this.prisma.evidence.findMany({
-      where: { orgId, controlId: { not: null } },
+      where: { orgId },
       include: { control: { select: { id: true, code: true, title: true } } },
       orderBy: { collectedAt: 'desc' },
       take: 12,
