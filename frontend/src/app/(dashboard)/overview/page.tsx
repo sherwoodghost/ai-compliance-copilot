@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
-import { complianceApi } from '@/lib/api/compliance';
+import { auditApi } from '@/lib/api/audit';
 import { risksApi } from '@/lib/api/risks';
 import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
@@ -199,17 +199,17 @@ function ComplianceHealthWidget() {
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['control-test-summary'],
-    queryFn:  complianceApi.getControlTestSummary,
+    queryFn:  () => auditApi.getControlTestSummary(),
     refetchInterval: 30_000,
   });
 
   const { data: results } = useQuery({
     queryKey: ['control-test-results'],
-    queryFn:  complianceApi.getControlTestResults,
+    queryFn:  () => auditApi.getControlTestResults(),
   });
 
   const runAll = useMutation({
-    mutationFn: complianceApi.runAllControlTests,
+    mutationFn: () => auditApi.runAllControlTests(),
     onSuccess: () => {
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ['control-test-summary'] });
@@ -456,7 +456,7 @@ export default function OverviewPage() {
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['org-stats'],
-    queryFn: complianceApi.getOrgStats,
+    queryFn: () => auditApi.getOrgStats(),
   });
 
   const { data: readiness } = useQuery({
@@ -475,7 +475,7 @@ export default function OverviewPage() {
   });
 
   const assess = useMutation({
-    mutationFn: (frameworkType: string) => complianceApi.triggerAssessment(frameworkType),
+    mutationFn: (frameworkType: string) => auditApi.triggerAssessment(frameworkType),
     onSuccess: (_, type) => {
       setTriggered(type);
       qc.invalidateQueries({ queryKey: ['org-stats'] });
@@ -597,7 +597,7 @@ export default function OverviewPage() {
                 value={stats?.openTasks ?? 0}
                 icon={ClipboardList}
                 sub="pending action"
-                accent={stats?.openTasks > 0 ? 'amber' : 'green'}
+                accent={(stats?.openTasks ?? 0) > 0 ? 'amber' : 'green'}
               />
               <StatCard
                 label="High Risks"

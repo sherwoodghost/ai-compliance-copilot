@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { apiClient as api } from '@/lib/api/client';
+import { auditApi, AuditExport, ExecSummary } from '@/lib/api/audit';
 import { pdf } from '@react-pdf/renderer';
 import { Soc2ReadinessPdf, ControlMatrixPdf, IsoSoaPdf } from '@/components/pdf/ComplianceReportPdf';
 import {
@@ -13,16 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-
-type AuditExport = {
-  id: string;
-  exportType: string;
-  framework: string;
-  status: string;
-  disclaimerIncluded: boolean;
-  createdAt: string;
-  dataSnapshotAt: string;
-};
+// AuditExport and ExecSummary are imported from @/lib/api/audit
 
 type SortField = 'createdAt' | 'exportType' | 'framework';
 
@@ -248,17 +239,7 @@ function ExportRow({ exp, onDownload }: { exp: AuditExport; onDownload: () => vo
 
 // ─── AI Executive Summary Modal ───────────────────────────────────────────────
 
-type ExecSummary = {
-  headline: string;
-  executiveSummary: string;
-  auditReadinessStatement: string;
-  keyStrengths: string[];
-  keyRisks: string[];
-  managementAttestation: string;
-  nextSteps: string[];
-  metadata: { score: number | string; implemented: number; total: number; openHighRisks: number; overdueTasks: number };
-  generatedAt: string;
-};
+// ExecSummary type imported from @/lib/api/audit
 
 function ExecutiveSummaryModal({ data, onClose }: { data: ExecSummary; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -411,17 +392,17 @@ export default function AuditExportsPage() {
   const [execSummary, setExecSummary] = useState<ExecSummary | null>(null);
 
   const generateExecSummary = useMutation({
-    mutationFn: () => api.post('/audit-exports/ai-executive-summary').then((r: any) => r.data),
-    onSuccess: (data: any) => setExecSummary(data),
+    mutationFn: () => auditApi.aiExecutiveSummary(),
+    onSuccess: (data) => setExecSummary(data),
   });
 
   const { data: exports = [], isLoading } = useQuery<AuditExport[]>({
     queryKey: ['audit-exports'],
-    queryFn: () => api.get('/audit-exports').then((r: any) => r.data),
+    queryFn: () => auditApi.listExports(),
   });
 
   const generate = useMutation({
-    mutationFn: (endpoint: string) => api.post(endpoint).then((r: any) => r.data),
+    mutationFn: (endpoint: string) => auditApi.generateExport(endpoint),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit-exports'] });
       setGeneratingType(null);
@@ -435,18 +416,18 @@ export default function AuditExportsPage() {
   }
 
   async function downloadExport(exp: AuditExport) {
-    const r = await api.get(`/audit-exports/${exp.id}`);
-    const content = (r.data as any).content;
+    const detail = await auditApi.getExport(exp.id);
+    const content = detail.content;
     const dateStr = new Date(exp.createdAt).toISOString().split('T')[0];
 
     try {
       let pdfDoc;
       if (exp.exportType === 'soc2_readiness') {
-        pdfDoc = <Soc2ReadinessPdf data={content} />;
+        pdfDoc = <Soc2ReadinessPdf data={content as any} />;
       } else if (exp.exportType === 'control_matrix') {
-        pdfDoc = <ControlMatrixPdf data={content} />;
+        pdfDoc = <ControlMatrixPdf data={content as any} />;
       } else if (exp.exportType === 'iso_soa') {
-        pdfDoc = <IsoSoaPdf data={content} />;
+        pdfDoc = <IsoSoaPdf data={content as any} />;
       } else {
         // Fallback to JSON
         const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });

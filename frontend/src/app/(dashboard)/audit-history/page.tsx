@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api/client';
+import { auditApi, AuditCycle, AuditFinding, AuditStats } from '@/lib/api/audit';
 import {
   BookOpen, Plus, ChevronDown, ChevronRight, AlertTriangle,
   CheckCircle2, Clock, X, Calendar, Building2, FileText,
@@ -10,44 +10,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface AuditCycle {
-  id: string;
-  framework: string;
-  label: string;
-  status: string;
-  startDate: string;
-  endDate?: string;
-  auditorName?: string;
-  auditorFirm?: string;
-  notes?: string;
-  outcome?: string;
-  createdAt: string;
-  creator: { id: string; fullName: string };
-  _count: { findings: number };
-}
+// AuditCycle and AuditFinding imported from @/lib/api/audit
 
-interface AuditFinding {
-  id: string;
-  auditCycleId: string;
-  controlId?: string;
-  findingType: string;
-  severity: string;
-  title: string;
-  description: string;
-  remediation?: string;
-  lessonLearned?: string;
-  status: string;
-  resolvedAt?: string;
-  auditCycle: { id: string; label: string; framework: string };
-  control?: { id: string; code: string; title: string };
-  resolver?: { id: string; fullName: string };
-}
-
-interface Stats {
-  totalCycles: number;
+// Stats: use AuditStats from @/lib/api/audit + extra audit-memory-specific fields
+interface Stats extends AuditStats {
   activeCycle?: { id: string; label: string; framework: string; startDate: string };
   totalFindings: number;
-  openFindings: number;
   lessonsLearned: number;
 }
 
@@ -222,26 +190,25 @@ function CycleCard({ cycle, onAddFinding }: { cycle: AuditCycle; onAddFinding: (
 
   const { data: cycleDetail } = useQuery({
     queryKey: ['audit-cycle-detail', cycle.id],
-    queryFn: () => apiClient.get<AuditCycle & { findings: AuditFinding[] }>(`/audit-memory/cycles/${cycle.id}`).then((r: any) => r.data as AuditCycle & { findings: AuditFinding[] }),
+    queryFn: () => auditApi.getCycle(cycle.id),
     enabled: expanded,
   });
 
   const resolveFinding = useMutation({
-    mutationFn: (id: string) =>
-      apiClient.patch(`/audit-memory/findings/${id}`, { status: 'resolved' }),
+    mutationFn: (id: string) => auditApi.resolveFinding(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['audit-cycle-detail', cycle.id] }),
   });
 
   const generateDebrief = useMutation({
-    mutationFn: () => apiClient.post(`/audit-memory/cycles/${cycle.id}/ai-debrief`).then((r: any) => r.data),
-    onSuccess: (data: any) => setDebrief(data),
+    mutationFn: () => auditApi.aiDebrief(cycle.id),
+    onSuccess: (data) => setDebrief(data),
   });
 
   async function aiRemediateFinding(findingId: string) {
     setRemediating(findingId);
     try {
-      const res = await apiClient.post(`/audit-memory/findings/${findingId}/ai-remediation`);
-      setAiResults((prev) => ({ ...prev, [findingId]: res.data }));
+      const res = await auditApi.aiFindingRemediation(findingId);
+      setAiResults((prev) => ({ ...prev, [findingId]: res }));
       qc.invalidateQueries({ queryKey: ['audit-cycle-detail', cycle.id] });
     } finally {
       setRemediating(null);
@@ -457,22 +424,22 @@ export default function AuditHistoryPage() {
 
   const { data: stats } = useQuery({
     queryKey: ['audit-memory-stats'],
-    queryFn: () => apiClient.get<Stats>('/audit-memory/stats').then((r: any) => r.data as Stats),
+    queryFn: () => auditApi.getStats() as Promise<Stats>,
   });
 
   const { data: cycles = [] } = useQuery({
     queryKey: ['audit-cycles'],
-    queryFn: () => apiClient.get<AuditCycle[]>('/audit-memory/cycles').then((r: any) => r.data as AuditCycle[]),
+    queryFn: () => auditApi.getCycles(),
   });
 
-  const { data: allFindings = [] } = useQuery({
+  const { data: allFindings = [] } = useQuery<AuditFinding[]>({
     queryKey: ['audit-findings'],
-    queryFn: () => apiClient.get<AuditFinding[]>('/audit-memory/findings').then((r: any) => r.data as AuditFinding[]),
+    queryFn: () => auditApi.getFindings(),
     enabled: tab === 'findings',
   });
 
   const createCycle = useMutation({
-    mutationFn: (data: any) => apiClient.post('/audit-memory/cycles', data),
+    mutationFn: (data: any) => auditApi.createCycle(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit-cycles'] });
       qc.invalidateQueries({ queryKey: ['audit-memory-stats'] });
@@ -481,7 +448,7 @@ export default function AuditHistoryPage() {
   });
 
   const createFinding = useMutation({
-    mutationFn: (data: any) => apiClient.post('/audit-memory/findings', data),
+    mutationFn: (data: any) => auditApi.createFinding(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['audit-cycles'] });
       qc.invalidateQueries({ queryKey: ['audit-memory-stats'] });
@@ -583,7 +550,7 @@ export default function AuditHistoryPage() {
                       </span>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">{f.title}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{f.auditCycle.label} · {f.auditCycle.framework}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{f.auditCycle?.label} · {f.auditCycle?.framework}</p>
                         <p className="text-xs text-gray-600 mt-1">{f.description}</p>
                       </div>
                     </div>
@@ -602,7 +569,7 @@ export default function AuditHistoryPage() {
                 {resolvedFindings.filter(f => f.lessonLearned).map(f => (
                   <div key={f.id} className="bg-white rounded-lg border border-gray-200 p-4">
                     <p className="text-sm font-medium text-gray-900">{f.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{f.auditCycle.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{f.auditCycle?.label}</p>
                     {f.lessonLearned && (
                       <div className="mt-2 p-2 bg-amber-50 rounded text-xs text-amber-800">
                         <span className="font-medium">💡 </span>{f.lessonLearned}
