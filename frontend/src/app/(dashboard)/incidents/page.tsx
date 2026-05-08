@@ -85,9 +85,13 @@ function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCr
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  function stripHtml(html: string) {
+    return html.replace(/<[^>]*>/g, '').trim();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim() || !form.description.trim()) {
+    if (!form.title.trim() || !stripHtml(form.description)) {
       setError('Title and description are required');
       return;
     }
@@ -247,9 +251,13 @@ function CloseIncidentModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  function stripHtml(html: string) {
+    return html.replace(/<[^>]*>/g, '').trim();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.rootCause.trim() || !form.lessonsLearned.trim()) {
+    if (!stripHtml(form.rootCause) || !stripHtml(form.lessonsLearned)) {
       setError('Both root cause and lessons learned are required');
       return;
     }
@@ -297,23 +305,23 @@ function CloseIncidentModal({
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Root Cause *</label>
-            <textarea
-              value={form.rootCause}
-              onChange={(e) => setForm({ ...form, rootCause: e.target.value })}
-              rows={3}
+            <PolicyEditor
+              content={form.rootCause}
+              onChange={(html) => setForm({ ...form, rootCause: html })}
               placeholder="What was the underlying cause of this incident?"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              minHeight={90}
+              showWordCount={false}
             />
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Lessons Learned *</label>
-            <textarea
-              value={form.lessonsLearned}
-              onChange={(e) => setForm({ ...form, lessonsLearned: e.target.value })}
-              rows={3}
+            <PolicyEditor
+              content={form.lessonsLearned}
+              onChange={(html) => setForm({ ...form, lessonsLearned: html })}
               placeholder="What improvements will be made to prevent recurrence?"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              minHeight={90}
+              showWordCount={false}
             />
           </div>
 
@@ -425,7 +433,10 @@ function IncidentDetail({
           {/* Description */}
           <div>
             <h3 className="text-xs font-semibold text-gray-700 mb-1.5">Description</h3>
-            <p className="text-xs text-gray-600 leading-relaxed">{incident.description}</p>
+            <div
+              className="text-xs text-gray-600 leading-relaxed prose prose-xs max-w-none"
+              dangerouslySetInnerHTML={{ __html: incident.description }}
+            />
           </div>
 
           {/* Metadata */}
@@ -464,13 +475,19 @@ function IncidentDetail({
           {incident.rootCause && (
             <div>
               <h3 className="text-xs font-semibold text-gray-700 mb-1.5">Root Cause</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{incident.rootCause}</p>
+              <div
+                className="text-xs text-gray-600 leading-relaxed prose prose-xs max-w-none"
+                dangerouslySetInnerHTML={{ __html: incident.rootCause }}
+              />
             </div>
           )}
           {incident.lessonsLearned && (
             <div>
               <h3 className="text-xs font-semibold text-gray-700 mb-1.5">Lessons Learned</h3>
-              <p className="text-xs text-gray-600 leading-relaxed">{incident.lessonsLearned}</p>
+              <div
+                className="text-xs text-gray-600 leading-relaxed prose prose-xs max-w-none"
+                dangerouslySetInnerHTML={{ __html: incident.lessonsLearned }}
+              />
             </div>
           )}
 

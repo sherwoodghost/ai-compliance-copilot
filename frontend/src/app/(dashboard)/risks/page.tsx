@@ -269,12 +269,12 @@ function RiskModal({ onClose }: { onClose: () => void }) {
           {/* Description */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
-              rows={2}
+            <PolicyEditor
+              content={description}
+              onChange={setDescription}
               placeholder="Describe the risk scenario and potential consequences…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              minHeight={80}
+              showWordCount={false}
             />
           </div>
 
@@ -346,12 +346,12 @@ function RiskModal({ onClose }: { onClose: () => void }) {
           {/* Mitigation Advice */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Initial Mitigation Notes (optional)</label>
-            <textarea
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500"
-              rows={2}
+            <PolicyEditor
+              content={mitigationAdvice}
+              onChange={setMitigationAdvice}
               placeholder="Initial thoughts on how to mitigate this risk…"
-              value={mitigationAdvice}
-              onChange={(e) => setMitigationAdvice(e.target.value)}
+              minHeight={80}
+              showWordCount={false}
             />
           </div>
         </div>
@@ -519,13 +519,19 @@ function RiskRow({ risk }: { risk: Risk }) {
           </div>
 
           {risk.description && (
-            <p className="text-sm text-gray-600">{risk.description}</p>
+            <div
+              className="text-sm text-gray-600 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: risk.description }}
+            />
           )}
 
           {risk.mitigationAdvice && (
             <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
               <p className="text-xs font-semibold text-blue-800 mb-1">AI Mitigation Advice</p>
-              <p className="text-xs text-blue-700">{risk.mitigationAdvice}</p>
+              <div
+                className="text-xs text-blue-700 prose prose-xs max-w-none"
+                dangerouslySetInnerHTML={{ __html: risk.mitigationAdvice }}
+              />
             </div>
           )}
 
