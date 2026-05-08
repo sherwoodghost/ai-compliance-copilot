@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { apiClient as api } from '@/lib/api/client';
+import { scopeApi } from '@/lib/api/scope';
 import {
   Target, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronRight,
   Calendar, Badge, RefreshCw, Sparkles, X, ShieldAlert, HelpCircle,
@@ -365,28 +365,28 @@ export default function ScopePage() {
   const [scopeReview, setScopeReview] = useState<ScopeReviewResult | null>(null);
 
   const scopeReviewMutation = useMutation({
-    mutationFn: () => api.post('/scoping/ai-scope-review', {}).then((r: any) => r.data ?? r),
-    onSuccess: (res) => setScopeReview(res),
+    mutationFn: () => scopeApi.aiScopeReview(),
+    onSuccess: (res) => setScopeReview(res as unknown as ScopeReviewResult),
   });
 
   const { data: soc2Scope } = useQuery<Soc2Scope>({
     queryKey: ['soc2-scope'],
-    queryFn: () => api.get('/scoping/soc2/current').then((r: any) => r.data),
+    queryFn: () => scopeApi.getSoc2Scope() as unknown as Promise<Soc2Scope>,
   });
 
   const { data: soa } = useQuery<SoaEntry[]>({
     queryKey: ['iso-soa'],
-    queryFn: () => api.get('/scoping/iso/soa').then((r: any) => r.data),
+    queryFn: () => scopeApi.getIsoSoa() as unknown as Promise<SoaEntry[]>,
     enabled: activeTab === 'iso',
   });
 
   const approveSoc2 = useMutation({
-    mutationFn: (id: string) => api.patch(`/scoping/soc2/${id}/approve`).then((r: any) => r.data),
+    mutationFn: (id: string) => scopeApi.approveSoc2Item(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['soc2-scope'] }),
   });
 
   const generateSoa = useMutation({
-    mutationFn: () => api.post('/scoping/iso/soa/generate').then((r: any) => r.data),
+    mutationFn: () => scopeApi.generateIsoSoa(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['iso-soa'] }),
   });
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client'; // used for auditor-portal specific calls
+import { auditorPortalApi } from '@/lib/api/auditor-portal';
 import {
   Users, Plus, X, Copy, Check, ExternalLink, Shield,
   Clock, AlertTriangle, CheckCircle, XCircle, MessageSquare,
@@ -226,7 +226,7 @@ function NewSessionModal({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/auditor-portal/sessions', form).then(r => r.data),
+    mutationFn: () => auditorPortalApi.createSession(form),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['auditor-sessions'] });
       setCreated({ token: data.token, auditorName: data.auditorName });
@@ -340,7 +340,7 @@ function SessionCard({ session }: { session: AuditorSession }) {
   }
 
   const revoke = useMutation({
-    mutationFn: () => api.patch(`/auditor-portal/sessions/${session.id}/revoke`),
+    mutationFn: () => auditorPortalApi.revokeSession(session.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['auditor-sessions'] }),
   });
 
@@ -458,7 +458,7 @@ function RfiRow({ rfi }: { rfi: AuditorRfi }) {
   const cfg = RFI_STATUS_CFG[rfi.status] ?? RFI_STATUS_CFG.open;
 
   const respond = useMutation({
-    mutationFn: () => api.post(`/auditor-portal/rfis/${rfi.id}/respond`, { response }),
+    mutationFn: () => auditorPortalApi.respondToRfi(rfi.id, response),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['auditor-rfis'] });
       setResponding(false);
@@ -467,8 +467,7 @@ function RfiRow({ rfi }: { rfi: AuditorRfi }) {
   });
 
   const suggestResponse = useMutation({
-    mutationFn: () =>
-      api.post(`/auditor-portal/rfis/${rfi.id}/ai-suggest-response`, {}).then((r: any) => r.data ?? r),
+    mutationFn: () => auditorPortalApi.aiSuggestRfiResponse(rfi.id),
     onSuccess: (res) => {
       setAiSuggestion(res);
       setResponse(res.suggestedResponse ?? '');
@@ -588,18 +587,18 @@ export default function AuditorPortalPage() {
   const [briefingResult, setBriefingResult] = useState<BriefingResult | null>(null);
 
   const generateBriefing = useMutation({
-    mutationFn: () => api.post('/auditor-portal/ai-briefing', {}).then((r: any) => r.data ?? r),
-    onSuccess: (res) => setBriefingResult(res),
+    mutationFn: () => auditorPortalApi.aiGenerateBriefing(),
+    onSuccess: (res) => setBriefingResult(res as unknown as typeof briefingResult),
   });
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery<AuditorSession[]>({
     queryKey: ['auditor-sessions'],
-    queryFn: () => api.get('/auditor-portal/sessions').then((r) => r.data),
+    queryFn: () => auditorPortalApi.listSessions() as unknown as Promise<AuditorSession[]>,
   });
 
   const { data: rfis = [], isLoading: rfisLoading } = useQuery<AuditorRfi[]>({
     queryKey: ['auditor-rfis'],
-    queryFn: () => api.get('/auditor-portal/rfis').then((r) => r.data),
+    queryFn: () => auditorPortalApi.listRfis() as unknown as Promise<AuditorRfi[]>,
   });
 
   const activeSessions = sessions.filter((s) => !s.isRevoked && new Date(s.expiresAt) >= new Date());

@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
 import {
   Globe, Shield, CheckCircle, Clock, XCircle, Lock, Eye, EyeOff,
   Download, Copy, Check, ChevronRight, FileText, Zap, AlertCircle,
@@ -15,6 +14,7 @@ import {
   type TrustCenter,
   type TrustCenterAccessLink,
   type UpdateTrustCenterDto,
+  type SecurityFaqItem,
 } from '@/lib/api/trust-center';
 
 // ─── Types (legacy check items) ───────────────────────────────────────────────
@@ -636,13 +636,13 @@ function OverviewTab({ tc }: { tc: TrustCenter }) {
   const [securityFaq,    setSecurityFaq]    = useState<FaqResult | null>(null);
 
   const generateFaq = useMutation({
-    mutationFn: () => api.post('/trust-center/ai-security-faq').then((r: any) => r.data),
-    onSuccess:  (data: any) => setSecurityFaq(data),
+    mutationFn: () => trustCenterApi.aiSecurityFaq(),
+    onSuccess:  (data) => setSecurityFaq(data as unknown as FaqResult),
   });
 
   const { data: trustItems, isLoading, refetch } = useQuery<TrustItem[]>({
     queryKey: ['trust-center-items'],
-    queryFn:  () => api.get('/trust-center/checks').then((r: any) => r.data).catch(() => []),
+    queryFn:  () => trustCenterApi.getChecks().catch(() => []) as unknown as Promise<TrustItem[]>,
   });
 
   const items: TrustItem[] = trustItems ?? [];

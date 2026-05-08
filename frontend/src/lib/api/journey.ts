@@ -26,4 +26,8 @@ export const journeyApi = {
 
   getProfileVersions: () =>
     apiClient.get('/onboarding/profile/versions').then((r) => r.data),
+
+  /** AI-generate a brief/summary for a compliance journey */
+  aiGenerateBrief: (journeyId: string): Promise<Record<string, unknown>> =>
+    apiClient.post(`/compliance-journey/${journeyId}/ai-brief`, {}).then((r) => r.data),
 };

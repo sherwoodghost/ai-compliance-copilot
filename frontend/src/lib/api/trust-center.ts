@@ -52,6 +52,21 @@ export interface CreateAccessLinkDto {
   expiresInDays?: number;
 }
 
+export interface SecurityFaqItem {
+  question: string;
+  answer:   string;
+}
+
+export interface TrustCenterCheck {
+  id:          string;
+  name:        string;
+  description: string;
+  status:      'pass' | 'fail' | 'warning' | 'skip';
+  category:    string;
+  controlCode?: string;
+  checkedAt:   string;
+}
+
 // ─── API ─────────────────────────────────────────────────────────────────────
 
 export const trustCenterApi = {
@@ -82,4 +97,12 @@ export const trustCenterApi = {
   /** Create a new private access link */
   createLink: (dto: CreateAccessLinkDto): Promise<TrustCenterAccessLink> =>
     apiClient.post('/trust-center/links', dto).then((r) => r.data),
+
+  /** AI-generate a security FAQ for the trust center */
+  aiSecurityFaq: (): Promise<SecurityFaqItem[]> =>
+    apiClient.post('/trust-center/ai-security-faq').then((r) => r.data),
+
+  /** Get automated compliance checks for the trust center */
+  getChecks: (): Promise<TrustCenterCheck[]> =>
+    apiClient.get('/trust-center/checks').then((r) => r.data),
 };

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { controlsApi } from '@/lib/api/controls';
 import {
   AlertTriangle, CheckCircle, Clock, XCircle, Plus, X,
   Shield, ChevronDown, Filter, Search, FileText, Sparkles,
@@ -60,11 +60,11 @@ function NewExceptionModal({ onClose }: { onClose: () => void }) {
   // Fetch org controls to pick from
   const { data: controls = [] } = useQuery({
     queryKey: ['controls-list'],
-    queryFn: () => api.get('/controls').then((r) => r.data),
+    queryFn: () => controlsApi.list(),
   });
 
   const mutation = useMutation({
-    mutationFn: (data: typeof form) => api.post('/controls/exceptions', data),
+    mutationFn: (data: typeof form) => controlsApi.createException(data as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exceptions'] });
       onClose();
@@ -76,8 +76,7 @@ function NewExceptionModal({ onClose }: { onClose: () => void }) {
     setAiDrafting(true);
     setAiError(null);
     try {
-      const res = await api.post('/controls/exceptions/ai-draft', { controlId: form.controlId });
-      const draft = res.data as any;
+      const draft = await controlsApi.aiDraftException(form.controlId);
       // Calculate expiry date from suggestedExpiryMonths
       const expiry = new Date();
       expiry.setMonth(expiry.getMonth() + (draft.suggestedExpiryMonths ?? 6));
@@ -219,12 +218,12 @@ function ExceptionCard({ exception }: { exception: ControlException }) {
   const StatusIcon = cfg.icon;
 
   const approveMutation = useMutation({
-    mutationFn: () => api.patch(`/controls/exceptions/${exception.id}`, { status: 'approved' }),
+    mutationFn: () => controlsApi.updateException(exception.id, { status: 'approved' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exceptions'] }),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () => api.patch(`/controls/exceptions/${exception.id}`, { status: 'rejected', rejectionReason: 'Rejected by reviewer' }),
+    mutationFn: () => controlsApi.updateException(exception.id, { status: 'rejected', rejectionReason: 'Rejected by reviewer' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exceptions'] }),
   });
 
@@ -325,12 +324,12 @@ export default function ExceptionsPage() {
 
   const { data: exceptions = [], isLoading } = useQuery<ControlException[]>({
     queryKey: ['exceptions'],
-    queryFn: () => api.get('/controls/exceptions').then((r) => r.data),
+    queryFn: () => controlsApi.listExceptions() as unknown as Promise<ControlException[]>,
   });
 
   const { data: stats } = useQuery<ExceptionStats>({
     queryKey: ['exception-stats'],
-    queryFn: () => api.get('/controls/exceptions/stats').then((r) => r.data),
+    queryFn: () => controlsApi.getExceptionStats(),
   });
 
   const filtered = exceptions.filter((e) => {

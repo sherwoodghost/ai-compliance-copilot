@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi, GuidedTask, GuidedProgram } from '@/lib/api/team';
 import { tasksApi } from '@/lib/api/tasks';
-import { apiClient as api } from '@/lib/api/client';
+import { readinessApi } from '@/lib/api/readiness';
 import Link from 'next/link';
 import {
   Rocket, CheckCircle2, Clock, Lock, RefreshCw, Loader2,
@@ -485,7 +485,7 @@ export default function GettingStartedPage() {
 
   const { data: readiness } = useQuery({
     queryKey: ['readiness-score'],
-    queryFn: () => api.get('/readiness/score').then((r: any) => r.data),
+    queryFn:  () => readinessApi.getScore(),
   });
 
   const generate = useMutation({

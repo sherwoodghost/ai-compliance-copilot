@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { controlsApi } from '@/lib/api/controls';
 import {
   ArrowLeft, CheckCircle, Clock, XCircle, AlertCircle, FileText,
   ClipboardList, AlertTriangle, Shield, User, Calendar,
@@ -124,7 +124,7 @@ function StatusEditor({ controlId, current, onSaved }: { controlId: string; curr
   const qc = useQueryClient();
 
   const save = useMutation({
-    mutationFn: () => api.patch(`/controls/${controlId}`, { status }).then((r: any) => r.data),
+    mutationFn: () => controlsApi.update(controlId, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['control-detail', controlId] }); setEditing(false); onSaved(); },
   });
 
@@ -252,7 +252,7 @@ export default function ControlDetailPage() {
 
   const { data, isLoading, isError } = useQuery<ControlDetail>({
     queryKey: ['control-detail', controlId],
-    queryFn: () => api.get(`/controls/${controlId}`).then((r: any) => r.data),
+    queryFn: () => controlsApi.get(controlId) as unknown as Promise<ControlDetail>,
     enabled: !!controlId,
   });
 
@@ -260,8 +260,8 @@ export default function ControlDetailPage() {
     if (!controlId || guideLoading) return;
     setGuideLoading(true);
     try {
-      const res = await api.post(`/controls/${controlId}/implementation-guide`, {});
-      setAiGuide((res as any).data);
+      const res = await controlsApi.aiImplementationGuide(controlId);
+      setAiGuide(res as any);
     } catch {
       setAiGuide({ guide: 'Failed to generate guide — please try again.', steps: [], toolSpecific: [], estimatedEffort: 'Unknown', controlCode: '', controlTitle: '' });
     } finally {

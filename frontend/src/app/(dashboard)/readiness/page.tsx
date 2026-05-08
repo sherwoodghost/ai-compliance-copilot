@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { readinessApi } from '@/lib/api/readiness';
 import {
   BarChart3, RefreshCw, TrendingUp, TrendingDown, Minus,
   Shield, FileText, FolderOpen, Zap, AlertTriangle, Calendar, Rocket,
@@ -479,27 +479,27 @@ export default function ReadinessPage() {
 
   const { data: breakdown, isLoading } = useQuery<ReadinessScore>({
     queryKey: ['readiness-breakdown'],
-    queryFn: () => api.get('/readiness/breakdown').then((r: any) => r.data),
+    queryFn: () => readinessApi.getBreakdown() as unknown as Promise<ReadinessScore>,
   });
 
   const { data: history } = useQuery<ReadinessScore[]>({
     queryKey: ['readiness-history'],
-    queryFn: () => api.get('/readiness/history?limit=10').then((r: any) => r.data),
+    queryFn: () => readinessApi.getHistory(10) as unknown as Promise<ReadinessScore[]>,
   });
 
   const { data: velocityData } = useQuery<VelocityData>({
     queryKey: ['readiness-velocity'],
-    queryFn: () => api.get('/readiness/velocity').then((r: any) => r.data),
+    queryFn: () => readinessApi.getVelocity() as unknown as Promise<VelocityData>,
   });
 
   const { data: benchmark } = useQuery<BenchmarkData>({
     queryKey: ['readiness-benchmark'],
-    queryFn: () => api.get('/readiness/benchmark').then((r: any) => r.data),
+    queryFn: () => readinessApi.getBenchmark() as unknown as Promise<BenchmarkData>,
     staleTime: 10 * 60 * 1000, // 10 minutes — benchmark data is stable
   });
 
   const recalculate = useMutation({
-    mutationFn: () => api.post('/readiness/recalculate').then((r: any) => r.data),
+    mutationFn: () => readinessApi.recalculate(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['readiness-breakdown'] });
       qc.invalidateQueries({ queryKey: ['readiness-history'] });
@@ -509,8 +509,8 @@ export default function ReadinessPage() {
   });
 
   const getCoaching = useMutation({
-    mutationFn: () => api.post('/readiness/coach').then((r: any) => r.data),
-    onSuccess: (data) => setCoaching(data),
+    mutationFn: () => readinessApi.aiCoach(),
+    onSuccess: (data) => setCoaching(data as unknown as typeof coaching),
   });
 
   return (

@@ -1,9 +1,9 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
 import { auditApi } from '@/lib/api/audit';
 import { risksApi } from '@/lib/api/risks';
+import { readinessApi } from '@/lib/api/readiness';
 import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
 import {
@@ -126,7 +126,7 @@ function RecommendedAction({ action, priority, href, effort }: {
 function VelocityWidget() {
   const { data: velocity } = useQuery({
     queryKey: ['readiness-velocity'],
-    queryFn: () => api.get('/readiness/velocity').then((r: any) => r.data),
+    queryFn: () => readinessApi.getVelocity(),
     refetchInterval: 60_000,
   });
 
@@ -331,7 +331,7 @@ function DigestModal({ digest, generatedAt, onClose }: {
   const [emailSent, setEmailSent] = useState(false);
 
   const emailMutation = useMutation({
-    mutationFn: () => api.post('/readiness/digest?email=true', {}).then((r: any) => r.data),
+    mutationFn: () => readinessApi.generateDigest(true),
     onSuccess: () => { setEmailSent(true); setTimeout(() => setEmailSent(false), 4000); },
   });
 
@@ -449,9 +449,8 @@ export default function OverviewPage() {
   const [digest, setDigest] = useState<{ content: string; generatedAt: string } | null>(null);
 
   const generateDigest = useMutation({
-    mutationFn: () =>
-      api.post('/readiness/digest', {}).then((r: any) => r.data as { digest: string; generatedAt: string }),
-    onSuccess: (data) => setDigest({ content: data.digest, generatedAt: data.generatedAt }),
+    mutationFn: () => readinessApi.generateDigest(false),
+    onSuccess: (data: any) => setDigest({ content: data.digest, generatedAt: data.generatedAt }),
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -461,12 +460,12 @@ export default function OverviewPage() {
 
   const { data: readiness } = useQuery({
     queryKey: ['readiness-breakdown'],
-    queryFn: () => api.get('/readiness/breakdown').then((r: any) => r.data),
+    queryFn: () => readinessApi.getBreakdown(),
   });
 
   const { data: dashboardConfig } = useQuery({
     queryKey: ['dashboard-config'],
-    queryFn: () => api.get('/dashboard/config?role=executive').then((r: any) => r.data),
+    queryFn: () => readinessApi.getDashboardConfig('executive'),
   });
 
   const { data: riskStats } = useQuery({
@@ -483,7 +482,7 @@ export default function OverviewPage() {
   });
 
   const recalculate = useMutation({
-    mutationFn: () => api.post('/readiness/recalculate').then((r: any) => r.data),
+    mutationFn: () => readinessApi.recalculate(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['readiness-breakdown'] }),
   });
 

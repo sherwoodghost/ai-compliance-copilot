@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { controlPanelApi } from '@/lib/api/control-panel';
 import { formatMs, formatCurrency, formatRelative } from '@/lib/utils';
 import {
   Zap, CheckCircle, XCircle, Clock, AlertCircle, ChevronRight,
@@ -343,7 +343,7 @@ function EventLog({ workflowId }: { workflowId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const { data } = useQuery({
     queryKey: ['events', workflowId],
-    queryFn: () => api.get(`/control-panel/workflows/${workflowId}/events`).then((r: any) => r.data),
+    queryFn: () => controlPanelApi.getWorkflowEvents(workflowId),
     refetchInterval: 3_000,
   });
   const events: any[] = data ?? [];
@@ -395,17 +395,17 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ['canvas', workflowId],
-    queryFn: () => api.get(`/control-panel/workflows/${workflowId}/canvas`).then((r: any) => r.data),
+    queryFn: () => controlPanelApi.getWorkflowCanvas(workflowId),
     refetchInterval: 5_000,
   });
 
   const replay = useMutation({
-    mutationFn: (agentName: string) => api.post(`/orchestrator/workflows/${workflowId}/replay`, { agentName }).then((r: any) => r.data),
+    mutationFn: (agentName: string) => controlPanelApi.replayFromAgent(workflowId, agentName),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas', workflowId] }),
   });
 
   const diagnose = useMutation({
-    mutationFn: () => api.post(`/control-panel/workflows/${workflowId}/ai-diagnose`, {}).then((r: any) => r.data ?? r),
+    mutationFn: () => controlPanelApi.aiDiagnose(workflowId),
     onSuccess: (res) => setDiagnoseResult(res),
   });
 
@@ -543,13 +543,13 @@ export default function ControlPanelPage() {
 
   const { data: workflows, isLoading } = useQuery({
     queryKey: ['workflows'],
-    queryFn: () => api.get('/control-panel/workflows').then((r: any) => r.data),
+    queryFn: () => controlPanelApi.listWorkflows(),
     refetchInterval: 8_000,
   });
 
   const { data: systemStats } = useQuery({
     queryKey: ['system-stats'],
-    queryFn: () => api.get('/control-panel/stats').then((r: any) => r.data),
+    queryFn: () => controlPanelApi.getStats(),
   });
 
   const list: any[] = workflows ?? [];

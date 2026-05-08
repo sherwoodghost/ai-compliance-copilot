@@ -55,6 +55,51 @@ export interface UpdateControlDto {
   notes?:      string;
 }
 
+// ─── Exception Types ──────────────────────────────────────────────────────────
+
+export type ExceptionStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+
+export interface ControlException {
+  id:                 string;
+  orgId:              string;
+  controlId:          string;
+  controlCode?:       string;
+  controlTitle?:      string;
+  title:              string;
+  justification:      string;
+  riskLevel:          string;
+  mitigatingControls?: string;
+  reviewDate?:        string | null;
+  status:             ExceptionStatus;
+  approvedBy?:        string | null;
+  rejectedBy?:        string | null;
+  rejectionReason?:   string | null;
+  createdBy:          string;
+  createdAt:          string;
+  updatedAt:          string;
+}
+
+export interface ExceptionStats {
+  total:    number;
+  pending:  number;
+  approved: number;
+  expired:  number;
+}
+
+export interface CreateExceptionDto {
+  controlId:           string;
+  title:               string;
+  justification:       string;
+  riskLevel:           string;
+  mitigatingControls?: string;
+  reviewDate?:         string;
+}
+
+export interface UpdateExceptionDto {
+  status?:          ExceptionStatus;
+  rejectionReason?: string;
+}
+
 // ─── API client ───────────────────────────────────────────────────────────────
 
 export const controlsApi = {
@@ -92,6 +137,13 @@ export const controlsApi = {
     return apiClient.post<AiAnalyzeResult>('/control-tests/ai-analyze', {}).then((r) => r.data);
   },
 
+  /** Get AI implementation guide for a specific control */
+  aiImplementationGuide(controlId: string): Promise<{ guide: string; steps: string[]; tools: string[]; generatedAt: string }> {
+    return apiClient
+      .post(`/controls/${controlId}/implementation-guide`, {})
+      .then((r) => r.data);
+  },
+
   /** List control effectiveness samples for a control */
   getEffectivenessSamples(controlId: string): Promise<ControlTest[]> {
     return apiClient
@@ -109,5 +161,32 @@ export const controlsApi = {
     return apiClient
       .post(`/controls/library/control/${controlCode}/ai-explain`, {})
       .then((r) => r.data);
+  },
+
+  // ── Control Exceptions ─────────────────────────────────────────────────────
+
+  /** List all control exceptions for the org */
+  listExceptions(): Promise<ControlException[]> {
+    return apiClient.get<ControlException[]>('/controls/exceptions').then((r) => r.data);
+  },
+
+  /** Get exception statistics */
+  getExceptionStats(): Promise<ExceptionStats> {
+    return apiClient.get<ExceptionStats>('/controls/exceptions/stats').then((r) => r.data);
+  },
+
+  /** Create a new control exception */
+  createException(dto: CreateExceptionDto): Promise<ControlException> {
+    return apiClient.post<ControlException>('/controls/exceptions', dto).then((r) => r.data);
+  },
+
+  /** Update exception status (approve/reject) */
+  updateException(id: string, dto: UpdateExceptionDto): Promise<ControlException> {
+    return apiClient.patch<ControlException>(`/controls/exceptions/${id}`, dto).then((r) => r.data);
+  },
+
+  /** AI-draft justification for a control exception */
+  aiDraftException(controlId: string): Promise<{ justification: string; riskLevel: string; suggestedReviewDate: string }> {
+    return apiClient.post('/controls/exceptions/ai-draft', { controlId }).then((r) => r.data);
   },
 };

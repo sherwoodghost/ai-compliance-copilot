@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { journeyApi } from '@/lib/api/journey';
-import { apiClient as api } from '@/lib/api/client';
 import { JourneyTimeline } from '@/components/journey/JourneyTimeline';
 import { formatRelative, formatMs, formatCurrency } from '@/lib/utils';
 import {
@@ -435,9 +434,8 @@ export default function JourneyPage() {
   const [briefResult, setBriefResult] = useState<JourneyBriefResult | null>(null);
 
   const aiBreef = useMutation({
-    mutationFn: (journeyId: string) =>
-      api.post(`/compliance-journey/${journeyId}/ai-brief`, {}).then((r: any) => r.data ?? r),
-    onSuccess: (res) => setBriefResult(res),
+    mutationFn: (journeyId: string) => journeyApi.aiGenerateBrief(journeyId),
+    onSuccess: (res) => setBriefResult(res as unknown as JourneyBriefResult),
   });
 
   const { data: journeys, isLoading } = useQuery({
