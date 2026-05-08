@@ -49,6 +49,7 @@ import { AuditMemoryModule } from './modules/audit-memory/audit-memory.module';
 import { AgentSchedulerModule } from './scheduler/scheduler.module';
 import { PermissionsModule } from './common/permissions/permissions.module';
 import { TeamModule } from './modules/team/team.module';
+import { AccessReviewModule } from './modules/access-reviews/access-review.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { TeamModule } from './modules/team/team.module';
     DatabaseModule,
     PermissionsModule,
     TeamModule,
+    AccessReviewModule,
     LlmModule,
     AuthModule,
     OrganizationsModule,

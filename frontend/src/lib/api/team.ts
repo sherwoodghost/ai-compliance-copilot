@@ -175,4 +175,14 @@ export const teamApi = {
 
   generateGuidedProgram: (): Promise<{ created: number; skipped: number }> =>
     apiClient.post('/tasks/generate-guided-program').then((r) => r.data),
+
+  // Access reviews
+  getAccessReviews: (): Promise<any[]> =>
+    apiClient.get('/access-reviews').then((r) => r.data),
+
+  generateAccessReviews: (): Promise<{ created: number }> =>
+    apiClient.post('/access-reviews/generate').then((r) => r.data),
+
+  signOffAccessReview: (reviewId: string, decisions: { itemId: string; decision: string; reason?: string }[]): Promise<any> =>
+    apiClient.post(`/access-reviews/${reviewId}/sign-off`, { decisions }).then((r) => r.data),
 };

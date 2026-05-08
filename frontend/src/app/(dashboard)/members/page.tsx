@@ -560,16 +560,97 @@ function RaciMatrixTab({ members }: { members: TeamMember[] }) {
 
 // ─── Access Reviews Tab ───────────────────────────────────────────────────────
 
+const ACCESS_REVIEW_STATUS_CONFIG = {
+  pending:     { label: 'Pending',     cls: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-400' },
+  in_progress: { label: 'In Progress', cls: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-400' },
+  signed:      { label: 'Signed',      cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  overdue:     { label: 'Overdue',     cls: 'bg-red-100 text-red-700',       dot: 'bg-red-500' },
+};
+
 function AccessReviewsTab() {
+  const qc = useQueryClient();
+  const { data: reviews = [], isLoading } = useQuery({
+    queryKey: ['access-reviews'],
+    queryFn: teamApi.getAccessReviews,
+  });
+
+  const generate = useMutation({
+    mutationFn: teamApi.generateAccessReviews,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['access-reviews'] }),
+  });
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
+    </div>
+  );
+
   return (
-    <div className="text-center py-16">
-      <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-      <p className="text-sm font-medium text-gray-600">Access Reviews</p>
-      <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
-        Quarterly access reviews (ISO A.8.2 / SOC 2 CC6.3) will appear here.
-        Generate your first review cycle once your team is set up.
-      </p>
-      <button className="btn-primary text-sm mt-4">Generate Q3 2026 Review Cycle</button>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs text-gray-500">
+          ISO A.8.2 / SOC 2 CC6.3 — Quarterly access reviews ensure access rights remain appropriate.
+        </p>
+        <button
+          className="btn-primary text-xs flex items-center gap-1.5"
+          onClick={() => generate.mutate()}
+          disabled={generate.isPending}
+        >
+          {generate.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          Generate Quarterly Reviews
+        </button>
+      </div>
+
+      {generate.data && (
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg px-3 py-2 mb-3">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          Generated {(generate.data as any).created} new access review{(generate.data as any).created !== 1 ? 's' : ''}
+        </div>
+      )}
+
+      {(reviews as any[]).length === 0 ? (
+        <div className="text-center py-12">
+          <Shield className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-500">No access reviews yet.</p>
+          <p className="text-xs text-gray-400 mt-1">Click "Generate Quarterly Reviews" to create the first cycle.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {(reviews as any[]).map((review) => {
+            const status = review.status as keyof typeof ACCESS_REVIEW_STATUS_CONFIG;
+            const statusCfg = ACCESS_REVIEW_STATUS_CONFIG[status] ?? ACCESS_REVIEW_STATUS_CONFIG.pending;
+            const isOverdue = new Date(review.dueDate) < new Date() && status !== 'signed';
+            const effectiveStatus = isOverdue ? 'overdue' : status;
+            const effectiveCfg = ACCESS_REVIEW_STATUS_CONFIG[effectiveStatus] ?? statusCfg;
+            return (
+              <div key={review.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+                <div className={cn('w-2 h-2 rounded-full shrink-0', effectiveCfg.dot)} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-800">
+                    Review for {review.reviewer?.fullName ?? 'Unknown'}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {review.items?.length ?? 0} items · Due {new Date(review.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', effectiveCfg.cls)}>
+                  {effectiveCfg.label}
+                </span>
+                {status !== 'signed' && (
+                  <button className="btn-primary text-xs py-1.5 px-3">
+                    Review
+                  </button>
+                )}
+                {status === 'signed' && (
+                  <span className="text-xs text-emerald-600 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Evidence generated
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
