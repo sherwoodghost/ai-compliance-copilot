@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '@/lib/api/auth';
 import { useAuthStore } from '@/lib/stores/auth.store';
-import { Shield, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Shield, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 function PasswordStrength({ password }: { password: string }) {
   const checks = [
@@ -48,7 +48,7 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
-export default function AcceptInvitePage() {
+function AcceptInviteForm() {
   const router        = useRouter();
   const searchParams  = useSearchParams();
   const setUser       = useAuthStore((s) => s.setUser);
@@ -202,5 +202,17 @@ export default function AcceptInvitePage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+      </div>
+    }>
+      <AcceptInviteForm />
+    </Suspense>
   );
 }

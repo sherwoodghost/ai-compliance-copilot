@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import {
@@ -117,7 +117,7 @@ function FrameworkCard({ fw, brandColor }: { fw: FrameworkSummary; brandColor: s
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function TrustCenterPage() {
+function TrustCenterContent() {
   const params       = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const token        = searchParams.get('token') ?? undefined;
@@ -322,5 +322,20 @@ export default function TrustCenterPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function TrustCenterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Shield className="w-8 h-8 text-brand-600 animate-pulse" />
+          <p className="text-sm text-gray-500">Loading trust center…</p>
+        </div>
+      </div>
+    }>
+      <TrustCenterContent />
+    </Suspense>
   );
 }
