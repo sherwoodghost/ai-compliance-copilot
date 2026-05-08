@@ -7,6 +7,7 @@ import {
   Users, UserPlus, Shield, AlertTriangle, CheckCircle2, Clock,
   MoreVertical, ChevronRight, X, Loader2, RefreshCw,
   AlertCircle, BookOpen, Grid3X3, CalendarClock, FileText, PenLine,
+  LogOut, ArrowRight, CheckCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -342,10 +343,183 @@ function InviteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   );
 }
 
+// ─── Offboard Modal ───────────────────────────────────────────────────────────
+
+function OffboardModal({ member, onClose }: { member: TeamMember; onClose: () => void }) {
+  const qc = useQueryClient();
+
+  // Default offboard date: 30 days from today
+  const defaultDate = new Date();
+  defaultDate.setDate(defaultDate.getDate() + 30);
+  const [offboardDate, setOffboardDate] = useState(defaultDate.toISOString().slice(0, 10));
+  const [result, setResult] = useState<{
+    accountableControlsToTransfer: number;
+    tasksCreated: number;
+  } | null>(null);
+
+  const accountable = member.stats?.raciAccountable ?? 0;
+
+  const offboard = useMutation({
+    mutationFn: () => teamApi.offboardMember(member.id, new Date(offboardDate).toISOString()),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['team-members'] });
+      setResult({ accountableControlsToTransfer: data.accountableControlsToTransfer, tasksCreated: data.tasksCreated });
+    },
+  });
+
+  // ── Success state ──────────────────────────────────────────────────────────
+  if (result) {
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+          <div className="flex flex-col items-center text-center gap-3 py-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-emerald-600" />
+            </div>
+            <h3 className="text-base font-semibold text-gray-900">Offboarding initiated</h3>
+            <p className="text-sm text-gray-500">
+              <span className="font-medium text-gray-800">{member.fullName}</span> has been set to <span className="font-medium text-orange-700">Offboarding</span> status.
+            </p>
+            <div className="w-full bg-gray-50 border border-gray-200 rounded-lg p-4 text-left space-y-2 mt-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Offboard date</span>
+                <span className="font-medium text-gray-900">{new Date(offboardDate).toLocaleDateString()}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Tasks created</span>
+                <span className="font-medium text-gray-900">{result.tasksCreated} guided task(s)</span>
+              </div>
+              {result.accountableControlsToTransfer > 0 && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded p-2.5 mt-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-800">
+                    <span className="font-semibold">{result.accountableControlsToTransfer} RACI-A assignment(s)</span> must be transferred before offboarding is complete. Go to the RACI Matrix tab to reassign.
+                  </p>
+                </div>
+              )}
+            </div>
+            {result.accountableControlsToTransfer > 0 && (
+              <p className="text-xs text-gray-400">Account will remain in <em>Offboarding</em> status until all Accountable RACI entries are reassigned.</p>
+            )}
+          </div>
+          <div className="flex gap-3 mt-2">
+            {result.accountableControlsToTransfer > 0 && (
+              <button className="flex-1 btn-primary text-sm flex items-center justify-center gap-1.5" onClick={onClose}>
+                Go to RACI Matrix <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button className={cn('text-sm', result.accountableControlsToTransfer > 0 ? 'btn-secondary flex-none' : 'btn-primary flex-1')} onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Confirm state ──────────────────────────────────────────────────────────
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <LogOut className="w-4 h-4 text-red-500" />
+            <h2 className="text-sm font-semibold text-gray-900">Initiate Offboarding</h2>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
+            <X className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          {/* Member summary */}
+          <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+              <span className="text-sm font-bold text-brand-700">{member.fullName[0]}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{member.fullName}</p>
+              <p className="text-xs text-gray-500 truncate">{member.email} · {member.jobTitle ?? ROLE_CONFIG[member.platformRole]?.label}</p>
+            </div>
+          </div>
+
+          {/* Offboard date */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Last working day</label>
+            <input
+              type="date"
+              className="input w-full"
+              value={offboardDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setOffboardDate(e.target.value)}
+            />
+          </div>
+
+          {/* What will happen */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-blue-800 mb-2">What this will do</p>
+            <div className="flex items-center gap-2 text-xs text-blue-700">
+              <CheckCircle2 className="w-3 h-3 shrink-0" />
+              <span>Set status to <strong>Offboarding</strong></span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-blue-700">
+              <CheckCircle2 className="w-3 h-3 shrink-0" />
+              <span>Create IT deprovisioning task (SSO, GitHub, AWS, Slack)</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-blue-700">
+              <CheckCircle2 className="w-3 h-3 shrink-0" />
+              <span>Create Compliance RACI transfer task</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-blue-700">
+              <CheckCircle2 className="w-3 h-3 shrink-0" />
+              <span>Log to team audit trail</span>
+            </div>
+          </div>
+
+          {/* RACI warning */}
+          {accountable > 0 && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">
+                This member is <span className="font-semibold">Accountable (A)</span> for <span className="font-semibold">{accountable} control(s)</span>. These RACI-A entries must be reassigned before offboarding is fully complete. The RACI Matrix tab shows all assignments.
+              </p>
+            </div>
+          )}
+
+          {/* Error */}
+          {offboard.isError && (
+            <p className="text-xs text-red-600 bg-red-50 rounded p-2 border border-red-200">
+              {(offboard.error as any)?.response?.data?.message ?? 'Offboarding failed. Please try again.'}
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+          <button className="btn-secondary text-sm" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary text-sm bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700 min-w-[140px] flex items-center justify-center gap-1.5"
+            onClick={() => offboard.mutate()}
+            disabled={offboard.isPending || !offboardDate}
+          >
+            {offboard.isPending
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <><LogOut className="w-3.5 h-3.5" /> Initiate Offboarding</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Members Tab ──────────────────────────────────────────────────────────────
 
 function MembersTab({ members }: { members: TeamMember[] }) {
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [offboardTarget, setOffboardTarget] = useState<TeamMember | null>(null);
 
   return (
     <div className="overflow-x-auto">
@@ -423,7 +597,17 @@ function MembersTab({ members }: { members: TeamMember[] }) {
                       <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[140px]">
                         <button className="block w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors">Edit role</button>
                         <button className="block w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors">Assign RACI</button>
-                        <button className="block w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">Offboard</button>
+                        {m.status !== 'deactivated' && m.status !== 'offboarding' && (
+                          <button
+                            className="block w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                            onClick={() => { setMenuOpen(null); setOffboardTarget(m); }}
+                          >
+                            Offboard
+                          </button>
+                        )}
+                        {m.status === 'offboarding' && (
+                          <span className="block px-3 py-2 text-xs text-orange-500 cursor-default">Offboarding…</span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -438,6 +622,14 @@ function MembersTab({ members }: { members: TeamMember[] }) {
           <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
           <p className="text-sm">No team members yet. Invite your first member.</p>
         </div>
+      )}
+
+      {/* Offboard modal */}
+      {offboardTarget && (
+        <OffboardModal
+          member={offboardTarget}
+          onClose={() => setOffboardTarget(null)}
+        />
       )}
     </div>
   );
