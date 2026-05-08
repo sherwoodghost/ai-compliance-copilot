@@ -3638,6 +3638,641 @@ Return ONLY valid JSON:
   }
   console.log(`✅ Prompt templates: ${promptCount} upserted`);
 
+  // ── Policy Templates (14 required ISO 27001 policies) ────────────────────────
+  const POLICY_TEMPLATES = [
+    {
+      id: 'pt-isp-001',
+      title: 'Information Security Policy',
+      framework: 'BOTH',
+      controls: ['A.5.1', 'CC1.1', 'CC1.2'],
+      content: `# Information Security Policy
+
+**Organization:** {{company_name}}
+**Industry:** {{industry}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+**Review Cycle:** Annual
+
+## 1. Purpose
+This Information Security Policy establishes the management direction and intent for protecting the confidentiality, integrity, and availability of information assets at {{company_name}}.
+
+## 2. Scope
+This policy applies to all employees, contractors, vendors, and third parties who access {{company_name}} information systems and data.
+
+## 3. Policy Statements
+### 3.1 Management Commitment
+Senior management at {{company_name}} is committed to establishing, implementing, maintaining, and continually improving information security in alignment with {{frameworks}}.
+
+### 3.2 Information Security Objectives
+- Protect customer and business data from unauthorized access, disclosure, modification, or destruction
+- Maintain compliance with applicable legal, regulatory, and contractual requirements
+- Enable {{company_name}}'s business objectives while managing information security risk
+
+### 3.3 Risk Management
+All information security risks shall be assessed and treated in accordance with the Risk Assessment and Treatment Policy.
+
+### 3.4 Roles and Responsibilities
+The Chief Information Security Officer ({{ciso_name}}) is accountable for this policy and information security program.
+
+## 4. Compliance
+Non-compliance with this policy may result in disciplinary action including termination of employment or contract.
+
+## 5. Review
+This policy shall be reviewed annually and updated when significant changes occur.
+
+**Approved by:** ___________________________
+**Date:** ___________________________`,
+    },
+    {
+      id: 'pt-ram-002',
+      title: 'Risk Assessment and Treatment Policy',
+      framework: 'BOTH',
+      controls: ['A.5.7', 'A.6.4', 'CC3.1', 'CC3.2'],
+      content: `# Risk Assessment and Treatment Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+**Review Cycle:** Annual
+
+## 1. Purpose
+Define the methodology for identifying, assessing, and treating information security risks at {{company_name}}.
+
+## 2. Scope
+All information assets, processes, systems, and supporting infrastructure of {{company_name}}.
+
+## 3. Risk Assessment Methodology
+### 3.1 Asset Identification
+{{company_name}} shall maintain an inventory of all information assets including systems, data stores, and processes.
+
+### 3.2 Risk Identification
+Threats and vulnerabilities shall be identified for each asset. Threat sources include technical, human, and environmental factors.
+
+### 3.3 Risk Analysis
+Risk level = Likelihood × Impact. Likelihood and impact are rated 1–5 (Low–Critical).
+
+| Score | Level |
+|-------|-------|
+| 1–4   | Low   |
+| 5–9   | Medium|
+| 10–16 | High  |
+| 17–25 | Critical |
+
+### 3.4 Risk Treatment Options
+- **Mitigate**: Implement controls to reduce risk to acceptable levels
+- **Transfer**: Transfer risk via insurance or contractual arrangements
+- **Accept**: Accept residual risk with documented management approval
+- **Avoid**: Cease the activity that creates the risk
+
+## 4. Risk Register
+All identified risks shall be recorded in the {{company_name}} Risk Register and reviewed quarterly.
+
+## 5. Risk Acceptance Criteria
+Risks with a residual score ≤ 4 (Low) may be accepted. All other residual risks require documented management approval.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-aup-003',
+      title: 'Acceptable Use Policy',
+      framework: 'BOTH',
+      controls: ['A.5.10', 'CC6.6'],
+      content: `# Acceptable Use Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Review Cycle:** Annual
+
+## 1. Purpose
+This Acceptable Use Policy (AUP) defines the acceptable use of {{company_name}}'s information systems, networks, and data.
+
+## 2. Scope
+All individuals who are granted access to {{company_name}} systems, including employees, contractors, and vendors.
+
+## 3. Acceptable Use
+### 3.1 Business Use
+{{company_name}} systems are provided for legitimate business purposes. Incidental personal use is permitted provided it does not interfere with business operations.
+
+### 3.2 Information Handling
+All users must:
+- Access only information they are authorized to view
+- Protect credentials and not share passwords
+- Lock workstations when unattended
+- Report suspected security incidents promptly
+
+### 3.3 Internet and Email
+Users may not:
+- Transmit confidential data to unauthorized external parties
+- Click suspicious links or download unauthorized software
+- Use {{company_name}} email for illegal activities
+
+### 3.4 Device Usage
+{{company_name}}-issued devices must be used in accordance with the Device Management Policy. Personal devices accessing company data must comply with the BYOD policy.
+
+## 4. Monitoring
+{{company_name}} reserves the right to monitor use of its systems to ensure compliance with this policy.
+
+## 5. Violations
+Violations may result in disciplinary action including termination.
+
+**By accessing {{company_name}} systems, you agree to abide by this policy.**`,
+    },
+    {
+      id: 'pt-dam-004',
+      title: 'Data Classification and Asset Management Policy',
+      framework: 'BOTH',
+      controls: ['A.5.9', 'A.5.10', 'A.5.11', 'A.5.12', 'A.5.13', 'CC6.1'],
+      content: `# Data Classification and Asset Management Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Establish a framework for classifying and managing information assets at {{company_name}} to ensure appropriate protection.
+
+## 2. Data Classification Levels
+
+| Level | Definition | Examples |
+|-------|-----------|---------|
+| **Public** | Authorized for public release | Marketing materials, public documentation |
+| **Internal** | Internal use only | Internal procedures, non-sensitive communications |
+| **Confidential** | Business-sensitive | Customer data, financial records, source code |
+| **Restricted** | Highest sensitivity | Credentials, encryption keys, PHI/PCI data |
+
+## 3. Asset Inventory
+{{company_name}} shall maintain an inventory of all information assets. The IT Administrator ({{it_admin_name}}) is responsible for maintaining this inventory.
+
+## 4. Handling Requirements
+### Restricted and Confidential Data ({{data_types}})
+- Encrypted at rest and in transit
+- Access on need-to-know basis only
+- Access logs maintained for minimum 90 days
+
+## 5. Data Retention and Disposal
+Data retention periods are defined in the Data Retention Policy. Secure disposal methods (cryptographic erasure or physical destruction) shall be used.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-iam-005',
+      title: 'Access Control and Identity Management Policy',
+      framework: 'BOTH',
+      controls: ['A.5.15', 'A.5.16', 'A.5.17', 'A.5.18', 'A.8.2', 'A.8.3', 'CC6.2', 'CC6.3'],
+      content: `# Access Control and Identity Management Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{it_admin_name}}
+
+## 1. Purpose
+Control and manage access to {{company_name}} information systems to prevent unauthorized access.
+
+## 2. Access Control Principles
+- **Least Privilege**: Users are granted only the minimum access required
+- **Need-to-Know**: Access to information is based on business need
+- **Segregation of Duties**: Incompatible functions are separated
+
+## 3. User Access Management
+### 3.1 Provisioning
+Access requests must be approved by a manager and IT. Privileged access requires additional approval.
+
+### 3.2 Authentication
+- All user accounts must use strong passwords (minimum 12 characters)
+- Multi-factor authentication (MFA) is required for all remote access and privileged accounts
+- Current MFA status: {{mfa_status}}
+
+### 3.3 Access Reviews
+Quarterly access reviews shall be conducted by managers for all direct reports. Privileged access reviews are conducted monthly.
+
+### 3.4 Deprovisioning
+Access must be revoked within 24 hours of employment termination.
+
+## 4. Privileged Access
+Privileged accounts (administrators, root) shall be used only when necessary and must be distinct from standard user accounts.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-bcdr-006',
+      title: 'Business Continuity and Disaster Recovery Policy',
+      framework: 'BOTH',
+      controls: ['A.5.29', 'A.5.30', 'A.8.13', 'CC7.5', 'A1.2', 'A1.3'],
+      content: `# Business Continuity and Disaster Recovery Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Ensure {{company_name}} can continue critical operations and recover from disruptive incidents.
+
+## 2. Business Impact Analysis
+{{company_name}} shall conduct an annual Business Impact Analysis (BIA) to identify critical business functions and their Recovery Time Objectives (RTOs) and Recovery Point Objectives (RPOs).
+
+## 3. Backup Requirements
+### 3.1 Data Backup
+- Critical data must be backed up at minimum daily
+- Backups must be tested quarterly
+- Off-site/cloud backup copies must be maintained
+- Backup retention: minimum 90 days for operational, 7 years for compliance
+
+### 3.2 Backup Testing
+Restore procedures shall be tested quarterly to verify integrity and completeness.
+
+## 4. Disaster Recovery
+### 4.1 DR Plan
+A documented Disaster Recovery Plan shall be maintained for all critical systems.
+
+### 4.2 RTO and RPO
+- Production systems: RTO ≤ 4 hours, RPO ≤ 1 hour
+- Non-critical systems: RTO ≤ 24 hours, RPO ≤ 24 hours
+
+## 5. Testing
+The BCP/DR plan shall be tested annually via tabletop exercises and, where possible, live failover tests.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-irt-007',
+      title: 'Incident Response Policy',
+      framework: 'BOTH',
+      controls: ['A.5.24', 'A.5.25', 'A.5.26', 'A.5.27', 'CC7.3', 'CC7.4'],
+      content: `# Incident Response Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Define the process for detecting, reporting, and responding to information security incidents at {{company_name}}.
+
+## 2. Incident Classification
+
+| Severity | Description | Response Time |
+|----------|-------------|---------------|
+| Critical | Active breach, ransomware, data exfiltration | Immediate (< 1 hour) |
+| High     | Suspected breach, unauthorized access | < 4 hours |
+| Medium   | Security policy violation, malware detection | < 24 hours |
+| Low      | Suspicious activity, minor policy violation | < 72 hours |
+
+## 3. Incident Response Process
+### Phase 1: Detection & Reporting
+All security incidents must be reported to the security team at security@{{company_name}}.com immediately upon discovery.
+
+### Phase 2: Containment
+Isolate affected systems to prevent spread. Preserve evidence for forensic analysis.
+
+### Phase 3: Eradication
+Remove the cause of the incident. Apply patches and reconfigure systems as needed.
+
+### Phase 4: Recovery
+Restore systems from clean backups. Monitor for recurrence.
+
+### Phase 5: Post-Incident Review
+Conduct a post-incident review within 5 business days. Document lessons learned.
+
+## 4. Regulatory Notifications
+{{company_name}} shall notify affected individuals and regulators within required timeframes:
+- GDPR: 72 hours to supervisory authority
+- CCPA: 30 days to affected California residents
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-vendor-008',
+      title: 'Supplier and Third-Party Security Policy',
+      framework: 'BOTH',
+      controls: ['A.5.19', 'A.5.20', 'A.5.21', 'A.5.22', 'A.5.23'],
+      content: `# Supplier and Third-Party Security Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Manage information security risks associated with third-party suppliers and service providers.
+
+## 2. Scope
+All third-party vendors, cloud service providers, and contractors who access {{company_name}} data or systems.
+
+## 3. Supplier Assessment
+### 3.1 Pre-engagement Assessment
+All new suppliers handling Confidential or Restricted data must undergo security assessment before engagement, including:
+- Review of security certifications (ISO 27001, SOC 2, etc.)
+- Security questionnaire completion
+- Data Processing Agreement (DPA) execution
+
+### 3.2 Contractual Requirements
+All supplier contracts must include:
+- Security and data protection obligations
+- Right to audit provisions
+- Breach notification requirements (within 24 hours)
+- Data return/deletion on contract termination
+
+## 4. Ongoing Management
+### 4.1 Annual Review
+All critical suppliers ({{subprocessor_count}}) shall be reviewed annually.
+
+### 4.2 Sub-processors
+{{company_name}} shall maintain a register of all sub-processors and obtain customer consent as required under applicable regulations.
+
+## 5. Cross-Border Data Transfers
+Data transfers outside {{hq_country}} shall comply with applicable data transfer mechanisms (SCCs, BCRs, adequacy decisions).
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-vuln-009',
+      title: 'Vulnerability Management Policy',
+      framework: 'BOTH',
+      controls: ['A.8.8', 'CC7.1', 'CC7.2'],
+      content: `# Vulnerability Management Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{it_admin_name}}
+
+## 1. Purpose
+Ensure timely identification and remediation of technical vulnerabilities in {{company_name}} systems.
+
+## 2. Vulnerability Scanning
+### 2.1 Frequency
+- Internal network scans: Monthly
+- External perimeter scans: Monthly
+- Web application scans: Quarterly
+- Penetration testing: Annual
+
+### 2.2 Remediation SLAs
+
+| Severity | CVSS Score | Remediation Timeline |
+|----------|-----------|---------------------|
+| Critical | 9.0–10.0  | 72 hours |
+| High     | 7.0–8.9   | 7 days |
+| Medium   | 4.0–6.9   | 30 days |
+| Low      | 0.1–3.9   | 90 days |
+
+## 3. Patch Management
+### 3.1 Operating Systems and Applications
+Critical security patches shall be applied within the SLA above. Patch deployment shall be tested in staging before production.
+
+### 3.2 Emergency Patching
+Zero-day vulnerabilities actively exploited in the wild shall be remediated within 24 hours or mitigated with compensating controls.
+
+## 4. Reporting
+Monthly vulnerability reports shall be provided to the CISO. Trends and SLA compliance shall be reviewed quarterly.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-crypto-010',
+      title: 'Cryptography and Key Management Policy',
+      framework: 'BOTH',
+      controls: ['A.8.24', 'CC6.7'],
+      content: `# Cryptography and Key Management Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Ensure proper and effective use of cryptography to protect {{company_name}} information.
+
+## 2. Encryption Standards
+### 2.1 Data at Rest
+- AES-256 for all Confidential and Restricted data at rest
+- Transparent database encryption for production databases
+- Full-disk encryption on all company devices
+
+### 2.2 Data in Transit
+- TLS 1.2 or higher for all external communications
+- TLS 1.3 preferred for new implementations
+- No unencrypted transmission of Confidential or Restricted data
+
+### 2.3 Prohibited Algorithms
+The following shall not be used: DES, 3DES, RC4, MD5, SHA-1, SSL/TLS < 1.2.
+
+## 3. Key Management
+### 3.1 Key Generation
+Keys shall be generated using cryptographically secure random number generators.
+
+### 3.2 Key Storage
+Encryption keys shall not be stored in plaintext. Use of cloud KMS (AWS KMS, Azure Key Vault, Google Cloud KMS) is preferred.
+
+### 3.3 Key Rotation
+| Key Type | Rotation Period |
+|----------|----------------|
+| Data encryption keys | Annual |
+| Authentication tokens | Per session |
+| API keys | 90 days |
+
+## 4. Certificate Management
+SSL/TLS certificates shall be tracked and renewed before expiry. Certificate inventory shall be maintained in the asset register.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-hr-011',
+      title: 'Human Resources Security Policy',
+      framework: 'BOTH',
+      controls: ['A.6.1', 'A.6.2', 'A.6.3', 'A.6.4', 'A.6.5'],
+      content: `# Human Resources Security Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Ensure employees and contractors understand their security responsibilities and reduce the risk of human error, theft, fraud, and misuse.
+
+## 2. Pre-Employment Screening
+Background checks shall be conducted for all employees and contractors. The extent of screening shall be commensurate with the sensitivity of the role and applicable law.
+
+Required for all roles:
+- Identity verification
+- Employment history verification
+- Criminal background check (where permitted by law)
+- Reference checks
+
+Additional for privileged roles:
+- Education verification
+- Financial background check (for roles with financial access)
+
+## 3. Terms and Conditions of Employment
+All employees and contractors must sign:
+- Confidentiality/NDA agreement
+- Acceptable Use Policy acknowledgement
+- Code of Conduct
+
+## 4. Security Awareness Training
+### 4.1 New Employee Training
+All new employees must complete security awareness training within 30 days of joining.
+
+### 4.2 Annual Training
+Annual security awareness training is mandatory for all staff. Training completion shall be tracked and reported to management.
+
+## 5. Disciplinary Process
+Security policy violations will be handled through the standard HR disciplinary process.
+
+## 6. Termination and Change of Employment
+Access must be revoked within 24 hours of termination. Exit interviews shall include security reminders regarding confidentiality obligations.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-physical-012',
+      title: 'Physical and Environmental Security Policy',
+      framework: 'BOTH',
+      controls: ['A.7.1', 'A.7.2', 'A.7.3', 'A.7.4', 'A.7.5'],
+      content: `# Physical and Environmental Security Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{it_admin_name}}
+
+## 1. Purpose
+Prevent unauthorized physical access, damage, and interference to {{company_name}} information assets and facilities.
+
+## 2. Secure Areas
+### 2.1 Physical Perimeter
+Office premises shall have controlled entry with visitor management procedures. Data processing areas (server rooms, colocation) shall have additional physical access controls.
+
+### 2.2 Access Controls
+Physical access to secure areas shall be restricted to authorized personnel. Access logs shall be maintained and reviewed quarterly.
+
+## 3. Equipment Security
+### 3.1 Equipment Protection
+Equipment shall be sited and protected to reduce risks from physical and environmental threats.
+
+### 3.2 Off-Site Equipment
+Equipment used outside {{company_name}} premises (laptops, mobile devices) shall be subject to equivalent security controls as on-site equipment.
+
+### 3.3 Secure Disposal
+Storage media containing Confidential or Restricted data shall be disposed of securely using certified data destruction methods.
+
+## 4. Clear Desk and Clear Screen
+A clear desk policy is in effect for Confidential and Restricted material. Screen locks shall activate after 5 minutes of inactivity.
+
+## 5. Cloud-Hosted Infrastructure
+For {{cloud_providers}}-hosted infrastructure, {{company_name}} relies on the physical security controls of the cloud provider, evidenced by their compliance certifications (SOC 2, ISO 27001).
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-ops-013',
+      title: 'Operations Security Policy',
+      framework: 'BOTH',
+      controls: ['A.8.9', 'A.8.10', 'A.8.11', 'A.8.12', 'A.8.15', 'A.8.16', 'CC7.2'],
+      content: `# Operations Security Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{it_admin_name}}
+
+## 1. Purpose
+Ensure correct and secure operations of information processing facilities at {{company_name}}.
+
+## 2. Documented Operating Procedures
+Operating procedures for information systems shall be documented, maintained, and available to all users who need them.
+
+## 3. Change Management
+Changes to systems and infrastructure shall follow the Change Management Policy. All changes must be documented, tested, and approved before deployment to production.
+
+## 4. Capacity Management
+System capacity shall be monitored and projections made to ensure adequate processing power, storage, and network bandwidth.
+
+## 5. Separation of Environments
+Development, testing, and production environments shall be separated to reduce the risk of unauthorized access or changes to the production system.
+
+## 6. Malware Protection
+Protection against malware shall be implemented on all endpoints and servers. Malware definitions shall be updated automatically.
+
+## 7. Logging and Monitoring
+### 7.1 Event Logging
+Security-relevant events shall be logged including: authentication events, privileged operations, system errors, and data access.
+
+### 7.2 Log Retention
+Logs shall be retained for a minimum of 90 days online and 1 year in archive.
+
+### 7.3 Log Protection
+Logs shall be protected from tampering and unauthorized access.
+
+## 8. Clock Synchronization
+All systems shall synchronize to an authoritative NTP source.
+
+**Approved by:** ___________________________`,
+    },
+    {
+      id: 'pt-sdlc-014',
+      title: 'Secure Development Lifecycle Policy',
+      framework: 'BOTH',
+      controls: ['A.8.25', 'A.8.26', 'A.8.27', 'A.8.28', 'A.8.29', 'A.8.30', 'A.8.31', 'A.8.32', 'CC8.1'],
+      content: `# Secure Development Lifecycle Policy
+
+**Organization:** {{company_name}}
+**Version:** 1.0
+**Owner:** {{ciso_name}}
+
+## 1. Purpose
+Ensure information security is integrated throughout the software development lifecycle at {{company_name}}.
+
+## 2. Secure Design Principles
+Security shall be considered in the design phase for all new systems. Threat modeling shall be conducted for significant new features or architectural changes.
+
+## 3. Coding Standards
+### 3.1 Secure Coding
+Developers shall follow secure coding standards addressing at minimum: OWASP Top 10, input validation, output encoding, authentication and session management, and error handling.
+
+### 3.2 Code Review
+Security-focused code review is required for all changes to security-critical components.
+
+### 3.3 Dependency Management
+Third-party dependencies shall be inventoried and monitored for known vulnerabilities (CVEs). Dependencies with critical vulnerabilities shall be updated within 7 days.
+
+## 4. Security Testing
+### 4.1 Static Analysis (SAST)
+Automated SAST scanning shall be integrated into the CI/CD pipeline.
+
+### 4.2 Dynamic Analysis (DAST)
+DAST scanning shall be performed against staging environments quarterly.
+
+### 4.3 Penetration Testing
+Annual penetration testing by qualified third parties shall be conducted.
+
+## 5. Secrets Management
+Source code repositories shall not contain credentials, API keys, or private certificates. Secrets shall be managed using a dedicated secrets management system.
+
+## 6. Change Control
+All code changes shall go through pull request review before merging. Production deployments shall be traceable to approved changes.
+
+**Approved by:** ___________________________`,
+    },
+  ];
+
+  let templateCount = 0;
+  for (const tmpl of POLICY_TEMPLATES) {
+    await prisma.policyTemplate.upsert({
+      where: { id: tmpl.id },
+      update: {
+        title:    tmpl.title,
+        framework: tmpl.framework,
+        controls: tmpl.controls,
+        content:  tmpl.content,
+        isActive: true,
+      },
+      create: {
+        id:       tmpl.id,
+        title:    tmpl.title,
+        framework: tmpl.framework,
+        controls: tmpl.controls,
+        content:  tmpl.content,
+        isActive: true,
+      },
+    });
+    templateCount++;
+  }
+  console.log(`✅ Policy templates: ${templateCount} upserted`);
+
   console.log('🎉 Seed complete!');
 }
 

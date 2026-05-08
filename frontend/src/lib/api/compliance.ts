@@ -30,6 +30,12 @@ export const complianceApi = {
   getPolicyVersions: (id: string) => apiClient.get(`/policies/${id}/versions`).then((r) => r.data),
   approvePolicy: (id: string) => apiClient.patch(`/policies/${id}/approve`).then((r) => r.data),
   archivePolicy: (id: string) => apiClient.patch(`/policies/${id}/archive`).then((r) => r.data),
+  // Policy templates
+  getPolicyTemplates: () => apiClient.get('/policies/templates').then((r) => r.data),
+  instantiatePolicyTemplate: (templateId: string) =>
+    apiClient.post(`/policies/from-template/${templateId}`).then((r) => r.data),
+  instantiateAllPolicyTemplates: () =>
+    apiClient.post('/policies/from-template-all').then((r) => r.data),
 
   // Tasks
   getMyTasks: () => apiClient.get('/tasks/mine').then((r) => r.data),

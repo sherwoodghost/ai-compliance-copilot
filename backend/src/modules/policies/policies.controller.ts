@@ -14,6 +14,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PoliciesService } from './policies.service';
+import { PolicyTemplateService } from './policy-template.service';
 import { CreatePolicyDto, UpdatePolicyDto } from './dto/policies.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -25,7 +26,31 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('policies')
 export class PoliciesController {
-  constructor(private readonly policiesService: PoliciesService) {}
+  constructor(
+    private readonly policiesService: PoliciesService,
+    private readonly policyTemplateService: PolicyTemplateService,
+  ) {}
+
+  @Get('templates')
+  @ApiOperation({ summary: 'List all active policy templates' })
+  listTemplates() {
+    return this.policyTemplateService.listTemplates();
+  }
+
+  @Post('from-template/:templateId')
+  @ApiOperation({ summary: 'Instantiate a policy template for the org (LLM-personalized draft)' })
+  instantiateTemplate(
+    @CurrentUser() user: JwtPayload,
+    @Param('templateId', ParseUUIDPipe) templateId: string,
+  ) {
+    return this.policyTemplateService.instantiateTemplate(user.orgId, templateId, user.sub);
+  }
+
+  @Post('from-template-all')
+  @ApiOperation({ summary: 'Instantiate all policy templates for the org (idempotent)' })
+  instantiateAll(@CurrentUser() user: JwtPayload) {
+    return this.policyTemplateService.instantiateAll(user.orgId, user.sub);
+  }
 
   @Get()
   @ApiQuery({ name: 'controlId', required: false })
