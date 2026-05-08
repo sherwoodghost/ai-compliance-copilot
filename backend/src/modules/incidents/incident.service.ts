@@ -320,6 +320,21 @@ export class IncidentService {
     });
 
     this.logger.log(`Incident ${id} closed by ${actorId}. Evidence ${evidence.id} generated.`);
+
+    // Notify SECURITY_LEAD + COMPLIANCE_LEAD of closure
+    const mttdStr = mttd != null ? `MTTD ${Math.round(mttd / 60)}h` : null;
+    const mttrStr = mttr != null ? `MTTR ${Math.round(mttr / 60)}h` : null;
+    const metricsStr = [mttdStr, mttrStr].filter(Boolean).join(' · ');
+    await this._notifyLeads(
+      orgId,
+      actorId,
+      updated,
+      'incident.closed',
+      `Incident closed: ${updated.title}`,
+      `${updated.severity} ${updated.category} incident resolved${metricsStr ? ` — ${metricsStr}` : ''}. Root cause documented.`,
+      `/incidents`,
+    );
+
     return updated;
   }
 

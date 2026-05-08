@@ -10,6 +10,30 @@ import * as crypto from 'crypto';
 // ISO A.8.2 + SOC2 CC6.3 control codes this review generates evidence for
 const ACCESS_REVIEW_CONTROL_CODES = ['A.8.2', 'A.5.18', 'CC6.3'];
 
+/** Map IntegrationProvider → human-readable system name */
+const PROVIDER_DISPLAY: Record<string, string> = {
+  aws:              'AWS Console',
+  github:           'GitHub',
+  okta:             'Okta',
+  slack:            'Slack',
+  jira:             'Jira',
+  gcp:              'Google Cloud',
+  azure:            'Azure',
+  google_workspace: 'Google Workspace',
+  datadog:          'Datadog',
+  snyk:             'Snyk',
+  pagerduty:        'PagerDuty',
+  github_actions:   'GitHub Actions',
+  gitlab:           'GitLab',
+  bamboohr:         'BambooHR',
+  rippling:         'Rippling',
+  jamf:             'Jamf MDM',
+  intune:           'Microsoft Intune',
+};
+
+/** Fallback systems when no integrations are connected */
+const DEFAULT_SYSTEMS = ['GitHub', 'AWS Console', 'Slack', 'Production Database'];
+
 export interface CreateAccessReviewDto {
   reviewerId: string;
   dueDate: string;
@@ -96,6 +120,9 @@ export class AccessReviewService {
       { id: actorId, directReports: await this.getOrgUsers(orgId) },
     ];
 
+    // Resolve systems to review from connected integrations
+    const connectedSystems = await this.getConnectedSystems(orgId);
+
     const created: any[] = [];
 
     for (const manager of reviewTargets) {
@@ -111,16 +138,14 @@ export class AccessReviewService {
       });
       if (existing) continue;
 
-      // Build items from direct reports
+      // Build items from direct reports × connected systems
       const items = [];
       for (const report of manager.directReports) {
-        // Default systems — would come from integrations in production
-        const defaultSystems = ['GitHub', 'AWS Console', 'Production Database', 'Slack'];
-        for (const system of defaultSystems) {
+        for (const system of connectedSystems) {
           items.push({
             userId: report.id,
-            system,
-            accessLevel: 'Member',
+            system: system.displayName,
+            accessLevel: system.defaultAccessLevel,
           });
         }
       }
@@ -142,11 +167,13 @@ export class AccessReviewService {
       });
 
       // Create a corresponding task for the manager
+      const systemCount = connectedSystems.length;
+      const reportCount = manager.directReports.length;
       await this.prisma.task.create({
         data: {
           orgId,
           title: `Quarterly Access Review — ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
-          description: `Review access levels for ${items.length / 4} direct reports across ${4} systems. Sign off to generate ISO A.8.2 evidence.`,
+          description: `Review access levels for ${reportCount} direct report${reportCount !== 1 ? 's' : ''} across ${systemCount} system${systemCount !== 1 ? 's' : ''}: ${connectedSystems.map(s => s.displayName).join(', ')}. Sign off to generate ISO A.8.2 evidence.`,
           status: 'open',
           priority: 'high',
           assignedTo: manager.id,
@@ -319,6 +346,30 @@ export class AccessReviewService {
       signatureHash,
       revokeTasks: revokes.length,
     };
+  }
+
+  /**
+   * Returns a list of systems to include in access reviews.
+   * Uses connected Integration records; falls back to DEFAULT_SYSTEMS if none.
+   */
+  private async getConnectedSystems(orgId: string): Promise<{ displayName: string; defaultAccessLevel: string }[]> {
+    const integrations = await this.prisma.integration.findMany({
+      where: { orgId, status: 'connected' },
+      select: { provider: true },
+    });
+
+    if (integrations.length > 0) {
+      return integrations.map((i) => ({
+        displayName: PROVIDER_DISPLAY[i.provider] ?? i.provider,
+        // Privilege level hint — admin/devops systems warrant stricter access level label
+        defaultAccessLevel: ['aws', 'azure', 'gcp', 'okta', 'intune', 'jamf'].includes(i.provider)
+          ? 'Member/Admin'
+          : 'Member',
+      }));
+    }
+
+    // Fallback: no integrations connected yet
+    return DEFAULT_SYSTEMS.map((name) => ({ displayName: name, defaultAccessLevel: 'Member' }));
   }
 
   private async getOrgUsers(orgId: string) {

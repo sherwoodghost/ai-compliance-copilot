@@ -57,15 +57,24 @@ export class RetentionService {
     this.events.emit('document.legal_hold.released', new DocumentLegalHoldReleasedEvent(orgId, documentId, actorId));
   }
 
-  /** Guard: throw 423 Locked if document has an active legal hold */
+  /**
+   * Guard: throw 423 Locked if document has an active legal hold OR an
+   * approval-pending lock (`lockedAt`). Call this before any archive/delete/restore
+   * operation that should be blocked by either lock type.
+   */
   async assertNotLocked(documentId: string, orgId: string): Promise<void> {
     const doc = await this.prisma.document.findFirst({
       where:  { id: documentId, orgId },
-      select: { legalHoldAt: true, legalHoldReason: true },
+      select: { legalHoldAt: true, legalHoldReason: true, lockedAt: true, lockedReason: true },
     });
     if (doc?.legalHoldAt) {
       throw new ForbiddenException(
         `Document is under legal hold: ${doc.legalHoldReason ?? 'reason not specified'}`,
+      );
+    }
+    if (doc?.lockedAt) {
+      throw new ForbiddenException(
+        `Document is locked${doc.lockedReason ? ` (${doc.lockedReason})` : ''} and cannot be archived or deleted while the lock is active`,
       );
     }
   }

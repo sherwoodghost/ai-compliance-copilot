@@ -10,6 +10,9 @@ import { LlmService } from '../../llm/llm.service';
 import { CreateEvidenceDto, UpdateEvidenceDto, UploadEvidenceDto } from './dto/evidence.dto';
 import { RagIndexerService } from '../../llm-gateway/rag/rag-indexer.service';
 import { StorageService } from '../../storage/storage.service';
+import { NotificationService } from '../../notifications/notification.service';
+
+const EXPIRY_WARNING_DAYS = 30;
 
 @Injectable()
 export class EvidenceService {
@@ -20,6 +23,7 @@ export class EvidenceService {
     private readonly ragIndexer: RagIndexerService,
     private readonly llm: LlmService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async findAll(orgId: string, controlId?: string, isValid?: boolean) {
@@ -84,6 +88,9 @@ export class EvidenceService {
     this.validateEvidenceWithAI(orgId, evidence).catch((err) =>
       this.logger.warn(`AI validation failed for evidence ${evidence.id}: ${err.message}`),
     );
+
+    // Notify uploader if evidence expires soon (non-blocking)
+    this.notifyIfExpiringSoon(orgId, userId, evidence).catch(() => {});
 
     return evidence;
   }
@@ -151,6 +158,9 @@ export class EvidenceService {
       this.logger.warn(`AI validation failed for evidence ${evidence.id}: ${err.message}`),
     );
 
+    // Notify uploader if evidence expires soon (non-blocking)
+    this.notifyIfExpiringSoon(orgId, userId, evidence).catch(() => {});
+
     return evidence;
   }
 
@@ -185,6 +195,33 @@ export class EvidenceService {
     return this.prisma.evidence.update({
       where: { id: evidenceId },
       data: { isValid: false, reviewedBy: userId },
+    });
+  }
+
+  // ─── Expiry-proximity notification ──────────────────────────────────────────
+  /**
+   * If the newly-created evidence has an `expiresAt` within EXPIRY_WARNING_DAYS,
+   * immediately send an in-app notification to the uploader so they know it's
+   * short-lived before they even leave the page.
+   */
+  private async notifyIfExpiringSoon(orgId: string, userId: string, evidence: any): Promise<void> {
+    if (!evidence.expiresAt) return;
+
+    const now          = Date.now();
+    const expiresMs    = new Date(evidence.expiresAt).getTime();
+    const daysLeft     = Math.ceil((expiresMs - now) / 86_400_000);
+
+    if (daysLeft > EXPIRY_WARNING_DAYS) return;  // Not near expiry
+
+    const controlCode  = (evidence.control as any)?.code ?? '';
+    const priority: 'high' | 'normal' = daysLeft <= 7 ? 'high' : 'normal';
+
+    await this.notifications.send(orgId, userId, {
+      type:     'evidence.expiring',
+      title:    `Evidence expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
+      body:     `"${evidence.title}"${controlCode ? ` (${controlCode})` : ''} — set a calendar reminder to renew before it expires.`,
+      href:     '/evidence',
+      priority,
     });
   }
 
