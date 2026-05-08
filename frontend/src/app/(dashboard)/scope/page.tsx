@@ -5,10 +5,157 @@ import { useState } from 'react';
 import { apiClient as api } from '@/lib/api/client';
 import {
   Target, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronRight,
-  Calendar, Badge, RefreshCw,
+  Calendar, Badge, RefreshCw, Sparkles, X, ShieldAlert, HelpCircle,
+  Star, AlertTriangle,
 } from 'lucide-react';
 import { RadialBarChart, RadialBar, Tooltip as RechartsTip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
+
+// ─── Scope Review Types ────────────────────────────────────────────────────────
+
+type ExclusionRisk = { system: string; risk: string; recommendation: string };
+type AuditFaq = { question: string; suggestedAnswer: string };
+type TscAdvisory = { selectedTscs: string[]; missingRecommended: string[]; rationale: string };
+type ScopeReviewResult = {
+  overallRisk: 'low' | 'medium' | 'high';
+  riskSummary: string;
+  exclusionRisks: ExclusionRisk[];
+  tscAdvisory: TscAdvisory;
+  auditFAQ: AuditFaq[];
+  scopeGaps: string[];
+  strengths: string[];
+};
+
+const RISK_CFG = {
+  low:    { cls: 'bg-green-100 text-green-700',  label: 'Low Risk' },
+  medium: { cls: 'bg-amber-100 text-amber-700',  label: 'Medium Risk' },
+  high:   { cls: 'bg-red-100 text-red-700',      label: 'High Risk' },
+};
+
+function ScopeReviewPanel({ result, onClose }: { result: ScopeReviewResult; onClose: () => void }) {
+  const risk = RISK_CFG[result.overallRisk] ?? RISK_CFG.medium;
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  return (
+    <div className="border border-purple-200 rounded-xl bg-purple-50 p-5 space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+          <span className="text-sm font-semibold text-purple-900">AI Scope Review</span>
+          <span className={cn('text-xs font-medium px-2 py-0.5 rounded', risk.cls)}>{risk.label}</span>
+        </div>
+        <button onClick={onClose} className="text-purple-400 hover:text-purple-600">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Summary */}
+      {result.riskSummary && (
+        <p className="text-sm text-gray-800 bg-white rounded-lg px-3 py-2.5 border border-purple-100">{result.riskSummary}</p>
+      )}
+
+      {/* Two-column: exclusion risks + scope gaps */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {result.exclusionRisks.length > 0 && (
+          <div className="bg-white rounded-lg border border-orange-200 p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-orange-500" />
+              <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Exclusion risks</p>
+            </div>
+            <div className="space-y-2.5">
+              {result.exclusionRisks.map((er, i) => (
+                <div key={i} className="border-l-2 border-orange-200 pl-2">
+                  <p className="text-xs font-semibold text-gray-700">{er.system}</p>
+                  <p className="text-xs text-orange-700 mt-0.5">{er.risk}</p>
+                  {er.recommendation && (
+                    <p className="text-xs text-green-700 mt-0.5">→ {er.recommendation}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {result.scopeGaps.length > 0 && (
+            <div className="bg-white rounded-lg border border-red-200 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Possible scope gaps</p>
+              </div>
+              <ul className="space-y-1">
+                {result.scopeGaps.map((g, i) => (
+                  <li key={i} className="text-xs text-gray-700 flex gap-1.5">
+                    <span className="text-red-400">•</span> {g}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.strengths.length > 0 && (
+            <div className="bg-white rounded-lg border border-green-200 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Star className="w-3.5 h-3.5 text-green-500" />
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Scope strengths</p>
+              </div>
+              <ul className="space-y-1">
+                {result.strengths.map((s, i) => (
+                  <li key={i} className="text-xs text-gray-700 flex gap-1.5">
+                    <CheckCircle className="w-3 h-3 text-green-400 shrink-0 mt-0.5" /> {s}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* TSC Advisory */}
+      {result.tscAdvisory.missingRecommended.length > 0 && (
+        <div className="bg-white rounded-lg border border-blue-200 p-3">
+          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Trust Service Categories</p>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {result.tscAdvisory.selectedTscs.map((t) => (
+              <span key={t} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">{t}</span>
+            ))}
+            {result.tscAdvisory.missingRecommended.map((t) => (
+              <span key={t} className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">+ {t} (recommended)</span>
+            ))}
+          </div>
+          {result.tscAdvisory.rationale && (
+            <p className="text-xs text-gray-600">{result.tscAdvisory.rationale}</p>
+          )}
+        </div>
+      )}
+
+      {/* Audit FAQ accordion */}
+      {result.auditFAQ.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <HelpCircle className="w-3.5 h-3.5 text-purple-500" />
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Auditor questions to prepare for</p>
+          </div>
+          {result.auditFAQ.map((faq, i) => (
+            <div key={i} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <button
+                className="w-full flex items-start justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50"
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+              >
+                <p className="text-xs font-medium text-gray-800">{faq.question}</p>
+                <ChevronDown className={cn('w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform', openFaq === i && 'rotate-180')} />
+              </button>
+              {openFaq === i && (
+                <div className="px-3 py-2 bg-purple-50 border-t border-gray-100">
+                  <p className="text-xs text-gray-700">{faq.suggestedAnswer}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -215,6 +362,12 @@ export default function ScopePage() {
   const [activeTab, setActiveTab] = useState<'soc2' | 'iso'>('soc2');
   const [soaFilter, setSoaFilter] = useState<SoaFilter>('all');
   const [expandedSoa, setExpandedSoa] = useState<Set<string>>(new Set());
+  const [scopeReview, setScopeReview] = useState<ScopeReviewResult | null>(null);
+
+  const scopeReviewMutation = useMutation({
+    mutationFn: () => api.post('/scoping/ai-scope-review', {}).then((r: any) => r.data ?? r),
+    onSuccess: (res) => setScopeReview(res),
+  });
 
   const { data: soc2Scope } = useQuery<Soc2Scope>({
     queryKey: ['soc2-scope'],
@@ -263,11 +416,27 @@ export default function ScopePage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Scope Definition</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          SOC 2 system scope · ISO 27001 ISMS scope · Statement of Applicability
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Scope Definition</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            SOC 2 system scope · ISO 27001 ISMS scope · Statement of Applicability
+          </p>
+        </div>
+        {activeTab === 'soc2' && (
+          <button
+            onClick={() => scopeReviewMutation.mutate()}
+            disabled={scopeReviewMutation.isPending}
+            className="flex items-center gap-2 text-sm font-medium px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-60 shrink-0"
+          >
+            {scopeReviewMutation.isPending ? (
+              <span className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {scopeReviewMutation.isPending ? 'Reviewing…' : 'AI Scope Review'}
+          </button>
+        )}
       </div>
 
       {/* Tab selector */}
@@ -290,6 +459,11 @@ export default function ScopePage() {
       {activeTab === 'soc2' && (
         soc2Scope ? (
           <div className="space-y-4">
+            {/* AI Scope Review panel */}
+            {scopeReview && (
+              <ScopeReviewPanel result={scopeReview} onClose={() => setScopeReview(null)} />
+            )}
+
             {/* Coverage metrics */}
             <Soc2CoverageRow scope={soc2Scope} />
 
