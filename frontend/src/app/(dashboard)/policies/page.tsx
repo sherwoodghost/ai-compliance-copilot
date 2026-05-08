@@ -7,7 +7,7 @@ import { apiClient as api } from '@/lib/api/client';
 import {
   FileText, Check, Archive, X, ChevronRight, Plus, Download,
   Clock, CheckCircle2, ArchiveIcon, AlertCircle, Search,
-  RotateCcw, Shield, Edit3, Save, GitBranch,
+  RotateCcw, Shield, Edit3, Save, GitBranch, Sparkles,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
@@ -158,6 +158,16 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
     },
   });
 
+  const aiDraft = useMutation({
+    mutationFn: () =>
+      api.post(`/policies/${policy.id}/ai-draft`, {}).then((r: any) => r.data as { content: string }),
+    onSuccess: (data) => {
+      // Convert markdown to simple html for the editor
+      setEditContent(markdownToSimpleHtml(data.content));
+      setEditing(true);
+    },
+  });
+
   function startEditing() {
     const rawContent = displayPolicy.content ?? '';
     setEditContent(markdownToSimpleHtml(rawContent));
@@ -231,6 +241,22 @@ function PolicyPanel({ policy, onClose }: { policy: Policy; onClose: () => void 
           <div className="flex items-center gap-2 shrink-0">
             {!editing ? (
               <>
+                {displayPolicy.status !== 'archived' && (
+                  <button
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-purple-200
+                               bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-60"
+                    onClick={() => aiDraft.mutate()}
+                    disabled={aiDraft.isPending}
+                    title="AI generates or improves this policy based on the control and your org context"
+                  >
+                    {aiDraft.isPending ? (
+                      <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    {aiDraft.isPending ? 'Drafting…' : 'AI Draft'}
+                  </button>
+                )}
                 {displayPolicy.status !== 'archived' && (
                   <button
                     className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"

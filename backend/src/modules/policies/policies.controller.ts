@@ -99,4 +99,13 @@ export class PoliciesController {
   ) {
     return this.policiesService.createNewVersion(user.orgId, policyId, body.content);
   }
+
+  @Post(':policyId/ai-draft')
+  @ApiOperation({ summary: 'AI: generate or improve a policy document based on control requirements and org context' })
+  aiDraft(
+    @CurrentUser() user: JwtPayload,
+    @Param('policyId', ParseUUIDPipe) policyId: string,
+  ) {
+    return this.policiesService.aiDraft(user.orgId, policyId);
+  }
 }

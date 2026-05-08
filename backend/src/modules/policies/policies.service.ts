@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { LlmService } from '../../llm/llm.service';
 import { CreatePolicyDto, UpdatePolicyDto } from './dto/policies.dto';
 import { RagIndexerService } from '../../llm-gateway/rag/rag-indexer.service';
 
@@ -15,6 +16,7 @@ export class PoliciesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ragIndexer: RagIndexerService,
+    private readonly llm: LlmService,
   ) {}
 
   async findAll(orgId: string, controlId?: string, status?: string) {
@@ -172,5 +174,62 @@ export class PoliciesService {
       },
       orderBy: { version: 'desc' },
     });
+  }
+
+  async aiDraft(orgId: string, policyId: string): Promise<{ content: string; policyId: string }> {
+    const policy = await this.findOne(orgId, policyId);
+
+    // Fetch org profile for context
+    const profile = await this.prisma.businessProfile.findFirst({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const profileData = (profile?.profileData as any) ?? {};
+
+    const control = policy.control as any;
+    const existingContent = policy.content ?? '';
+
+    const systemPrompt = `You are a compliance policy writer with expertise in information security frameworks (SOC 2, ISO 27001, HIPAA, GDPR). Write professional, practical policy documents that are implementable by real organizations. Write in clear, formal language. Return only the policy content as clean Markdown.`;
+
+    const userPrompt = `${existingContent ? 'Improve and expand this existing policy draft' : 'Write a complete policy document'} for the following compliance control:
+
+Control: [${control?.code ?? 'N/A'}] ${control?.title ?? policy.title}
+Framework: ${control?.framework?.name ?? 'SOC 2'}
+Category: ${control?.category ?? 'Security'}
+${control?.description ? `Control Description: ${control.description}` : ''}
+${control?.guidance ? `Implementation Guidance: ${control.guidance}` : ''}
+
+Organization Context:
+- Company: ${profileData.companyName ?? 'the organization'}
+- Industry: ${profileData.industry ?? 'software/SaaS'}
+- Size: ${profileData.companySize ?? 'small-medium'}
+- Cloud: ${(profileData.infrastructure?.cloudProviders ?? []).join(', ') || 'cloud-based'}
+- MFA Status: ${profileData.currentPosture?.mfaStatus ?? 'enforced'}
+
+${existingContent ? `Existing draft to improve:\n${existingContent.replace(/<[^>]*>/g, '').slice(0, 2000)}` : ''}
+
+Write a complete, professional policy document in Markdown. Include:
+1. Purpose and Scope
+2. Policy Statement
+3. Responsibilities (roles and duties)
+4. Policy Requirements (specific, actionable controls with numbered list)
+5. Exceptions Process
+6. Review and Maintenance (review frequency)
+7. Related Policies/Controls
+
+Make it specific to the organization context above. Be concrete and actionable, not generic.`;
+
+    const response = await this.llm.complete(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt },
+      ],
+      { agentName: 'policy', temperature: 0.3, maxTokens: 4000 },
+    );
+
+    const generatedContent = response.content.trim();
+
+    this.logger.log(`AI draft generated for policy ${policyId}`);
+    return { content: generatedContent, policyId };
   }
 }
