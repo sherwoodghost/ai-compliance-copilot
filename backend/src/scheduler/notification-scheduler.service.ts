@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../database/prisma.service';
 import { ResendService } from '../notifications/resend.service';
 import { NotificationService } from '../notifications/notification.service';
+import { ApprovalWorkflowService } from '../modules/approval-workflow/approval-workflow.service';
 
 /**
  * NotificationSchedulerService
@@ -17,9 +18,10 @@ export class NotificationSchedulerService {
   private readonly logger = new Logger(NotificationSchedulerService.name);
 
   constructor(
-    private readonly prisma:         PrismaService,
-    private readonly resend:         ResendService,
-    private readonly notifications:  NotificationService,
+    private readonly prisma:            PrismaService,
+    private readonly resend:            ResendService,
+    private readonly notifications:     NotificationService,
+    @Optional() private readonly approvalWorkflow: ApprovalWorkflowService | null,
   ) {}
 
   // ─── Daily: Evidence expiry alerts ──────────────────────────────────────────
@@ -181,5 +183,19 @@ export class NotificationSchedulerService {
       overdue:  overdueCount,
       passRate: total > 0 ? Math.round((passCount / total) * 100) : 0,
     };
+  }
+
+  // ─── Hourly: Approval workflow SLA checks ────────────────────────────────────
+  @Cron('0 * * * *', { name: 'workflow-sla-check', timeZone: 'UTC' })
+  async checkWorkflowSlas(): Promise<void> {
+    if (!this.approvalWorkflow) return;
+    try {
+      const breached = await this.approvalWorkflow.checkSlaBreaches();
+      if (breached > 0) {
+        this.logger.warn(`[WorkflowSLA] Escalated ${breached} overdue approval(s)`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Workflow SLA check failed: ${err.message}`);
+    }
   }
 }

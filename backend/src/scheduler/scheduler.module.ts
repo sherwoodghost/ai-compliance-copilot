@@ -5,6 +5,7 @@ import { AgentSchedulerService } from './agent-scheduler.service';
 import { NotificationSchedulerService } from './notification-scheduler.service';
 import { ComplianceJourneyModule } from '../compliance-journey/compliance-journey.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ApprovalWorkflowModule } from '../modules/approval-workflow/approval-workflow.module';
 import { QUEUE_NAMES } from '../orchestrator/queue.config';
 
 @Module({
@@ -17,6 +18,7 @@ import { QUEUE_NAMES } from '../orchestrator/queue.config';
     ),
     ComplianceJourneyModule,
     NotificationsModule,
+    ApprovalWorkflowModule,
   ],
   providers: [AgentSchedulerService, NotificationSchedulerService],
   exports: [AgentSchedulerService, NotificationSchedulerService],

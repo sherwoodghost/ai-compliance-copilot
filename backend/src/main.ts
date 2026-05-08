@@ -1,3 +1,5 @@
+// ⚠️ OTel MUST be imported before all other modules for auto-instrumentation to work
+import './telemetry/otel';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

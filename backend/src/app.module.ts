@@ -61,6 +61,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ConnectorsModule } from './modules/connectors/connectors.module';
+import { ApprovalWorkflowModule } from './modules/approval-workflow/approval-workflow.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -130,6 +131,7 @@ import { HealthController } from './health/health.controller';
     FeatureFlagsModule,
     StorageModule,
     ConnectorsModule,
+    ApprovalWorkflowModule,
   ],
   controllers: [HealthController],
 })
