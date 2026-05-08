@@ -206,6 +206,133 @@ export class RisksController {
     });
   }
 
+  // ── AI Risk Generation from Gaps ──────────────────────────────────────────
+
+  @Post('generate-from-gaps')
+  @ApiOperation({ summary: 'AI: identify and create risks from not-implemented controls' })
+  async generateFromGaps(
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // 1. Find not-started/in-progress controls (these represent compliance gaps and implied risks)
+    const gapControls = await this.prisma.organizationControl.findMany({
+      where: { orgId: user.orgId, status: { in: ['not_started', 'in_progress'] } },
+      include: {
+        control: { select: { code: true, title: true, description: true, category: true } },
+      },
+      orderBy: [{ control: { category: 'asc' } }],
+      take: 30,
+    });
+
+    if (gapControls.length === 0) {
+      return { created: 0, risks: [] };
+    }
+
+    // 2. Find existing open risk titles to avoid duplicates
+    const existingRisks = await this.prisma.riskItem.findMany({
+      where: { orgId: user.orgId, status: { in: ['open', 'in_progress'] } },
+      select: { title: true, controlId: true },
+    });
+    const existingControlIds = new Set(existingRisks.map((r) => r.controlId).filter(Boolean));
+
+    const needsRisks = gapControls.filter((gc) => !existingControlIds.has(gc.id));
+    if (needsRisks.length === 0) return { created: 0, risks: [] };
+
+    // 3. Build gap list for prompt
+    const gapList = needsRisks
+      .map((gc) => `[${gc.control.code}] ${gc.control.title} (${gc.control.category})`)
+      .join('\n');
+
+    // 4. Get org context
+    const profile = await this.prisma.businessProfile.findFirst({
+      where: { orgId: user.orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const profileData = (profile?.profileData as any) ?? {};
+
+    const systemPrompt = `You are a compliance risk analyst. Given a list of unimplemented compliance controls, identify the actual business and security risks that arise from those gaps. Return ONLY valid JSON.`;
+
+    const userPrompt = `For a ${profileData.industry ?? 'software'} company, identify the top risks from these unimplemented compliance controls:
+
+${gapList}
+
+For each control gap, describe ONE key risk. Return a JSON array of risk objects:
+[
+  {
+    "title": "Concise risk title (max 80 chars)",
+    "description": "What could go wrong and why (max 200 chars)",
+    "likelihood": "rare" | "unlikely" | "possible" | "likely" | "almost_certain",
+    "impact": "negligible" | "minor" | "moderate" | "major" | "catastrophic",
+    "controlCode": "the control code from the list above",
+    "mitigationAdvice": "one-sentence quick mitigation tip"
+  }
+]
+
+Limit to the top ${Math.min(needsRisks.length, 20)} risks by priority. Assess realistically for a ${profileData.industry ?? 'SaaS'} company. Return only the JSON array.`;
+
+    const response = await this.llm.complete(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt },
+      ],
+      { agentName: 'risk-scoring', temperature: 0.2 },
+    );
+
+    let aiRisks: Array<{
+      title: string;
+      description: string;
+      likelihood: string;
+      impact: string;
+      controlCode: string;
+      mitigationAdvice: string;
+    }> = [];
+
+    try {
+      const raw = response.content.trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+      aiRisks = JSON.parse(raw);
+      if (!Array.isArray(aiRisks)) aiRisks = [];
+    } catch {
+      aiRisks = [];
+    }
+
+    if (aiRisks.length === 0) return { created: 0, risks: [] };
+
+    // 5. Build lookup: controlCode → orgControlId
+    const codeToControlId = new Map(needsRisks.map((gc) => [gc.control.code, gc.id]));
+
+    const validLikelihoods = ['rare', 'unlikely', 'possible', 'likely', 'almost_certain'];
+    const validImpacts     = ['negligible', 'minor', 'moderate', 'major', 'catastrophic'];
+
+    const createdRisks: any[] = [];
+    for (const r of aiRisks) {
+      const likelihood = validLikelihoods.includes(r.likelihood) ? r.likelihood : 'possible';
+      const impact     = validImpacts.includes(r.impact) ? r.impact : 'moderate';
+      const lScore = LIKELIHOOD_SCORES[likelihood] ?? 3;
+      const iScore = IMPACT_SCORES[impact] ?? 3;
+      const riskScore = lScore * iScore;
+      const severity  = deriveSeverity(riskScore);
+      const controlId = codeToControlId.get(r.controlCode) ?? null;
+
+      const risk = await this.prisma.riskItem.create({
+        data: {
+          orgId:           user.orgId,
+          title:           r.title?.slice(0, 200) ?? 'Compliance gap risk',
+          description:     r.description?.slice(0, 500) ?? null,
+          likelihood:      likelihood as any,
+          impact:          impact as any,
+          riskScore,
+          severity,
+          mitigationAdvice: r.mitigationAdvice?.slice(0, 500) ?? null,
+          controlId,
+          identifiedBy:    'ai' as any,
+          status:          'open' as any,
+        },
+      });
+      createdRisks.push(risk);
+    }
+
+    return { created: createdRisks.length, risks: createdRisks };
+  }
+
   // ── AI Advice ─────────────────────────────────────────────────────────────
 
   @Post(':riskId/ai-advice')

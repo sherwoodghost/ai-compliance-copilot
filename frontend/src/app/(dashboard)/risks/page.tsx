@@ -529,9 +529,11 @@ function RiskRow({ risk }: { risk: Risk }) {
 }
 
 export default function RisksPage() {
+  const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'mitigated' | 'accepted'>('all');
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [aiResult, setAiResult] = useState<{ created: number } | null>(null);
 
   const { data = [], isLoading } = useQuery<Risk[]>({
     queryKey: ['risks'],
@@ -541,6 +543,17 @@ export default function RisksPage() {
   const { data: stats } = useQuery({
     queryKey: ['risk-stats'],
     queryFn: () => api.get('/risks/stats').then((r: any) => r.data),
+  });
+
+  const generateRisks = useMutation({
+    mutationFn: () =>
+      api.post('/risks/generate-from-gaps', {}).then((r: any) => r.data as { created: number; risks: any[] }),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['risks'] });
+      qc.invalidateQueries({ queryKey: ['risk-stats'] });
+      setAiResult({ created: result.created });
+      setTimeout(() => setAiResult(null), 5000);
+    },
   });
 
   const filtered = (data as Risk[]).filter((r) => {
@@ -566,14 +579,39 @@ export default function RisksPage() {
             <p className="text-sm text-gray-500">Identify, score, treat, and track all compliance risks</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="btn-primary flex items-center gap-2 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Risk
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => generateRisks.mutate()}
+            disabled={generateRisks.isPending}
+            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-purple-200
+                       bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-60"
+          >
+            {generateRisks.isPending ? (
+              <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {generateRisks.isPending ? 'Scanning…' : 'AI Scan Gaps'}
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Risk
+          </button>
+        </div>
       </div>
+
+      {/* AI result banner */}
+      {aiResult !== null && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-sm text-purple-800">
+          <Sparkles className="w-4 h-4 text-purple-500 shrink-0" />
+          {aiResult.created === 0
+            ? 'All control gaps already have associated risks — nothing new identified.'
+            : `✓ ${aiResult.created} risk${aiResult.created !== 1 ? 's' : ''} identified from your control gaps and added to the register.`}
+        </div>
+      )}
 
       {/* Stats */}
       {stats && (
