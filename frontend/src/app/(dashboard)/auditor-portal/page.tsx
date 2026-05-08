@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient as api } from '@/lib/api/client';
+import { apiClient as api } from '@/lib/api/client'; // used for auditor-portal specific calls
 import {
   Users, Plus, X, Copy, Check, ExternalLink, Shield,
   Clock, AlertTriangle, CheckCircle, XCircle, MessageSquare,

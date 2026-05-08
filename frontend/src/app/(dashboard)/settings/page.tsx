@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api/client';
+import { settingsApi } from '@/lib/api/settings';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api/auth';
@@ -30,7 +30,7 @@ function ProfileSection() {
   const [saved, setSaved] = useState(false);
 
   const save = useMutation({
-    mutationFn: () => apiClient.patch('/users/me', form).then((r) => r.data),
+    mutationFn: () => settingsApi.updateProfile(form),
     onSuccess: (data) => {
       setUser(data);
       setSaved(true);
@@ -72,7 +72,7 @@ function PasswordSection() {
   const [success, setSuccess] = useState(false);
 
   const change = useMutation({
-    mutationFn: () => apiClient.post('/users/me/change-password', {
+    mutationFn: () => settingsApi.changePassword({
       currentPassword: form.currentPassword,
       newPassword: form.newPassword,
     }),
@@ -135,14 +135,14 @@ function OrgSection() {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ['org'],
-    queryFn: () => apiClient.get('/organizations/me').then((r) => r.data),
+    queryFn: () => settingsApi.getOrg(),
   });
 
   const [name, setName] = useState('');
   const [saved, setSaved] = useState(false);
 
   const update = useMutation({
-    mutationFn: () => apiClient.patch('/organizations/me', { name }),
+    mutationFn: () => settingsApi.updateOrg({ name }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org'] });
       setSaved(true);
@@ -184,11 +184,11 @@ function AIConfigSection() {
 
   const { data: llmSettings } = useQuery({
     queryKey: ['llm-settings'],
-    queryFn: () => apiClient.get('/organizations/me/llm-settings').then(r => r.data),
+    queryFn: () => settingsApi.getLlmSettings(),
   });
 
   const save = useMutation({
-    mutationFn: () => apiClient.patch('/organizations/me/llm-settings', { orgApiKey: apiKey }),
+    mutationFn: () => settingsApi.saveLlmSettings(apiKey),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['llm-settings'] });
       setSaved(true);
@@ -203,10 +203,8 @@ function AIConfigSection() {
     setTesting(true);
     setTestResult(null);
     try {
-      const r = await apiClient.post('/organizations/me/llm-settings/test', {
-        apiKey: apiKey || undefined,
-      });
-      setTestResult(r.data);
+      const r = await settingsApi.testLlmConnection();
+      setTestResult({ success: r.ok, error: r.error, model: r.model });
     } catch {
       setTestResult({ success: false, error: 'Connection failed' });
     } finally {
@@ -299,19 +297,19 @@ function NotificationsSection() {
 
   const { data: orgData } = useQuery({
     queryKey: ['org'],
-    queryFn: () => apiClient.get('/organizations/me').then(r => r.data),
+    queryFn: () => settingsApi.getOrg(),
   });
 
   useEffect(() => {
-    const s = orgData?.settings ?? {};
-    if (s.slackWebhook) setSlackWebhook(s.slackWebhook);
-    if (s.notificationPrefs) setPrefs(p => ({ ...p, ...s.notificationPrefs }));
+    const s = (orgData?.settings ?? {}) as Record<string, any>;
+    if (s.slackWebhook) setSlackWebhook(s.slackWebhook as string);
+    if (s.notificationPrefs) setPrefs(p => ({ ...p, ...(s.notificationPrefs as typeof p) }));
   }, [orgData]);
 
   const save = useMutation({
-    mutationFn: () => apiClient.patch('/organizations/me', {
-      settings: { ...(orgData?.settings ?? {}), slackWebhook, notificationPrefs: prefs }
-    }),
+    mutationFn: () => settingsApi.updateOrg({
+      settings: { ...(orgData as any)?.settings ?? {}, slackWebhook, notificationPrefs: prefs }
+    } as any),
     onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2500); },
   });
 
@@ -372,7 +370,7 @@ function RetentionSection() {
 
   const { data } = useQuery({
     queryKey: ['retention-settings'],
-    queryFn: () => apiClient.get('/organizations/me/retention-settings').then(r => r.data),
+    queryFn: () => settingsApi.getRetentionSettings(),
   });
 
   useEffect(() => {
@@ -383,7 +381,7 @@ function RetentionSection() {
   }, [data]);
 
   const save = useMutation({
-    mutationFn: () => apiClient.patch('/organizations/me/retention-settings', form),
+    mutationFn: () => settingsApi.updateRetentionSettings(form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['retention-settings'] });
       setSaved(true);
@@ -462,7 +460,7 @@ function DangerZoneSection() {
   const [confirmText, setConfirmText] = useState('');
 
   const reset = useMutation({
-    mutationFn: () => apiClient.post('/organizations/me/reset-demo').then((r) => r.data),
+    mutationFn: () => settingsApi.resetDemo(),
     onSuccess: () => {
       // Clear query cache so stale data doesn't persist
       if (typeof window !== 'undefined') {
@@ -563,7 +561,7 @@ export default function SettingsPage() {
   const { clearUser } = useAuthStore();
 
   async function signOutAll() {
-    try { await apiClient.post('/auth/logout-all'); } catch {}
+    try { await settingsApi.logoutAllSessions(); } catch {}
     clearUser();
     router.push('/login');
   }
