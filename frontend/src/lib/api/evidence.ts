@@ -42,9 +42,26 @@ export interface MappingSuggestion {
   reason:      string;
 }
 
+export interface BulkMapControl {
+  controlId:   string;
+  controlCode: string;
+  title:       string;
+  confidence:  number;
+  reason:      string;
+}
+
+export interface BulkMapSuggestion {
+  evidenceId:         string;
+  evidenceTitle:      string;
+  evidenceType?:      string;
+  storageUrl?:        string;
+  suggestedControls:  BulkMapControl[];
+  additionalControls: BulkMapControl[];
+}
+
 export interface BulkMapResult {
-  mapped:  number;
-  skipped: number;
+  processed:   number;
+  suggestions: BulkMapSuggestion[];
 }
 
 export interface ExpiryReport {
@@ -56,10 +73,13 @@ export interface ExpiryReport {
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 export interface CreateEvidenceDto {
-  title:       string;
+  title:        string;
   description?: string;
-  controlId:   string;
-  expiresAt?:  string;
+  controlId:    string;
+  type?:        string;
+  source?:      string;
+  storageUrl?:  string;
+  expiresAt?:   string;
 }
 
 // ─── API client ───────────────────────────────────────────────────────────────

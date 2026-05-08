@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { policiesApi, Policy, CoverageResult, PolicyGap } from '@/lib/api/policies';
-import { apiClient as api } from '@/lib/api/client';
+import { auditApi } from '@/lib/api/audit';
 import {
   FileText, Check, Archive, X, ChevronRight, Plus, Download,
   Clock, CheckCircle2, ArchiveIcon, AlertCircle, Search,
@@ -495,7 +495,7 @@ export default function PoliciesPage() {
   });
 
   const generate = useMutation({
-    mutationFn: () => api.post('/orchestrator/assess', { frameworkType: 'SOC2' }).then((r) => r.data),
+    mutationFn: () => auditApi.triggerAssessment('SOC2'),
     onSuccess: () => {
       setTimeout(() => qc.invalidateQueries({ queryKey: ['policies'] }), 5000);
     },

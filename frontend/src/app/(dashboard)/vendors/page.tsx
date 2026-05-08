@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
-import { apiClient } from '@/lib/api/client';
+import { vendorsApi, Vendor, VsqResult, VsqQuestion } from '@/lib/api/vendors';
 import { formatDate } from '@/lib/utils';
 import {
   Building2, AlertTriangle, CheckCircle, Search, ChevronDown, ChevronUp,
@@ -11,22 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Vendor = {
-  id: string;
-  vendorName: string;
-  category?: string;
-  riskLevel: 'critical' | 'high' | 'medium' | 'low';
-  status?: 'approved' | 'flagged' | 'pending';
-  findings?: string[];
-  mitigations?: string[];
-  lastReviewedAt?: string;
-  contactEmail?: string;
-  website?: string;
-  notes?: string;
-  summary?: string;
-};
+// ─── Types imported from @/lib/api/vendors ────────────────────────────────────
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -246,8 +231,7 @@ function DeleteDialog({ vendorName, onConfirm, onCancel, deleting }: {
 
 // ─── Vendor Security Questionnaire Modal ─────────────────────────────────────
 
-type VsqQuestion = { category: string; question: string; required: boolean; notes: string | null };
-type VsqResult = { vendorId: string; vendorName: string; riskLevel: string; frameworks: string; questions: VsqQuestion[]; generatedAt: string };
+// VsqResult and VsqQuestion imported from @/lib/api/vendors
 
 const VSQ_CATEGORY_COLOR: Record<string, string> = {
   'Data Security':        'bg-blue-50 text-blue-700',
@@ -371,8 +355,8 @@ function VendorCard({
     e.stopPropagation();
     setGeneratingQsn(true);
     try {
-      const res = await apiClient.post<VsqResult>(`/vendor-risk/${vendor.id}/ai-questionnaire`);
-      setQuestionnaire((res as any).data ?? res);
+      const res = await vendorsApi.aiQuestionnaire(vendor.id);
+      setQuestionnaire(res);
     } catch {
       // silent error
     } finally {
@@ -564,7 +548,7 @@ export default function VendorsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['vendors'],
-    queryFn: () => apiClient.get('/vendor-risk').then((r) => r.data),
+    queryFn: () => vendorsApi.list(),
   });
 
   const vendors: Vendor[] = data ?? [];
@@ -590,9 +574,9 @@ export default function VendorsPage() {
   const saveMutation = useMutation({
     mutationFn: (data: { id?: string; payload: Partial<Vendor> }) => {
       if (data.id) {
-        return apiClient.patch(`/vendor-risk/${data.id}`, data.payload).then((r) => r.data);
+        return vendorsApi.update(data.id, data.payload);
       }
-      return apiClient.post('/vendor-risk', data.payload).then((r) => r.data);
+      return vendorsApi.create(data.payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vendors'] });
@@ -602,7 +586,7 @@ export default function VendorsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/vendor-risk/${id}`).then((r) => r.data),
+    mutationFn: (id: string) => vendorsApi.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vendors'] });
       setShowDelete(null);
@@ -611,7 +595,7 @@ export default function VendorsPage() {
 
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const analyzeMutation = useMutation({
-    mutationFn: (id: string) => apiClient.post(`/vendor-risk/${id}/analyze`, {}).then((r) => r.data),
+    mutationFn: (id: string) => vendorsApi.analyze(id),
     onMutate: (id) => setAnalyzingId(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vendors'] });

@@ -4,7 +4,6 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { evidenceApi } from '@/lib/api/evidence';
 import { controlsApi } from '@/lib/api/controls';
-import { apiClient } from '@/lib/api/client';
 import { formatDate, formatRelative } from '@/lib/utils';
 import {
   FileCheck, AlertTriangle, Clock, Upload, Search, Trash2,
@@ -661,7 +660,7 @@ export default function EvidencePage() {
   }
 
   const bulkMap = useMutation({
-    mutationFn: () => apiClient.post<BulkMapResult>('/evidence/ai-bulk-map').then((r: any) => r.data),
+    mutationFn: () => evidenceApi.aiBulkMap() as unknown as Promise<BulkMapResult>,
     onSuccess: (res) => setBulkMapResult(res),
   });
 
@@ -673,7 +672,7 @@ export default function EvidencePage() {
     ctrl: BulkMapControl,
   ) {
     try {
-      await apiClient.post('/evidence', {
+      await evidenceApi.create({
         controlId: ctrl.controlId,
         title: `${evidenceTitle} (cross-mapped)`,
         type: evidenceType ?? 'document',

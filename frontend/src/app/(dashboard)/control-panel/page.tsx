@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { complianceApi } from '@/lib/api/compliance';
 import { apiClient as api } from '@/lib/api/client';
 import { formatMs, formatCurrency, formatRelative } from '@/lib/utils';
 import {
@@ -344,7 +343,7 @@ function EventLog({ workflowId }: { workflowId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const { data } = useQuery({
     queryKey: ['events', workflowId],
-    queryFn: () => complianceApi.getWorkflowEvents(workflowId),
+    queryFn: () => api.get(`/control-panel/workflows/${workflowId}/events`).then((r: any) => r.data),
     refetchInterval: 3_000,
   });
   const events: any[] = data ?? [];
@@ -396,12 +395,12 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ['canvas', workflowId],
-    queryFn: () => complianceApi.getWorkflowCanvas(workflowId),
+    queryFn: () => api.get(`/control-panel/workflows/${workflowId}/canvas`).then((r: any) => r.data),
     refetchInterval: 5_000,
   });
 
   const replay = useMutation({
-    mutationFn: (agentName: string) => complianceApi.replayFromAgent(workflowId, agentName),
+    mutationFn: (agentName: string) => api.post(`/orchestrator/workflows/${workflowId}/replay`, { agentName }).then((r: any) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas', workflowId] }),
   });
 
@@ -544,13 +543,13 @@ export default function ControlPanelPage() {
 
   const { data: workflows, isLoading } = useQuery({
     queryKey: ['workflows'],
-    queryFn: complianceApi.listWorkflows,
+    queryFn: () => api.get('/control-panel/workflows').then((r: any) => r.data),
     refetchInterval: 8_000,
   });
 
   const { data: systemStats } = useQuery({
     queryKey: ['system-stats'],
-    queryFn: complianceApi.getSystemStats,
+    queryFn: () => api.get('/control-panel/stats').then((r: any) => r.data),
   });
 
   const list: any[] = workflows ?? [];
