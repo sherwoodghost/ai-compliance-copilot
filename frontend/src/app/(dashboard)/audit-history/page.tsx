@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api/client';
 import {
   BookOpen, Plus, ChevronDown, ChevronRight, AlertTriangle,
   CheckCircle2, Clock, X, Calendar, Building2, FileText,
+  Sparkles, Copy, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -213,6 +214,10 @@ function NewFindingModal({ cycles, onClose, onSave }: {
 
 function CycleCard({ cycle, onAddFinding }: { cycle: AuditCycle; onAddFinding: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const [debrief, setDebrief] = useState<any | null>(null);
+  const [remediating, setRemediating] = useState<string | null>(null);
+  const [aiResults, setAiResults] = useState<Record<string, any>>({});
+  const [copiedDebrief, setCopiedDebrief] = useState(false);
   const qc = useQueryClient();
 
   const { data: cycleDetail } = useQuery({
@@ -226,6 +231,49 @@ function CycleCard({ cycle, onAddFinding }: { cycle: AuditCycle; onAddFinding: (
       apiClient.patch(`/audit-memory/findings/${id}`, { status: 'resolved' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['audit-cycle-detail', cycle.id] }),
   });
+
+  const generateDebrief = useMutation({
+    mutationFn: () => apiClient.post(`/audit-memory/cycles/${cycle.id}/ai-debrief`).then((r: any) => r.data),
+    onSuccess: (data: any) => setDebrief(data),
+  });
+
+  async function aiRemediateFinding(findingId: string) {
+    setRemediating(findingId);
+    try {
+      const res = await apiClient.post(`/audit-memory/findings/${findingId}/ai-remediation`);
+      setAiResults((prev) => ({ ...prev, [findingId]: res.data }));
+      qc.invalidateQueries({ queryKey: ['audit-cycle-detail', cycle.id] });
+    } finally {
+      setRemediating(null);
+    }
+  }
+
+  function copyDebrief() {
+    if (!debrief) return;
+    const text = [
+      `AUDIT DEBRIEF — ${debrief.cycleLabel} (${debrief.framework})`,
+      ``,
+      debrief.executiveSummary,
+      ``,
+      `STRENGTHS:`,
+      ...debrief.strengths.map((s: string) => `• ${s}`),
+      ``,
+      `KEY FINDINGS:`,
+      ...debrief.keyFindings.map((f: string) => `• ${f}`),
+      ``,
+      `LESSONS LEARNED:`,
+      ...debrief.lessonsLearned.map((l: string) => `• ${l}`),
+      ``,
+      `NEXT CYCLE RECOMMENDATIONS:`,
+      ...debrief.nextCycleRecommendations.map((r: string) => `• ${r}`),
+      ``,
+      `PRIORITY ACTIONS:`,
+      ...debrief.priorityActions.map((a: string, i: number) => `${i + 1}. ${a}`),
+    ].join('\n');
+    navigator.clipboard.writeText(text);
+    setCopiedDebrief(true);
+    setTimeout(() => setCopiedDebrief(false), 2000);
+  }
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -258,63 +306,141 @@ function CycleCard({ cycle, onAddFinding }: { cycle: AuditCycle; onAddFinding: (
             </span>
           </div>
         </div>
-        <button
-          className="text-xs btn-secondary shrink-0"
-          onClick={e => { e.stopPropagation(); onAddFinding(); }}
-        >
-          + Finding
-        </button>
+        <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+          <button
+            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-60"
+            onClick={() => generateDebrief.mutate()}
+            disabled={generateDebrief.isPending}
+            title="Generate AI debrief for this cycle"
+          >
+            {generateDebrief.isPending
+              ? <span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+              : <Sparkles className="w-3 h-3" />
+            }
+            Debrief
+          </button>
+          <button
+            className="text-xs btn-secondary shrink-0"
+            onClick={() => onAddFinding()}
+          >
+            + Finding
+          </button>
+        </div>
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-100 p-4">
+        <div className="border-t border-gray-100 p-4 space-y-4">
           {cycle.notes && (
-            <p className="text-xs text-gray-500 mb-4 bg-gray-50 rounded p-3">{cycle.notes}</p>
+            <p className="text-xs text-gray-500 bg-gray-50 rounded p-3">{cycle.notes}</p>
           )}
+
+          {/* AI Debrief Panel */}
+          {debrief && (
+            <div className="rounded-xl bg-purple-50 border border-purple-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-purple-800 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />AI Cycle Debrief
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={copyDebrief} className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1">
+                    {copiedDebrief ? <><Check className="w-3 h-3" />Copied</> : <><Copy className="w-3 h-3" />Copy</>}
+                  </button>
+                  <button onClick={() => setDebrief(null)} className="text-purple-400 hover:text-purple-600"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-700">{debrief.executiveSummary}</p>
+              {debrief.keyFindings?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Key Findings</p>
+                  {debrief.keyFindings.map((f: string, i: number) => (
+                    <p key={i} className="text-xs text-gray-600 flex items-start gap-1.5 mb-0.5">
+                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />{f}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {debrief.priorityActions?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Priority Actions Before Next Audit</p>
+                  {debrief.priorityActions.map((a: string, i: number) => (
+                    <p key={i} className="text-xs text-gray-600 flex items-start gap-1.5 mb-0.5">
+                      <span className="w-4 h-4 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>{a}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {!cycleDetail?.findings?.length ? (
             <p className="text-xs text-gray-400 text-center py-4">No findings logged yet</p>
           ) : (
             <div className="space-y-3">
-              {cycleDetail.findings.map(f => (
-                <div key={f.id} className="border border-gray-100 rounded-lg p-3">
-                  <div className="flex items-start gap-3">
-                    <span className={cn('text-xs px-2 py-0.5 rounded border font-medium shrink-0', SEVERITY_COLORS[f.severity] ?? 'bg-gray-100 text-gray-600 border-gray-200')}>
-                      {f.severity}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 justify-between">
-                        <p className="text-sm font-medium text-gray-900">{f.title}</p>
-                        <span className="text-xs text-gray-400 shrink-0 capitalize">{f.findingType}</span>
+              {cycleDetail.findings.map(f => {
+                const aiResult = aiResults[f.id];
+                return (
+                  <div key={f.id} className="border border-gray-100 rounded-lg p-3">
+                    <div className="flex items-start gap-3">
+                      <span className={cn('text-xs px-2 py-0.5 rounded border font-medium shrink-0', SEVERITY_COLORS[f.severity] ?? 'bg-gray-100 text-gray-600 border-gray-200')}>
+                        {f.severity}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 justify-between">
+                          <p className="text-sm font-medium text-gray-900">{f.title}</p>
+                          <span className="text-xs text-gray-400 shrink-0 capitalize">{f.findingType}</span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">{f.description}</p>
+                        {f.control && (
+                          <p className="text-xs text-brand-600 mt-1">Control: {f.control.code} — {f.control.title}</p>
+                        )}
+                        {f.remediation && (
+                          <div className="mt-2 p-2 bg-green-50 rounded text-xs text-green-800">
+                            <span className="font-medium">Remediation: </span>{f.remediation}
+                          </div>
+                        )}
+                        {f.lessonLearned && (
+                          <div className="mt-2 p-2 bg-amber-50 rounded text-xs text-amber-800">
+                            <span className="font-medium">💡 Lesson: </span>{f.lessonLearned}
+                          </div>
+                        )}
+                        {/* AI result inline */}
+                        {aiResult && !f.remediation && (
+                          <div className="mt-2 p-2 bg-purple-50 border border-purple-100 rounded text-xs space-y-1">
+                            <p className="font-semibold text-purple-800 flex items-center gap-1"><Sparkles className="w-3 h-3" />AI Remediation Plan ({aiResult.estimatedTimeline})</p>
+                            {aiResult.remediationSteps?.slice(0,3).map((s: string, i: number) => (
+                              <p key={i} className="text-purple-700">• {s}</p>
+                            ))}
+                          </div>
+                        )}
+                        {/* AI Remediation button — only for open findings without remediation */}
+                        {f.status !== 'resolved' && !f.remediation && (
+                          <button
+                            className="mt-2 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 disabled:opacity-50"
+                            onClick={() => aiRemediateFinding(f.id)}
+                            disabled={remediating === f.id}
+                          >
+                            {remediating === f.id
+                              ? <><span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />Generating…</>
+                              : <><Sparkles className="w-3 h-3" />AI Remediation Plan</>
+                            }
+                          </button>
+                        )}
                       </div>
-                      <p className="text-xs text-gray-600 mt-1">{f.description}</p>
-                      {f.control && (
-                        <p className="text-xs text-brand-600 mt-1">Control: {f.control.code} — {f.control.title}</p>
+                      {f.status !== 'resolved' && (
+                        <button
+                          className="text-xs text-green-600 hover:text-green-700 shrink-0 mt-0.5"
+                          onClick={() => resolveFinding.mutate(f.id)}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
                       )}
-                      {f.remediation && (
-                        <div className="mt-2 p-2 bg-green-50 rounded text-xs text-green-800">
-                          <span className="font-medium">Remediation: </span>{f.remediation}
-                        </div>
-                      )}
-                      {f.lessonLearned && (
-                        <div className="mt-2 p-2 bg-amber-50 rounded text-xs text-amber-800">
-                          <span className="font-medium">💡 Lesson: </span>{f.lessonLearned}
-                        </div>
+                      {f.status === 'resolved' && (
+                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                       )}
                     </div>
-                    {f.status !== 'resolved' && (
-                      <button
-                        className="text-xs text-green-600 hover:text-green-700 shrink-0 mt-0.5"
-                        onClick={() => resolveFinding.mutate(f.id)}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
-                    )}
-                    {f.status === 'resolved' && (
-                      <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

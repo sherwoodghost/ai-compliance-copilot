@@ -6,7 +6,7 @@ import { apiClient as api } from '@/lib/api/client';
 import {
   Globe, Shield, CheckCircle, Clock, XCircle, Lock, Eye, EyeOff,
   Download, Copy, Check, ChevronRight, FileText, Zap, AlertCircle,
-  ExternalLink, Star, RefreshCw,
+  ExternalLink, Star, RefreshCw, Sparkles, X, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -250,11 +250,116 @@ function PublicUrlBanner({ url, isPublic }: { url?: string; isPublic: boolean })
   );
 }
 
+// ─── AI Security FAQ Modal ────────────────────────────────────────────────────
+
+type FaqItem = {
+  category: string;
+  question: string;
+  answer: string;
+  strength: 'high' | 'medium';
+};
+
+type FaqResult = {
+  companyName: string;
+  frameworks: string;
+  faqs: FaqItem[];
+  generatedAt: string;
+};
+
+const CATEGORY_COLOR: Record<string, string> = {
+  'Data Security':    'bg-blue-50 text-blue-700 border-blue-200',
+  'Access Control':   'bg-purple-50 text-purple-700 border-purple-200',
+  'Compliance':       'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Incident Response': 'bg-red-50 text-red-700 border-red-200',
+  'Vendor Risk':      'bg-orange-50 text-orange-700 border-orange-200',
+  'Data Management':  'bg-teal-50 text-teal-700 border-teal-200',
+  'Employee Security': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+};
+
+function SecurityFaqModal({ data, onClose }: { data: FaqResult; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  function copyAll() {
+    const text = [
+      `SECURITY FAQ — ${data.companyName}`,
+      `Frameworks: ${data.frameworks}`,
+      ``,
+      ...data.faqs.flatMap((f) => [
+        `Q: ${f.question}`,
+        `A: ${f.answer}`,
+        ``,
+      ]),
+      `Generated: ${new Date(data.generatedAt).toLocaleString()}`,
+    ].join('\n');
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-purple-600" />
+              AI Security FAQ
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {data.faqs.length} questions · {data.frameworks} · Ready to share with customers
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyAll}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+            >
+              {copied ? <><Check className="w-3.5 h-3.5 text-green-600" />Copied!</> : <><Copy className="w-3.5 h-3.5" />Copy All</>}
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+          {data.faqs.map((faq, i) => (
+            <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+              <div className="flex items-start gap-3 px-4 py-3 bg-gray-50">
+                <span className={cn('text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 mt-0.5', CATEGORY_COLOR[faq.category] ?? 'bg-gray-100 text-gray-600 border-gray-200')}>
+                  {faq.category}
+                </span>
+                <p className="text-sm font-semibold text-gray-900">{faq.question}</p>
+                {faq.strength === 'high' && (
+                  <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                )}
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-sm text-gray-700 leading-relaxed">{faq.answer}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-6 py-3 border-t shrink-0">
+          <p className="text-xs text-gray-400 text-center">
+            AI-generated from your compliance data · Review before sharing · {new Date(data.generatedAt).toLocaleString()}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TrustCenterPage() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [activeStatus, setActiveStatus] = useState<'all' | 'passing' | 'in_progress' | 'failing'>('all');
+  const [securityFaq, setSecurityFaq] = useState<FaqResult | null>(null);
+
+  const generateFaq = useMutation({
+    mutationFn: () => api.post('/trust-center/ai-security-faq').then((r: any) => r.data),
+    onSuccess: (data: any) => setSecurityFaq(data),
+  });
 
   const { data: trustConfig } = useQuery<TrustConfig>({
     queryKey: ['trust-center-config'],
@@ -292,6 +397,11 @@ export default function TrustCenterPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* ── AI Security FAQ Modal ── */}
+      {securityFaq && (
+        <SecurityFaqModal data={securityFaq} onClose={() => setSecurityFaq(null)} />
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -301,6 +411,16 @@ export default function TrustCenterPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => generateFaq.mutate()}
+            disabled={generateFaq.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-xs font-medium hover:bg-purple-100 transition-colors disabled:opacity-60"
+          >
+            {generateFaq.isPending
+              ? <><span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />Generating…</>
+              : <><MessageSquare className="w-3.5 h-3.5" />AI Security FAQ</>
+            }
+          </button>
           <button
             onClick={() => refetch()}
             className="btn-secondary text-xs flex items-center gap-1.5"
