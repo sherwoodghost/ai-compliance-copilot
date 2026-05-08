@@ -535,4 +535,106 @@ Return JSON:
       data: { status: 'mitigated' as any },
     });
   }
+
+  // ── AI Risk Portfolio Analysis ─────────────────────────────────────────────
+
+  @Post('ai-portfolio-analysis')
+  @ApiOperation({ summary: 'AI: strategic risk portfolio analysis — patterns, exposure areas, board-ready summary' })
+  async aiPortfolioAnalysis(@CurrentUser() user: JwtPayload) {
+    const orgId = user.orgId;
+
+    const [risks, profile] = await Promise.all([
+      this.prisma.riskItem.findMany({
+        where: { orgId },
+        include: {
+          treatments: { select: { treatmentType: true, status: true } },
+        },
+        orderBy: { riskScore: 'desc' as any },
+        take: 50,
+      }),
+      this.prisma.businessProfile.findFirst({ where: { orgId }, orderBy: { createdAt: 'desc' } }),
+    ]);
+
+    if (risks.length === 0) {
+      return { message: 'No risks found — add risks to generate a portfolio analysis.' };
+    }
+
+    const pd = (profile?.profileData as any) ?? {};
+    const companyName = pd.companyName ?? 'the organisation';
+    const industry    = pd.industry    ?? 'technology';
+    const frameworks  = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
+
+    const stats = {
+      total:     risks.length,
+      critical:  risks.filter((r) => r.severity === 'critical').length,
+      high:      risks.filter((r) => r.severity === 'high').length,
+      open:      risks.filter((r) => r.status === 'open').length,
+      mitigated: risks.filter((r) => r.status === 'mitigated').length,
+      accepted:  risks.filter((r) => r.status === 'accepted').length,
+      unowned:   risks.filter((r) => !r.owner).length,
+    };
+
+    const topRisks = risks.slice(0, 15).map((r) => ({
+      title:    r.title,
+      severity: r.severity,
+      category: r.category ?? 'Uncategorized',
+      status:   r.status,
+      score:    r.riskScore,
+      owner:    r.owner ?? 'Unassigned',
+    }));
+
+    const systemPrompt = `You are a Chief Risk Officer preparing a strategic risk portfolio analysis for a board presentation. Be concise, specific, and actionable. Identify patterns and systemic issues.`;
+
+    const userPrompt = `Analyse this risk portfolio for ${companyName} (${industry}) targeting ${frameworks}:
+
+STATS: ${stats.total} risks total — ${stats.critical} critical, ${stats.high} high, ${stats.open} open, ${stats.mitigated} mitigated, ${stats.accepted} accepted, ${stats.unowned} unassigned
+
+TOP RISKS (by score):
+${topRisks.map((r, i) => `${i + 1}. [${r.severity?.toUpperCase()}] ${r.title} | ${r.category} | ${r.status} | Owner: ${r.owner}`).join('\n')}
+
+Return ONLY a JSON object (no markdown):
+{
+  "executiveSummary": "3-4 sentence board-level risk posture summary",
+  "overallRiskRating": "Low|Medium|High|Critical",
+  "topExposureAreas": [
+    { "area": "category name", "riskCount": 3, "concern": "1 sentence on the specific concern" }
+  ],
+  "systemicPatterns": ["Pattern 1 observed across multiple risks", "Pattern 2"],
+  "criticalUntreated": ["Risk title 1 with no treatment that poses highest exposure"],
+  "quickWins": ["Specific action that would immediately reduce portfolio risk"],
+  "boardRecommendations": ["Recommendation 1 for board action", "Recommendation 2"],
+  "riskAppetiteAssessment": "1-2 sentences on whether current risk levels are within acceptable bounds for this industry"
+}`;
+
+    const raw = await this.llm.complete(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      { agentName: 'audit', temperature: 0.25 },
+    );
+
+    let result: any = {};
+    try {
+      result = JSON.parse(raw.content.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim());
+    } catch {
+      result = {};
+    }
+
+    const validRatings = ['Low', 'Medium', 'High', 'Critical'];
+
+    return {
+      stats,
+      overallRiskRating:       validRatings.includes(result.overallRiskRating) ? result.overallRiskRating : 'High',
+      executiveSummary:        String(result.executiveSummary ?? '').slice(0, 600),
+      topExposureAreas:        (Array.isArray(result.topExposureAreas) ? result.topExposureAreas : []).slice(0, 5).map((a: any) => ({
+        area:      String(a.area ?? '').slice(0, 60),
+        riskCount: Number(a.riskCount ?? 0),
+        concern:   String(a.concern ?? '').slice(0, 200),
+      })),
+      systemicPatterns:        (Array.isArray(result.systemicPatterns) ? result.systemicPatterns : []).slice(0, 4).map(String),
+      criticalUntreated:       (Array.isArray(result.criticalUntreated) ? result.criticalUntreated : []).slice(0, 4).map(String),
+      quickWins:               (Array.isArray(result.quickWins) ? result.quickWins : []).slice(0, 3).map(String),
+      boardRecommendations:    (Array.isArray(result.boardRecommendations) ? result.boardRecommendations : []).slice(0, 4).map(String),
+      riskAppetiteAssessment:  String(result.riskAppetiteAssessment ?? '').slice(0, 300),
+      generatedAt:             new Date().toISOString(),
+    };
+  }
 }

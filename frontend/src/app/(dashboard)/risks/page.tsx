@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { apiClient as api } from '@/lib/api/client';
 import {
   AlertTriangle, Shield, CheckCircle, ChevronDown, ChevronRight,
-  ArrowRightLeft, Ban, Zap, Clock, Plus, X, Sparkles,
+  ArrowRightLeft, Ban, Zap, Clock, Plus, X, Sparkles, BarChart3, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +47,132 @@ const TREATMENT_CONFIG: Record<string, { label: string; color: string; icon: Rea
   transfer: { label: 'Transfer', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: ArrowRightLeft },
   avoid:    { label: 'Avoid',    color: 'bg-gray-50 text-gray-700 border-gray-200',  icon: Ban },
 };
+
+// ─── Portfolio Analysis Types & Panel ────────────────────────────────────────
+
+type PortfolioStats = { total: number; critical: number; high: number; open: number; mitigated: number; accepted: number; unowned: number };
+type ExposureArea   = { area: string; riskCount: number; concern: string };
+type PortfolioResult = {
+  stats: PortfolioStats;
+  overallRiskRating: string;
+  executiveSummary: string;
+  topExposureAreas: ExposureArea[];
+  systemicPatterns: string[];
+  criticalUntreated: string[];
+  quickWins: string[];
+  boardRecommendations: string[];
+  riskAppetiteAssessment: string;
+  generatedAt: string;
+};
+
+const RATING_CFG: Record<string, { bg: string; text: string; border: string }> = {
+  Critical: { bg: 'bg-red-50',    text: 'text-red-800',    border: 'border-red-200' },
+  High:     { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border-orange-200' },
+  Medium:   { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border-yellow-200' },
+  Low:      { bg: 'bg-green-50',  text: 'text-green-800',  border: 'border-green-200' },
+};
+
+function PortfolioPanel({ result, onClose }: { result: PortfolioResult; onClose: () => void }) {
+  const rating  = result.overallRiskRating ?? 'High';
+  const rCfg    = RATING_CFG[rating] ?? RATING_CFG.High;
+
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      {/* Panel header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+            <BarChart3 className="w-4 h-4 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">AI Risk Portfolio Analysis</p>
+            <p className="text-xs text-gray-500">
+              {result.stats.total} risks · Overall:{' '}
+              <span className={cn('font-semibold', rCfg.text)}>{rating}</span>
+            </p>
+          </div>
+        </div>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Executive Summary */}
+      <div className={cn('rounded-xl border p-4', rCfg.bg, rCfg.border)}>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Executive Summary</p>
+        <p className="text-sm text-gray-800 leading-relaxed">{result.executiveSummary}</p>
+      </div>
+
+      {/* Two-column: Exposure areas + Systemic patterns */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {result.topExposureAreas.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Top Exposure Areas</p>
+            <div className="space-y-2">
+              {result.topExposureAreas.map((ea, i) => (
+                <div key={i} className="bg-white rounded-lg border border-gray-200 p-2.5">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="w-5 h-5 rounded-full bg-red-100 text-red-600 text-xs font-bold flex items-center justify-center shrink-0">{ea.riskCount}</span>
+                    <span className="text-xs font-semibold text-gray-800">{ea.area}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 ml-7">{ea.concern}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="space-y-4">
+          {result.systemicPatterns.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Systemic Patterns</p>
+              <ul className="space-y-1">
+                {result.systemicPatterns.map((p, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                    <span className="text-orange-400 mt-0.5 shrink-0">⚠</span> {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.quickWins.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Quick Wins</p>
+              <ul className="space-y-1">
+                {result.quickWins.map((w, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                    <Zap className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" /> {w}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Board Recommendations */}
+      {result.boardRecommendations.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Board Recommendations</p>
+          <ol className="space-y-1.5">
+            {result.boardRecommendations.map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-gray-700 bg-white rounded-lg border border-gray-100 p-2">
+                <span className="w-4 h-4 rounded-full bg-gray-100 text-gray-600 text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                {r}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {result.riskAppetiteAssessment && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+          <p className="text-xs font-semibold text-blue-800 mb-1">Risk Appetite Assessment</p>
+          <p className="text-xs text-blue-700">{result.riskAppetiteAssessment}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Add Risk Modal ──────────────────────────────────────────────────────────
 
@@ -534,6 +660,12 @@ export default function RisksPage() {
   const [filterSeverity, setFilterSeverity] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [aiResult, setAiResult] = useState<{ created: number } | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioResult | null>(null);
+
+  const portfolioMutation = useMutation({
+    mutationFn: () => api.post('/risks/ai-portfolio-analysis', {}).then((r: any) => r.data as PortfolioResult),
+    onSuccess: (result) => setPortfolio(result),
+  });
 
   const { data = [], isLoading } = useQuery<Risk[]>({
     queryKey: ['risks'],
@@ -581,6 +713,17 @@ export default function RisksPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => portfolioMutation.mutate()}
+            disabled={portfolioMutation.isPending}
+            className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-gray-200
+                       bg-white text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+          >
+            {portfolioMutation.isPending
+              ? <RefreshCw className="w-4 h-4 animate-spin" />
+              : <BarChart3 className="w-4 h-4" />}
+            {portfolioMutation.isPending ? 'Analyzing…' : 'Portfolio Analysis'}
+          </button>
+          <button
             onClick={() => generateRisks.mutate()}
             disabled={generateRisks.isPending}
             className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-purple-200
@@ -611,6 +754,11 @@ export default function RisksPage() {
             ? 'All control gaps already have associated risks — nothing new identified.'
             : `✓ ${aiResult.created} risk${aiResult.created !== 1 ? 's' : ''} identified from your control gaps and added to the register.`}
         </div>
+      )}
+
+      {/* Portfolio Analysis panel */}
+      {portfolio && (
+        <PortfolioPanel result={portfolio} onClose={() => setPortfolio(null)} />
       )}
 
       {/* Stats */}
