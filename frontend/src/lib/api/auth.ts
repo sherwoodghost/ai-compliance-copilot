@@ -63,3 +63,19 @@ export const authApi = {
     await apiClient.post('/auth/reset-password', { token, password });
   },
 };
+
+// ─── Notifications API ────────────────────────────────────────────────────────
+
+export const notificationsApi = {
+  getMyNotifications: (limit = 20) =>
+    apiClient.get('/notifications', { params: { limit } }).then((r) => r.data) as Promise<{
+      notifications: any[];
+      unreadCount: number;
+    }>,
+
+  markRead: (id: string) =>
+    apiClient.post(`/notifications/${id}/read`),
+
+  markAllRead: () =>
+    apiClient.post('/notifications/read-all'),
+};

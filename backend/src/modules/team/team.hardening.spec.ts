@@ -134,6 +134,11 @@ const mockResend = {
   sendTaskAssignment:     jest.fn().mockResolvedValue(undefined),
 };
 const mockConfig = { get: jest.fn().mockReturnValue('http://localhost:3001') };
+const mockNotifications = {
+  send:       jest.fn().mockResolvedValue(undefined),
+  sendToRole: jest.fn().mockResolvedValue(undefined),
+  setGateway: jest.fn(),
+};
 
 // ─── RACI Service setup ───────────────────────────────────────────────────────
 
@@ -148,7 +153,7 @@ const makeRaciService = (prismaOverrides: Record<string, any> = {}) => {
       findMany: jest.fn().mockResolvedValue([]),
     };
   }
-  return { service: new RaciService(base as any), prisma: base };
+  return { service: new RaciService(base as any, mockNotifications as any), prisma: base };
 };
 
 // ─── SoD01–SoD05: Segregation of Duties ─────────────────────────────────────
@@ -335,7 +340,7 @@ describe('Tenant Isolation — Team Management Tables', () => {
       },
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const raciSvc = new RaciService(raciPrisma as any);
+    const raciSvc = new RaciService(raciPrisma as any, mockNotifications as any);
 
     await raciSvc.assign('org-A', 'ctrl-1', 'user-1', 'R', 'actor-1');
     const call = raciPrisma.raciAssignment.upsert.mock.calls[0][0];
@@ -365,7 +370,7 @@ describe('Tenant Isolation — Team Management Tables', () => {
       },
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const raciSvc = new RaciService(raciPrisma as any);
+    const raciSvc = new RaciService(raciPrisma as any, mockNotifications as any);
 
     await raciSvc.assign('org-A', 'ctrl-1', 'user-1', 'R', 'actor-1');
     const logCall = raciPrisma.teamAuditLog.create.mock.calls[0][0];
@@ -423,7 +428,7 @@ describe('Audit Log — Every team action logs to TeamAuditLog', () => {
       },
       teamAuditLog: { create: auditCreate },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.assign('org-A', 'ctrl-1', 'user-1', 'R', 'actor-1');
 
@@ -448,7 +453,7 @@ describe('Audit Log — Every team action logs to TeamAuditLog', () => {
       },
       teamAuditLog: { create: auditCreate },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.remove('org-A', 'ctrl-1', 'user-1', 'R', 'actor-1');
 
@@ -477,7 +482,7 @@ describe('Audit Log — Every team action logs to TeamAuditLog', () => {
       },
       teamAuditLog: { create: auditCreate },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     try { await svc.assign('org-A', 'ctrl-1', 'user-1', 'A', 'actor-1'); } catch { /* expected */ }
 
@@ -533,7 +538,7 @@ describe('Audit Log — Every team action logs to TeamAuditLog', () => {
       },
       teamAuditLog: { create: auditCreate },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.assign('org-A', 'ctrl-1', 'user-1', 'C', 'actor-1');
 
@@ -798,7 +803,7 @@ describe('RACI Invariants', () => {
       },
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.assign('org-A', 'ctrl-X', 'user-Y', 'A', 'actor-Z');
 
@@ -820,7 +825,7 @@ describe('RACI Invariants', () => {
       },
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     // remove() is idempotent — returns {removed:false} not throws
     const result = await svc.remove('org-A', 'ctrl-1', 'user-1', 'R', 'actor-1');
@@ -836,7 +841,7 @@ describe('RACI Invariants', () => {
       },
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.assign('org-A', 'ctrl-1', 'user-1', 'C', 'actor-1');
     await svc.assign('org-A', 'ctrl-1', 'user-1', 'C', 'actor-1');
@@ -871,7 +876,7 @@ describe('RACI Invariants', () => {
       },
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.bulkFromResponsibilities('org-A', 'actor-1');
 
@@ -892,7 +897,7 @@ describe('Control Effectiveness — Sampling invariants', () => {
         findFirst: jest.fn().mockResolvedValue(null), // not found
       },
     } as any);
-    const svc = new ControlEffectivenessService(prisma as any);
+    const svc = new ControlEffectivenessService(prisma as any, mockNotifications as any);
 
     await expect(
       svc.sampleControl('org-A', 'nonexistent-id', 'actor-1'),
@@ -917,7 +922,7 @@ describe('Control Effectiveness — Sampling invariants', () => {
         count: jest.fn().mockResolvedValue(0),
       },
     } as any);
-    const svc = new ControlEffectivenessService(prisma as any);
+    const svc = new ControlEffectivenessService(prisma as any, mockNotifications as any);
 
     const result = await svc.sampleControl('org-A', 'ctrl-1', 'actor-1');
     expect((prisma as any).controlEffectivenessSample.create).toHaveBeenCalledWith(
@@ -936,7 +941,7 @@ describe('Control Effectiveness — Sampling invariants', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
     } as any);
-    const svc = new ControlEffectivenessService(prisma as any);
+    const svc = new ControlEffectivenessService(prisma as any, mockNotifications as any);
 
     await svc.getSummary('org-B');
 
@@ -958,7 +963,7 @@ describe('Control Effectiveness — Sampling invariants', () => {
       controlEvidence: { count: jest.fn().mockResolvedValue(3) }, // 3 recent
       task: { count: jest.fn().mockResolvedValue(0) },
     } as any);
-    const svc = new ControlEffectivenessService(prisma as any);
+    const svc = new ControlEffectivenessService(prisma as any, mockNotifications as any);
 
     const result = await svc.sampleControl('org-A', 'ctrl-1', 'actor-1');
     expect(result.evaluation.result).toBe('PASS');
@@ -980,14 +985,14 @@ describe('Control Effectiveness — Sampling invariants', () => {
       evidence: {
         create: jest.fn().mockImplementation((args: any) => Promise.resolve({ id: 'ev-batch', ...args.data })),
       },
-      controlEvidence: { create: jest.fn().mockResolvedValue({ id: 'ce-1' }) },
+      controlEvidence: { create: jest.fn().mockResolvedValue({ id: 'ce-1' }), count: jest.fn().mockResolvedValue(2) },
       control: { findFirst: jest.fn().mockResolvedValue({ id: 'ctrl-A535', code: 'A.5.35' }) },
       controlEvidence2: { create: jest.fn().mockResolvedValue({ id: 'ce-2' }) },
       task: { count: jest.fn().mockResolvedValue(0) },
     } as any);
 
     // Only A.8.2 will match (single integration-testable control that resolves)
-    const svc = new ControlEffectivenessService(prisma as any);
+    const svc = new ControlEffectivenessService(prisma as any, mockNotifications as any);
     const result = await svc.runBatchSample('org-A', 'actor-1');
 
     // Evidence should be created once for the batch
@@ -1164,7 +1169,7 @@ describe('Tenant Isolation — Cross-table checks', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
     } as any);
-    const svc = new ControlEffectivenessService(prisma as any);
+    const svc = new ControlEffectivenessService(prisma as any, mockNotifications as any);
 
     await svc.getSamples('org-F');
 
@@ -1204,7 +1209,7 @@ describe('Tenant Isolation — Cross-table checks', () => {
       raciAssignment: makePrisma().raciAssignment,
       teamAuditLog: { create: jest.fn().mockResolvedValue({ id: 'log-1' }) },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     await svc.bulkFromResponsibilities('org-H', 'actor-1');
 
@@ -1232,7 +1237,7 @@ describe('Tenant Isolation — Cross-table checks', () => {
         }),
       },
     });
-    const svc = new RaciService(prisma as any);
+    const svc = new RaciService(prisma as any, mockNotifications as any);
 
     const orgBResult = await svc.getSodConflicts('org-B');
     expect(orgBResult.conflicts).toHaveLength(0);

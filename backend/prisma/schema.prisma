@@ -1993,6 +1993,25 @@ model ManagementReview {
   @@map("management_reviews")
 }
 
+// ─── Notification Log (Initiative 3 — Real-Time Notification Hub) ────────────
+
+model NotificationLog {
+  id        String    @id @default(uuid())
+  orgId     String    @map("org_id")
+  userId    String    @map("user_id")
+  type      String    // task.assigned | raci.assigned | review.due | training.assigned | control.failed | etc.
+  title     String
+  body      String?
+  href      String?   // deep-link into the app
+  priority  String    @default("normal") // high | normal | low
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, readAt])
+  @@index([orgId, createdAt])
+  @@map("notification_logs")
+}
+
 // ─── Auth Tokens (Initiative 1 — User Activation) ────────────────────────────
 
 model InviteToken {

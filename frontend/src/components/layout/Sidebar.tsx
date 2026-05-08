@@ -5,8 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { authApi } from '@/lib/api/auth';
 import { useQuery } from '@tanstack/react-query';
-import { complianceApi } from '@/lib/api/compliance';
-import { apiClient as api } from '@/lib/api/client';
 import {
   Shield,
   LayoutDashboard,
@@ -29,7 +27,6 @@ import {
   ShieldAlert,
   Users,
   BookOpen,
-  Bell,
   Rocket,
   UserCircle2,
   Activity,
@@ -37,6 +34,7 @@ import {
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { teamApi } from '@/lib/api/team';
+import { NotificationBell } from './NotificationBell';
 
 const NAV = [
   { href: '/overview',         label: 'Overview',        icon: LayoutDashboard },
@@ -68,19 +66,7 @@ export function Sidebar() {
   const { user, clearUser } = useAuthStore();
   const [signingOut, setSigningOut] = useState(false);
 
-  // Notification counts — polled every 5 minutes
-  const { data: expiryReport } = useQuery({
-    queryKey: ['sidebar-expiry'],
-    queryFn: complianceApi.getExpiryReport,
-    refetchInterval: 5 * 60 * 1000,
-    staleTime: 2 * 60 * 1000,
-  });
-  const { data: taskStats } = useQuery({
-    queryKey: ['sidebar-task-stats'],
-    queryFn: complianceApi.getTaskStats,
-    refetchInterval: 5 * 60 * 1000,
-    staleTime: 2 * 60 * 1000,
-  });
+  // Guided program badge count
   const { data: guidedProgram } = useQuery({
     queryKey: ['guided-program', false],
     queryFn: () => teamApi.getGuidedProgram(false),
@@ -88,10 +74,6 @@ export function Sidebar() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const expiredCount  = (expiryReport as any)?.expired?.length ?? 0;
-  const expiringCount = (expiryReport as any)?.expiringSoon?.length ?? 0;
-  const overdueCount  = (taskStats as any)?.overdue ?? 0;
-  const totalAlerts   = expiredCount + expiringCount + overdueCount;
   const guidedPending = ((guidedProgram as any)?.thisWeek?.length ?? 0) + ((guidedProgram as any)?.stats?.inProgress ?? 0);
 
   async function handleSignOut() {
@@ -114,19 +96,8 @@ export function Sidebar() {
           </div>
           <span className="text-sm font-bold text-gray-900 truncate">Compliance Copilot</span>
         </div>
-        {/* Alert bell */}
-        {totalAlerts > 0 && (
-          <Link
-            href="/evidence"
-            title={`${expiredCount > 0 ? `${expiredCount} expired evidence, ` : ''}${expiringCount > 0 ? `${expiringCount} expiring soon, ` : ''}${overdueCount > 0 ? `${overdueCount} overdue tasks` : ''}`.replace(/, $/, '')}
-            className="relative shrink-0 w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors"
-          >
-            <Bell className="w-4 h-4 text-red-500" />
-            <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
-              {totalAlerts > 9 ? '9+' : totalAlerts}
-            </span>
-          </Link>
-        )}
+        {/* Notification bell — real-time personal notifications */}
+        <NotificationBell />
       </div>
 
       {/* Nav */}

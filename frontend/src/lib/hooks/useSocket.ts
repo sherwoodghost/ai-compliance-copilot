@@ -4,9 +4,11 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Cookies from 'js-cookie';
 import { getSocket } from '@/lib/ws/socket';
+import { useNotificationStore } from '@/lib/stores/notification.store';
 
 export function useComplianceSocket() {
-  const qc = useQueryClient();
+  const qc  = useQueryClient();
+  const add = useNotificationStore((s) => s.add);
 
   useEffect(() => {
     const token = Cookies.get('accessToken');
@@ -39,11 +41,15 @@ export function useComplianceSocket() {
 
     socket.on('checkpoint:created', () => {
       qc.invalidateQueries({ queryKey: ['journeys'] });
-      // Could also trigger a browser notification here
     });
 
     socket.on('checkpoint:resolved', () => {
       qc.invalidateQueries({ queryKey: ['journeys'] });
+    });
+
+    // ── Personal notification event ──────────────────────────────────────────
+    socket.on('notification', (data: any) => {
+      add(data);
     });
 
     return () => {
@@ -54,6 +60,7 @@ export function useComplianceSocket() {
       socket.off('journey:stage:updated');
       socket.off('checkpoint:created');
       socket.off('checkpoint:resolved');
+      socket.off('notification');
     };
-  }, [qc]);
+  }, [qc, add]);
 }

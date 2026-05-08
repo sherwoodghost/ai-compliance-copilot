@@ -8,9 +8,10 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { NotificationService } from '../notifications/notification.service';
 
 interface ClientInfo {
   userId: string;
@@ -22,7 +23,7 @@ interface ClientInfo {
   cors: { origin: '*', credentials: true },
   namespace: '/compliance',
 })
-export class ComplianceGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ComplianceGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleInit {
   @WebSocketServer()
   server: Server;
 
@@ -32,7 +33,13 @@ export class ComplianceGateway implements OnGatewayConnection, OnGatewayDisconne
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {}
+
+  onModuleInit() {
+    // Wire the gateway into NotificationService so it can push WebSocket events
+    this.notificationService.setGateway(this);
+  }
 
   async handleConnection(client: Socket) {
     try {
@@ -53,9 +60,11 @@ export class ComplianceGateway implements OnGatewayConnection, OnGatewayDisconne
         role: payload.role,
       });
 
-      // Join org-scoped room for targeted broadcasts
+      // Join org-scoped room for broadcast events
       client.join(`org:${payload.orgId}`);
-      this.logger.log(`Client connected: ${client.id} | org: ${payload.orgId}`);
+      // Join user-scoped room for personal notifications
+      client.join(`user:${payload.sub}`);
+      this.logger.log(`Client connected: ${client.id} | org: ${payload.orgId} | user: ${payload.sub}`);
     } catch {
       client.disconnect();
     }
@@ -114,6 +123,14 @@ export class ComplianceGateway implements OnGatewayConnection, OnGatewayDisconne
     this.server.to(`org:${orgId}`).emit('checkpoint:resolved', {
       checkpointId, decision, timestamp: new Date().toISOString(),
     });
+  }
+
+  /**
+   * Emit a personal notification to a specific user's socket room.
+   * Called by NotificationService after persisting to NotificationLog.
+   */
+  emitNotification(userId: string, notification: object) {
+    this.server.to(`user:${userId}`).emit('notification', notification);
   }
 
   @SubscribeMessage('subscribe:workflow')

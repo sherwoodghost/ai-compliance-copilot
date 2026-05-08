@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationService } from '../../notifications/notification.service';
 
 /** Controls we can auto-test via integration data */
 const INTEGRATION_TESTABLE_CONTROLS = [
@@ -19,7 +20,10 @@ const EVIDENCE_CONTROL_CODES = ['A.5.35', 'A.5.36'];
 export class ControlEffectivenessService {
   private readonly logger = new Logger(ControlEffectivenessService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   /** Get sampling history for an org, optionally filtered by controlId */
   async getSamples(orgId: string, controlId?: string) {
@@ -113,6 +117,28 @@ export class ControlEffectivenessService {
     });
 
     this.logger.log(`Control ${(orgControl as any).control?.code} sampled: ${result.result} (org ${orgId})`);
+
+    // Notify the RACI-Accountable owner when a control FAILS
+    if (result.result === 'FAIL') {
+      const controlCode  = (orgControl as any).control?.code  ?? 'Unknown';
+      const controlTitle = (orgControl as any).control?.title ?? 'Unknown control';
+
+      const raciOwner = await this.prisma.raciAssignment.findFirst({
+        where: { orgId, controlId, raci: 'A' },
+        select: { userId: true },
+      });
+
+      if (raciOwner) {
+        await this.notifications.send(orgId, raciOwner.userId, {
+          type:     'control.failed',
+          title:    `Control effectiveness FAIL — ${controlCode}`,
+          body:     `${controlTitle} failed its latest effectiveness check. Review evidence.`,
+          href:     '/control-effectiveness',
+          priority: 'high',
+        });
+      }
+    }
+
     return { sample, evaluation: result };
   }
 

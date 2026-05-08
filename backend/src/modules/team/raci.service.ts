@@ -5,13 +5,24 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { NotificationService } from '../../notifications/notification.service';
 import { RaciLetter } from '@prisma/client';
+
+const RACI_LABELS: Record<RaciLetter, string> = {
+  R: 'Responsible',
+  A: 'Accountable',
+  C: 'Consulted',
+  I: 'Informed',
+};
 
 @Injectable()
 export class RaciService {
   private readonly logger = new Logger(RaciService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   /**
    * Assign or update a RACI letter for a user on a control.
@@ -28,7 +39,8 @@ export class RaciService {
     // Verify control belongs to this org
     const orgControl = await this.prisma.organizationControl.findUnique({
       where: { orgId_controlId: { orgId, controlId } },
-    });
+      include: { control: { select: { code: true, title: true } } },
+    } as any);
     if (!orgControl) {
       throw new NotFoundException('Control not found for this organization');
     }
@@ -85,6 +97,20 @@ export class RaciService {
     });
 
     this.logger.log(`RACI ${raci} assigned: control=${controlId} user=${userId} actor=${actorId}`);
+
+    // Notify the assigned user (skip Consulted/Informed — only R and A are actionable)
+    if ((raci === 'R' || raci === 'A') && userId !== actorId) {
+      const controlCode = (orgControl as any).control?.code ?? 'unknown';
+      const controlTitle = (orgControl as any).control?.title ?? 'a control';
+      await this.notifications.send(orgId, userId, {
+        type:     'raci.assigned',
+        title:    `You've been assigned as ${RACI_LABELS[raci]} for ${controlCode}`,
+        body:     controlTitle,
+        href:     '/controls',
+        priority: raci === 'A' ? 'high' : 'normal',
+      });
+    }
+
     return assignment;
   }
 
