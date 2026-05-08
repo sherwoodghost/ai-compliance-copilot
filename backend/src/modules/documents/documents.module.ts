@@ -7,6 +7,7 @@ import { RetentionService } from './retention.service';
 import { AiFeaturesService } from './ai-features.service';
 import { DocumentAuditListener } from './listeners/document-audit.listener';
 import { DocumentEvidenceListener } from './listeners/document-evidence.listener';
+import { DocumentNotificationListener } from './listeners/document-notification.listener';
 import { DocumentWorker, DOCUMENT_QUEUE } from './workers/document.worker';
 import { StorageModule } from '../../storage/storage.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
@@ -25,6 +26,7 @@ import { NotificationsModule } from '../../notifications/notifications.module';
     AiFeaturesService,
     DocumentAuditListener,
     DocumentEvidenceListener,
+    DocumentNotificationListener,
     DocumentWorker,
   ],
   exports: [DocumentsService, SanitizerService],

@@ -30,6 +30,7 @@ const TYPE_ICON: Record<string, React.ElementType> = {
   'incident.closed':        CheckCircle2,
   'incident.sla_breach':    AlertOctagon,
   // Documents
+  'document.approval_requested': ClipboardList,
   'document.approved':      FileCheck,
   'document.rejected':      FileX,
   'document.job.complete':  FileCheck,
@@ -54,6 +55,7 @@ const TYPE_COLOR: Record<string, string> = {
   'incident.closed':        'text-emerald-600',
   'incident.sla_breach':    'text-red-700',
   // Documents
+  'document.approval_requested': 'text-amber-600',
   'document.approved':      'text-emerald-600',
   'document.rejected':      'text-red-600',
   'document.job.complete':  'text-emerald-600',
