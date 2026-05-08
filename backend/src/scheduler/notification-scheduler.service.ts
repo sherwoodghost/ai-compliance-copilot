@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../database/prisma.service';
 import { ResendService } from '../notifications/resend.service';
+import { NotificationService } from '../notifications/notification.service';
 
 /**
  * NotificationSchedulerService
@@ -16,8 +17,9 @@ export class NotificationSchedulerService {
   private readonly logger = new Logger(NotificationSchedulerService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly resend: ResendService,
+    private readonly prisma:         PrismaService,
+    private readonly resend:         ResendService,
+    private readonly notifications:  NotificationService,
   ) {}
 
   // ─── Daily: Evidence expiry alerts ──────────────────────────────────────────
@@ -47,7 +49,7 @@ export class NotificationSchedulerService {
       byOrg.get(ev.orgId)!.push(ev);
     }
 
-    // Send emails to org admins
+    // Send emails + in-app notifications to org admins
     let notified = 0;
     for (const [orgId, items] of byOrg.entries()) {
       try {
@@ -58,7 +60,7 @@ export class NotificationSchedulerService {
             settings: true,
             users: {
               where: { role: 'admin', isActive: true },
-              select: { email: true, fullName: true },
+              select: { id: true, email: true, fullName: true },
               take: 3,
             },
           },
@@ -72,12 +74,26 @@ export class NotificationSchedulerService {
           daysLeft: Math.ceil(((ev.expiresAt?.getTime() ?? now.getTime()) - now.getTime()) / 86400_000),
         }));
 
+        const criticalCount = expiryList.filter((e) => e.daysLeft <= 2).length;
+        const notifPriority = criticalCount > 0 ? 'high' : 'normal';
+
         for (const admin of org.users ?? []) {
+          // Email alert
           await this.resend.sendEvidenceExpiryAlert({
             to: admin.email,
             orgName: org.name,
             expiring: expiryList,
           });
+
+          // In-app bell notification
+          await this.notifications.send(orgId, admin.id, {
+            type:     'evidence.expiring',
+            title:    `${items.length} evidence item${items.length !== 1 ? 's' : ''} expiring soon`,
+            body:     expiryList.slice(0, 3).map((e) => `${e.controlCode}: ${e.title} (${e.daysLeft}d)`).join(' · '),
+            href:     '/evidence',
+            priority: notifPriority,
+          }).catch(() => {});
+
           notified++;
         }
 

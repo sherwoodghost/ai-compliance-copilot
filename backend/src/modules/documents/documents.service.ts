@@ -59,30 +59,95 @@ export class DocumentsService {
   // ── List ────────────────────────────────────────────────────────────────────
 
   async list(orgId: string, filters: ListDocumentsDto) {
-    const where: Prisma.DocumentWhereInput = {
-      orgId,
-      deletedAt: null,
-    };
-
-    if (filters.docType)        where.docType        = filters.docType        as any;
-    if (filters.status)         where.status         = filters.status         as any;
-    if (filters.classification) where.classification = filters.classification as any;
-    if (filters.ownerId)        where.ownerId        = filters.ownerId;
-    if (filters.search) {
-      where.OR = [
-        { title:       { contains: filters.search, mode: 'insensitive' } },
-        { contentText: { contains: filters.search, mode: 'insensitive' } },
-        { tags:        { has: filters.search } },
-      ];
-    }
-
     const page     = filters.page     ?? 1;
     const pageSize = filters.pageSize ?? 20;
 
+    // Base Prisma filters (always applied, whether searching or not)
+    const baseWhere: Prisma.DocumentWhereInput = {
+      orgId,
+      deletedAt: null,
+      ...(filters.docType        && { docType:        filters.docType        as any }),
+      ...(filters.status         && { status:         filters.status         as any }),
+      ...(filters.classification && { classification: filters.classification as any }),
+      ...(filters.ownerId        && { ownerId:        filters.ownerId }),
+    };
+
+    // ── Full-text search path (PostgreSQL tsvector + GIN index) ─────────────
+    // Requires documents_fts_setup.sql migration to have been applied.
+    if (filters.search?.trim()) {
+      const query = filters.search.trim();
+
+      // Fetch ranked IDs from the generated search_vector column.
+      // ts_headline() not used here to keep response lean — snippets can be added later.
+      let ftsRows: { id: string; rank: number }[] = [];
+      try {
+        ftsRows = await this.prisma.$queryRaw<{ id: string; rank: number }[]>`
+          SELECT id,
+                 ts_rank(search_vector, plainto_tsquery('english', ${query})) AS rank
+          FROM   documents
+          WHERE  org_id    = ${orgId}
+            AND  deleted_at IS NULL
+            AND  search_vector @@ plainto_tsquery('english', ${query})
+          ORDER  BY rank DESC
+          LIMIT  500
+        `;
+      } catch {
+        // Graceful fallback: search_vector column may not exist yet (migration not run).
+        // Fall through to the basic ILIKE path below.
+        this.logger.warn('FTS search_vector unavailable — falling back to ILIKE search');
+        ftsRows = [];
+      }
+
+      if (ftsRows.length > 0) {
+        const rankedIds = ftsRows.map((r) => r.id);
+        const where: Prisma.DocumentWhereInput = { ...baseWhere, id: { in: rankedIds } };
+
+        const [total, rawItems] = await Promise.all([
+          this.prisma.document.count({ where }),
+          this.prisma.document.findMany({
+            where,
+            include: { owner: { select: { id: true, fullName: true } } },
+            skip:  (page - 1) * pageSize,
+            take:  pageSize,
+          }),
+        ]);
+
+        // Re-order items by FTS rank (Prisma `findMany` with `id IN` loses rank order)
+        const rankMap = new Map(ftsRows.map((r) => [r.id, r.rank]));
+        const items   = rawItems.sort((a, b) => (rankMap.get(b.id) ?? 0) - (rankMap.get(a.id) ?? 0));
+
+        return { total, page, pageSize, items, searchMode: 'fts' as const };
+      }
+
+      // Fallback: basic case-insensitive LIKE (pre-migration or empty FTS result)
+      const fallbackWhere: Prisma.DocumentWhereInput = {
+        ...baseWhere,
+        OR: [
+          { title:       { contains: query, mode: 'insensitive' } },
+          { contentText: { contains: query, mode: 'insensitive' } },
+          { tags:        { has: query } },
+        ],
+      };
+
+      const [total, items] = await Promise.all([
+        this.prisma.document.count({ where: fallbackWhere }),
+        this.prisma.document.findMany({
+          where:   fallbackWhere,
+          include: { owner: { select: { id: true, fullName: true } } },
+          orderBy: { updatedAt: 'desc' },
+          skip:  (page - 1) * pageSize,
+          take:  pageSize,
+        }),
+      ]);
+
+      return { total, page, pageSize, items, searchMode: 'ilike' as const };
+    }
+
+    // ── Standard listing (no search) ────────────────────────────────────────
     const [total, items] = await Promise.all([
-      this.prisma.document.count({ where }),
+      this.prisma.document.count({ where: baseWhere }),
       this.prisma.document.findMany({
-        where,
+        where:   baseWhere,
         include: { owner: { select: { id: true, fullName: true } } },
         orderBy: { updatedAt: 'desc' },
         skip:  (page - 1) * pageSize,

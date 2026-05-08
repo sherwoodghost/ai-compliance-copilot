@@ -4,6 +4,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { ResendService } from '../../notifications/resend.service';
+import { NotificationService } from '../../notifications/notification.service';
 import { LlmService } from '../../llm/llm.service';
 import { TASK_LIBRARY, COVERED_CONTROL_CODES, TaskSpec } from './task-program.library';
 
@@ -27,9 +28,10 @@ export class TasksService {
   private readonly logger = new Logger(TasksService.name);
 
   constructor(
-    private readonly prisma:  PrismaService,
-    private readonly resend:  ResendService,
-    private readonly llm:     LlmService,
+    private readonly prisma:         PrismaService,
+    private readonly resend:         ResendService,
+    private readonly notifications:  NotificationService,
+    private readonly llm:            LlmService,
   ) {}
 
   async findAll(orgId: string, status?: TaskStatus, assignedTo?: string, priority?: TaskPriority) {
@@ -98,9 +100,10 @@ export class TasksService {
       },
     });
 
-    // Fire assignment email when assignedTo changes and there's an assignee
+    // Fire assignment notifications when assignedTo changes and there's an assignee
     const assigneeChanged = dto.assignedTo && dto.assignedTo !== existing.assignedTo;
     if (assigneeChanged && updated.assignee?.email) {
+      // Email
       await this.resend.sendTaskAssignment({
         to:           updated.assignee.email,
         assigneeName: updated.assignee.fullName ?? 'Team member',
@@ -108,6 +111,18 @@ export class TasksService {
         taskId:       taskId,
         dueDate:      updated.dueDate?.toLocaleDateString() ?? undefined,
         priority:     updated.priority,
+      }).catch(() => {}); // non-fatal
+
+      // In-app bell notification
+      const isHighPriority = updated.priority === 'critical' || updated.priority === 'high';
+      await this.notifications.send(updated.orgId, dto.assignedTo!, {
+        type:     'task.assigned',
+        title:    `New task: ${updated.title}`,
+        body:     updated.dueDate
+          ? `Due ${updated.dueDate.toLocaleDateString()} · ${updated.priority ?? 'normal'} priority`
+          : `Priority: ${updated.priority ?? 'normal'}`,
+        href:     `/tasks`,
+        priority: isHighPriority ? 'high' : 'normal',
       }).catch(() => {}); // non-fatal
     }
 
