@@ -149,6 +149,9 @@ export const teamApi = {
   offboardMember: (userId: string, offboardDate: string): Promise<void> =>
     apiClient.post(`/team/members/${userId}/offboard`, { offboardDate }).then((r) => r.data),
 
+  resendInvite: (userId: string): Promise<{ message: string }> =>
+    apiClient.post(`/team/members/${userId}/resend-invite`).then((r) => r.data),
+
   // RACI
   getRaci: (): Promise<RaciMatrixRow[]> =>
     apiClient.get('/team/raci').then((r) => r.data),

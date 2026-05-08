@@ -56,6 +56,17 @@ export class TeamController {
     return this.teamService.updateMember(user.orgId, userId, dto, user.sub);
   }
 
+  @Post('members/:userId/resend-invite')
+  @RequirePermission('team.invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend invite email to a suspended member' })
+  resendInvite(
+    @CurrentUser() user: JwtPayload,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.teamService.resendInvite(user.orgId, userId, user.sub);
+  }
+
   @Post('members/:userId/offboard')
   @RequirePermission('team.offboard')
   @HttpCode(HttpStatus.OK)

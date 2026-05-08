@@ -318,6 +318,69 @@ export class TeamService {
   }
 
   /**
+   * Resend an invite to a suspended member.
+   * Invalidates any existing unused tokens and issues a fresh 7-day magic link.
+   */
+  async resendInvite(orgId: string, targetUserId: string, actorId: string) {
+    const user = await this.prisma.user.findFirst({ where: { id: targetUserId, orgId } });
+    if (!user) throw new NotFoundException('Member not found');
+
+    if ((user as any).status !== 'suspended') {
+      throw new BadRequestException('Can only resend invites for suspended (pending activation) members');
+    }
+
+    // Invalidate any existing unused tokens
+    await this.prisma.inviteToken.updateMany({
+      where: { userId: targetUserId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    // Create a fresh token (7 days)
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    await this.prisma.inviteToken.create({
+      data: {
+        tokenHash,
+        userId:    targetUserId,
+        orgId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    // Audit log
+    await this.prisma.teamAuditLog.create({
+      data: {
+        orgId,
+        actorId,
+        action:     'user.invite.resent',
+        targetType: 'User',
+        targetId:   targetUserId,
+        after:      { email: user.email },
+      },
+    });
+
+    // Send the invite email again
+    const appUrl    = this.config.get<string>('APP_URL') ?? 'http://localhost:3001';
+    const acceptUrl = `${appUrl}/accept-invite?token=${rawToken}`;
+    const inviter   = await this.prisma.user.findUnique({ where: { id: actorId }, select: { fullName: true } });
+    const org       = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } });
+
+    await this.resend.sendInviteEmail({
+      to:          user.email,
+      inviteeName: user.fullName,
+      inviterName: inviter?.fullName ?? 'Your admin',
+      orgName:     org?.name ?? 'Your organization',
+      role:        (user as any).platformRole ?? 'contributor',
+      acceptUrl,
+      expiresIn:   '7 days',
+    });
+
+    this.logger.log(`Invite resent to ${user.email} by ${actorId}`);
+    return { message: `Invite resent to ${user.email}` };
+  }
+
+  /**
    * Initiate offboarding for a team member.
    * Sets status to 'offboarding', creates parallel tasks for IT, HR, Security.
    */

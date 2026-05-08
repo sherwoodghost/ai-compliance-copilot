@@ -7,7 +7,7 @@ import {
   Users, UserPlus, Shield, AlertTriangle, CheckCircle2, Clock,
   MoreVertical, ChevronRight, X, Loader2, RefreshCw,
   AlertCircle, BookOpen, Grid3X3, CalendarClock, FileText, PenLine,
-  LogOut, ArrowRight, CheckCircle,
+  LogOut, ArrowRight, CheckCircle, Mail, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -515,14 +515,108 @@ function OffboardModal({ member, onClose }: { member: TeamMember; onClose: () =>
   );
 }
 
+// ─── Edit Role Modal ──────────────────────────────────────────────────────────
+
+function EditRoleModal({ member, onClose }: { member: TeamMember; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [role, setRole] = useState<PlatformRole>(member.platformRole);
+
+  const update = useMutation({
+    mutationFn: () => teamApi.updateMember(member.id, { platformRole: role }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team-members'] });
+      onClose();
+    },
+  });
+
+  const roles: PlatformRole[] = ['owner', 'admin', 'contributor', 'approver', 'viewer', 'auditor_external'];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Edit Role</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{member.fullName}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-2">
+          {roles.map((r) => {
+            const cfg = ROLE_CONFIG[r];
+            return (
+              <button
+                key={r}
+                onClick={() => setRole(r)}
+                className={cn(
+                  'w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-colors',
+                  role === r
+                    ? 'border-brand-300 bg-brand-50'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+                )}
+              >
+                <div className={cn('mt-0.5 w-2 h-2 rounded-full shrink-0', role === r ? 'bg-brand-500' : 'bg-gray-300')} />
+                <div>
+                  <p className="text-xs font-semibold text-gray-900">{cfg.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{cfg.desc}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {update.isError && (
+          <p className="mx-5 mb-3 text-xs text-red-600 bg-red-50 rounded p-2 border border-red-200">
+            {(update.error as any)?.response?.data?.message ?? 'Failed to update role'}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100">
+          <button className="btn-secondary text-sm" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary text-sm min-w-[100px] flex items-center justify-center gap-1.5"
+            onClick={() => update.mutate()}
+            disabled={update.isPending || role === member.platformRole}
+          >
+            {update.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save role'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Members Tab ──────────────────────────────────────────────────────────────
 
-function MembersTab({ members }: { members: TeamMember[] }) {
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+function MembersTab({ members, onGoToRaci }: { members: TeamMember[]; onGoToRaci: () => void }) {
+  const qc = useQueryClient();
+  const [menuOpen,       setMenuOpen]       = useState<string | null>(null);
   const [offboardTarget, setOffboardTarget] = useState<TeamMember | null>(null);
+  const [editRoleTarget, setEditRoleTarget] = useState<TeamMember | null>(null);
+  const [resendSuccess,  setResendSuccess]  = useState<string | null>(null); // userId that just got resent
+
+  const resend = useMutation({
+    mutationFn: (userId: string) => teamApi.resendInvite(userId),
+    onSuccess: (_data, userId) => {
+      setResendSuccess(userId);
+      setMenuOpen(null);
+      setTimeout(() => setResendSuccess(null), 3000);
+    },
+  });
 
   return (
     <div className="overflow-x-auto">
+      {/* Resend success toast */}
+      {resendSuccess && (
+        <div className="mb-3 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          Invite resent successfully
+        </div>
+      )}
+
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-gray-200">
@@ -533,7 +627,7 @@ function MembersTab({ members }: { members: TeamMember[] }) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {members.map((m) => {
-            const roleCfg = ROLE_CONFIG[m.platformRole] ?? ROLE_CONFIG.viewer;
+            const roleCfg   = ROLE_CONFIG[m.platformRole] ?? ROLE_CONFIG.viewer;
             const statusCfg = STATUS_CONFIG[m.status] ?? STATUS_CONFIG.active;
             const hasSodConflict = (m.stats?.sodConflicts ?? 0) > 0;
             return (
@@ -594,19 +688,51 @@ function MembersTab({ members }: { members: TeamMember[] }) {
                       <MoreVertical className="w-3.5 h-3.5 text-gray-400" />
                     </button>
                     {menuOpen === m.id && (
-                      <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[140px]">
-                        <button className="block w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors">Edit role</button>
-                        <button className="block w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors">Assign RACI</button>
-                        {m.status !== 'deactivated' && m.status !== 'offboarding' && (
+                      <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[160px] py-1">
+                        {/* Resend invite — only for suspended (pending activation) */}
+                        {m.status === 'suspended' && (
                           <button
-                            className="block w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                            onClick={() => { setMenuOpen(null); setOffboardTarget(m); }}
+                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors disabled:opacity-60"
+                            disabled={resend.isPending && resend.variables === m.id}
+                            onClick={() => resend.mutate(m.id)}
                           >
-                            Offboard
+                            {resend.isPending && resend.variables === m.id
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-500" />
+                              : <Mail className="w-3.5 h-3.5 text-brand-500" />}
+                            Resend invite
                           </button>
                         )}
+                        {/* Edit role */}
+                        <button
+                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors"
+                          onClick={() => { setMenuOpen(null); setEditRoleTarget(m); }}
+                        >
+                          <Shield className="w-3.5 h-3.5 text-gray-400" />
+                          Edit role
+                        </button>
+                        {/* Assign RACI — jumps to RACI tab */}
+                        <button
+                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs hover:bg-gray-50 transition-colors"
+                          onClick={() => { setMenuOpen(null); onGoToRaci(); }}
+                        >
+                          <Grid3X3 className="w-3.5 h-3.5 text-gray-400" />
+                          Assign RACI
+                        </button>
+                        {/* Offboard */}
+                        {m.status !== 'deactivated' && m.status !== 'offboarding' && m.status !== 'suspended' && (
+                          <>
+                            <div className="my-1 border-t border-gray-100" />
+                            <button
+                              className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                              onClick={() => { setMenuOpen(null); setOffboardTarget(m); }}
+                            >
+                              <LogOut className="w-3.5 h-3.5" />
+                              Offboard
+                            </button>
+                          </>
+                        )}
                         {m.status === 'offboarding' && (
-                          <span className="block px-3 py-2 text-xs text-orange-500 cursor-default">Offboarding…</span>
+                          <span className="block px-3 py-2 text-xs text-orange-500 cursor-default">Offboarding in progress…</span>
                         )}
                       </div>
                     )}
@@ -624,11 +750,17 @@ function MembersTab({ members }: { members: TeamMember[] }) {
         </div>
       )}
 
-      {/* Offboard modal */}
+      {/* Modals */}
       {offboardTarget && (
         <OffboardModal
           member={offboardTarget}
           onClose={() => setOffboardTarget(null)}
+        />
+      )}
+      {editRoleTarget && (
+        <EditRoleModal
+          member={editRoleTarget}
+          onClose={() => setEditRoleTarget(null)}
         />
       )}
     </div>
@@ -1312,7 +1444,7 @@ export default function MembersPage() {
           </div>
         ) : (
           <>
-            {activeTab === 'members'        && <MembersTab members={members} />}
+            {activeTab === 'members'        && <MembersTab members={members} onGoToRaci={() => setActiveTab('raci')} />}
             {activeTab === 'raci'           && <RaciMatrixTab members={members} />}
             {activeTab === 'access-reviews' && <AccessReviewsTab />}
             {activeTab === 'training'       && <TrainingTab members={members} />}
