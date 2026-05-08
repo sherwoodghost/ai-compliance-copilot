@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { PinoNestLogger } from './telemetry/logger';
 
 // ─── Global Redis/Upstash error guard ──────────────────────────────────────────
 // When the Upstash free-tier request limit is reached, IORedis throws on every
@@ -57,7 +58,10 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug'],
+    // Use Pino structured logger in production; NestJS default in dev for readability
+    ...(process.env['NODE_ENV'] === 'production'
+      ? { logger: new PinoNestLogger('Bootstrap') }
+      : { logger: ['error', 'warn', 'log', 'debug'] as const }),
   });
 
   const configService = app.get(ConfigService);

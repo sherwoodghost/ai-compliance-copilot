@@ -41,6 +41,23 @@ All endpoints are prefixed `/api/v1/`.
 |--------|------|-------------|
 | GET    | `/api/v1/feature-flags` | Get all flag states for current org |
 
+#### Approval Workflows (E7)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET    | `/api/v1/approval-workflows/definitions` | List workflow definitions (filter by entityType) |
+| POST   | `/api/v1/approval-workflows/definitions` | Create workflow definition |
+| POST   | `/api/v1/approval-workflows/start` | Start workflow instance for entity |
+| POST   | `/api/v1/approval-workflows/instances/:id/advance` | Approve / reject / review a step |
+| POST   | `/api/v1/approval-workflows/instances/:id/cancel` | Cancel active workflow |
+| GET    | `/api/v1/approval-workflows/history` | Workflow history for an entity |
+
+#### Notifications
+| Method | Path | Description |
+|--------|------|-------------|
+| GET    | `/api/v1/notifications` | List in-app notifications (unread first) |
+| POST   | `/api/v1/notifications/:id/read` | Mark notification as read |
+| POST   | `/api/v1/notifications/read-all` | Mark all notifications read |
+
 #### Health
 | Method | Path | Description |
 |--------|------|-------------|
