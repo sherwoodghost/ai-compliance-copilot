@@ -61,7 +61,20 @@ All endpoints are prefixed `/api/v1/`.
 #### Health
 | Method | Path | Description |
 |--------|------|-------------|
-| GET    | `/api/v1/health` | DB + uptime health check |
+| GET    | `/api/v1/health` | DB + Redis + uptime health check (per-component latency) |
+
+#### Background Document Jobs
+| Method | Path | Description |
+|--------|------|-------------|
+| POST   | `/api/v1/documents/jobs/pdf-import` | Enqueue PDF import job (returns 202 + jobId) |
+| POST   | `/api/v1/documents/jobs/ai-gaps` | Enqueue async gap analysis job |
+| POST   | `/api/v1/documents/jobs/bulk-export` | Enqueue bulk export job (tenant-validated) |
+
+#### Retention Settings
+| Method | Path | Description |
+|--------|------|-------------|
+| GET    | `/api/v1/organizations/me/retention-settings` | Get document + evidence retention days |
+| PATCH  | `/api/v1/organizations/me/retention-settings` | Update retention days (admin only) |
 
 ### Rate Limits (P19)
 - `POST /documents/:id/ai-improve` — 10 requests/user/hour

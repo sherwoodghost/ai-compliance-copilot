@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   Bell, CheckCircle2, X, Activity, Shield,
   ClipboardList, Users, AlertTriangle, BookOpen,
-  CheckCheck,
+  CheckCheck, Flame, FileCheck, FileX, AlertOctagon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotificationStore, AppNotification } from '@/lib/stores/notification.store';
@@ -14,23 +14,51 @@ import { notificationsApi } from '@/lib/api/auth';
 // ─── Type icon map ────────────────────────────────────────────────────────────
 
 const TYPE_ICON: Record<string, React.ElementType> = {
-  'raci.assigned':   Users,
-  'task.assigned':   ClipboardList,
-  'review.due':      BookOpen,
-  'training.assigned': BookOpen,
-  'control.failed':  AlertTriangle,
-  'sod.violation':   Shield,
-  'evidence.expiring': AlertTriangle,
+  // Tasks & RACI
+  'task.assigned':          ClipboardList,
+  'raci.assigned':          Users,
+  // Reviews & training
+  'review.due':             BookOpen,
+  'training.assigned':      BookOpen,
+  // Controls & compliance
+  'control.failed':         AlertTriangle,
+  'sod.violation':          Shield,
+  // Evidence
+  'evidence.expiring':      AlertTriangle,
+  // Incidents
+  'incident.opened':        Flame,
+  'incident.closed':        CheckCircle2,
+  'incident.sla_breach':    AlertOctagon,
+  // Documents
+  'document.approved':      FileCheck,
+  'document.rejected':      FileX,
+  'document.job.complete':  FileCheck,
+  'document.job.failed':    FileX,
+  'document.legal_hold':    Shield,
 };
 
 const TYPE_COLOR: Record<string, string> = {
-  'raci.assigned':   'text-brand-600',
-  'task.assigned':   'text-brand-600',
-  'review.due':      'text-amber-600',
-  'training.assigned': 'text-brand-600',
-  'control.failed':  'text-red-600',
-  'sod.violation':   'text-red-600',
-  'evidence.expiring': 'text-amber-600',
+  // Tasks & RACI
+  'task.assigned':          'text-brand-600',
+  'raci.assigned':          'text-brand-600',
+  // Reviews & training
+  'review.due':             'text-amber-600',
+  'training.assigned':      'text-brand-600',
+  // Controls & compliance
+  'control.failed':         'text-red-600',
+  'sod.violation':          'text-red-600',
+  // Evidence
+  'evidence.expiring':      'text-amber-600',
+  // Incidents
+  'incident.opened':        'text-red-600',
+  'incident.closed':        'text-emerald-600',
+  'incident.sla_breach':    'text-red-700',
+  // Documents
+  'document.approved':      'text-emerald-600',
+  'document.rejected':      'text-red-600',
+  'document.job.complete':  'text-emerald-600',
+  'document.job.failed':    'text-red-600',
+  'document.legal_hold':    'text-amber-700',
 };
 
 function getIcon(type: string): React.ElementType {
@@ -61,15 +89,17 @@ function NotificationItem({
   n: AppNotification;
   onRead: (id: string) => void;
 }) {
-  const Icon  = getIcon(n.type);
-  const color = getIconColor(n.type);
+  const Icon     = getIcon(n.type);
+  const color    = getIconColor(n.type);
   const isUnread = !n.readAt;
+  const isHigh   = n.priority === 'high';
 
   const inner = (
     <div
       className={cn(
         'flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer',
         isUnread && 'bg-brand-50/40',
+        isUnread && isHigh && 'border-l-2 border-red-400 bg-red-50/30',
       )}
       onClick={() => isUnread && onRead(n.id)}
     >
