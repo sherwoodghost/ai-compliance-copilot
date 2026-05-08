@@ -3,15 +3,143 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { complianceApi } from '@/lib/api/compliance';
+import { apiClient as api } from '@/lib/api/client';
 import { formatMs, formatCurrency, formatRelative } from '@/lib/utils';
 import {
   Zap, CheckCircle, XCircle, Clock, AlertCircle, ChevronRight,
   ArrowRight, RotateCcw, List, Copy, Check, ChevronDown, Filter,
+  Sparkles, X, AlertTriangle, TrendingDown, DollarSign, Wrench,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { cn } from '@/lib/utils';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type DiagnoseIssue = {
+  agentName: string;
+  issueType: string;
+  severity: string;
+  description: string;
+  rootCause: string;
+  fix: string;
+};
+
+type DiagnoseResult = {
+  workflowId: string;
+  workflowName: string;
+  overallHealth: 'healthy' | 'degraded' | 'failed';
+  summary: string;
+  issues: DiagnoseIssue[];
+  bottleneck: string | null;
+  costOptimizations: string[];
+  recommendations: string[];
+  stats: { totalCostUsd: number; totalDurationMs: number; failedCount: number; totalAgents: number };
+};
+
+const HEALTH_CFG = {
+  healthy:  { cls: 'bg-green-100 text-green-700',  label: 'Healthy' },
+  degraded: { cls: 'bg-amber-100 text-amber-700',  label: 'Degraded' },
+  failed:   { cls: 'bg-red-100 text-red-700',      label: 'Failed' },
+};
+
+const SEVERITY_CFG: Record<string, string> = {
+  critical: 'bg-red-100 text-red-700',
+  high:     'bg-orange-100 text-orange-700',
+  medium:   'bg-amber-100 text-amber-700',
+  low:      'bg-blue-100 text-blue-700',
+};
+
+function DiagnosePanel({ result, onClose }: { result: DiagnoseResult; onClose: () => void }) {
+  const health = HEALTH_CFG[result.overallHealth] ?? HEALTH_CFG.degraded;
+  return (
+    <div className="card border-purple-200 bg-purple-50 p-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+          <span className="text-sm font-semibold text-purple-900">AI Workflow Diagnosis</span>
+          <span className={cn('text-xs font-medium px-2 py-0.5 rounded', health.cls)}>{health.label}</span>
+        </div>
+        <button onClick={onClose} className="text-purple-400 hover:text-purple-600">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Summary */}
+      {result.summary && (
+        <p className="text-sm text-gray-800 bg-white rounded-lg px-3 py-2 border border-purple-100">{result.summary}</p>
+      )}
+
+      {/* Issues */}
+      {result.issues.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Issues found</p>
+          {result.issues.map((issue, i) => (
+            <div key={i} className="bg-white rounded-lg border border-gray-200 p-3 space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-xs font-bold text-gray-700">{issue.agentName}</span>
+                <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', SEVERITY_CFG[issue.severity] ?? SEVERITY_CFG.medium)}>
+                  {issue.severity}
+                </span>
+                <span className="text-xs text-gray-400">{issue.issueType.replace(/_/g, ' ')}</span>
+              </div>
+              <p className="text-xs text-gray-700">{issue.description}</p>
+              {issue.rootCause && (
+                <p className="text-xs text-amber-700 flex gap-1"><AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /><span><strong>Root cause:</strong> {issue.rootCause}</span></p>
+              )}
+              {issue.fix && (
+                <p className="text-xs text-green-700 flex gap-1"><Wrench className="w-3 h-3 mt-0.5 shrink-0" /><span><strong>Fix:</strong> {issue.fix}</span></p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Two-column: cost optimizations + recommendations */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {result.costOptimizations.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <DollarSign className="w-3.5 h-3.5 text-green-500" />
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Cost optimizations</p>
+            </div>
+            <ul className="space-y-1.5">
+              {result.costOptimizations.map((tip, i) => (
+                <li key={i} className="text-xs text-gray-700 flex gap-1.5">
+                  <TrendingDown className="w-3 h-3 text-green-400 shrink-0 mt-0.5" /> {tip}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {result.recommendations.length > 0 && (
+          <div className="bg-white rounded-lg border border-gray-200 p-3">
+            <div className="flex items-center gap-1.5 mb-2">
+              <CheckCircle className="w-3.5 h-3.5 text-blue-500" />
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Recommendations</p>
+            </div>
+            <ol className="space-y-1.5">
+              {result.recommendations.map((r, i) => (
+                <li key={i} className="text-xs text-gray-700 flex gap-1.5">
+                  <span className="font-bold text-blue-500 shrink-0">{i + 1}.</span> {r}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+
+      {result.bottleneck && (
+        <p className="text-xs text-gray-500 flex gap-1.5 items-center">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+          <span>Bottleneck: <strong className="font-mono">{result.bottleneck}</strong></span>
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -264,6 +392,7 @@ function EventLog({ workflowId }: { workflowId: string }) {
 function WorkflowCanvas({ workflowId }: { workflowId: string }) {
   const qc = useQueryClient();
   const [showEvents, setShowEvents] = useState(false);
+  const [diagnoseResult, setDiagnoseResult] = useState<DiagnoseResult | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['canvas', workflowId],
@@ -276,6 +405,11 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas', workflowId] }),
   });
 
+  const diagnose = useMutation({
+    mutationFn: () => api.post(`/control-panel/workflows/${workflowId}/ai-diagnose`, {}).then((r: any) => r.data ?? r),
+    onSuccess: (res) => setDiagnoseResult(res),
+  });
+
   if (isLoading) {
     return <div className="flex items-center justify-center h-48"><div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" /></div>;
   }
@@ -284,7 +418,7 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Stats row */}
+      {/* Stats row + AI Diagnose */}
       <div className="grid grid-cols-3 gap-3">
         <div className="card p-3 text-center">
           <p className="text-xs text-gray-400">Total Cost</p>
@@ -299,6 +433,25 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
           <p className="text-sm font-bold text-gray-900 mt-0.5">{nodes.length}</p>
         </div>
       </div>
+
+      {/* AI Diagnose button */}
+      <button
+        onClick={() => diagnose.mutate()}
+        disabled={diagnose.isPending}
+        className="w-full flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-60"
+      >
+        {diagnose.isPending ? (
+          <span className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <Sparkles className="w-4 h-4" />
+        )}
+        {diagnose.isPending ? 'Analysing workflow…' : 'AI Diagnose this run'}
+      </button>
+
+      {/* Diagnose panel */}
+      {diagnoseResult && (
+        <DiagnosePanel result={diagnoseResult} onClose={() => setDiagnoseResult(null)} />
+      )}
 
       {/* SVG Pipeline canvas */}
       <div className="card p-4">
