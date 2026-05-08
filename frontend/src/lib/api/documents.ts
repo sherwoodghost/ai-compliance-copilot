@@ -51,6 +51,7 @@ export interface ListDocumentsFilters {
   status?:        DocStatus;
   classification?: DocClassification;
   search?:        string;
+  semanticSearch?: string;  // Triggers vector search (requires pgvector + feature flag)
   ownerId?:       string;
   page?:          number;
   limit?:         number;
@@ -90,9 +91,17 @@ export interface GapResult {
 
 // ── API Client ────────────────────────────────────────────────────────────────
 
+export interface DocumentListResult {
+  total:      number;
+  page:       number;
+  pageSize:   number;
+  items:      Document[];
+  searchMode?: 'fts' | 'ilike' | 'semantic';
+}
+
 export const documentsApi = {
   // List documents with optional filters
-  async list(filters?: ListDocumentsFilters): Promise<Document[]> {
+  async list(filters?: ListDocumentsFilters): Promise<DocumentListResult | Document[]> {
     const { data } = await apiClient.get('/documents', { params: filters });
     return data;
   },

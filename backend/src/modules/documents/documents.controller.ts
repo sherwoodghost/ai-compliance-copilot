@@ -175,4 +175,13 @@ export class DocumentsController {
   releaseLegalHold(@Req() req: AuthRequest, @Param('id') id: string) {
     return this.retention.releaseLegalHold(req.user.orgId, id, req.user.userId);
   }
+  // ── Semantic search: trigger bulk re-indexing ─────────────────────────────────
+
+  @Post('reindex-embeddings')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Enqueue embedding re-indexing for all org documents (admin only)' })
+  async reindexEmbeddings(@Req() req: AuthRequest) {
+    return this.docs.bulkReindexEmbeddings(req.user.orgId);
+  }
+
 }

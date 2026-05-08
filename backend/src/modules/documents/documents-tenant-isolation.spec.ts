@@ -123,12 +123,18 @@ function makeService(prisma: ReturnType<typeof makeMockPrisma>) {
     emit: jest.fn(),
   };
 
+  const embeddings = { embed: jest.fn().mockResolvedValue(null), embedBatch: jest.fn() };
+  const featureFlags = { isEnabled: jest.fn().mockResolvedValue(false) };
+  const queue = { add: jest.fn() };
   return new DocumentsService(
     prisma as any,
     sanitizer as any,
     retention as any,
     ai as any,
     emitter as any,
+    embeddings as any,
+    featureFlags as any,
+    queue as any,
   );
 }
 

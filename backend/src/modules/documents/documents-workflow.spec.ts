@@ -124,7 +124,10 @@ function makeMocks() {
     emit: jest.fn(),
   } as any;
 
-  const service = new DocumentsService(prisma, sanitizer, retention, aiFeatures, events);
+  const embeddings = { embed: jest.fn().mockResolvedValue(null), embedBatch: jest.fn() } as any;
+  const featureFlags = { isEnabled: jest.fn().mockResolvedValue(false) } as any;
+  const queue = { add: jest.fn() } as any;
+  const service = new DocumentsService(prisma, sanitizer, retention, aiFeatures, events, embeddings, featureFlags, queue);
 
   return { service, prisma, events, retention, docState: () => docState };
 }

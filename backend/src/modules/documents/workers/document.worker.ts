@@ -33,10 +33,17 @@ export interface BulkExportJobData {
   userId:      string;
 }
 
+export interface GenerateEmbeddingJobData {
+  type:       'generate-embedding';
+  orgId:      string;
+  documentId: string;
+}
+
 export type DocumentJobData =
   | PdfImportJobData
   | AiGapsJobData
-  | BulkExportJobData;
+  | BulkExportJobData
+  | GenerateEmbeddingJobData;
 
 // ─── Processor ───────────────────────────────────────────────────────────────
 
@@ -136,12 +143,32 @@ export class DocumentWorker {
     return { orgId, userId, count: verified, skipped };
   }
 
+
+  // ─── Generate Embedding ──────────────────────────────────────────────────────
+
+  @Process('generate-embedding')
+  async handleGenerateEmbedding(job: Job<GenerateEmbeddingJobData>) {
+    const { orgId, documentId } = job.data;
+    this.logger.log('[generate-embedding] doc=' + documentId + ' org=' + orgId);
+
+    await job.progress(20);
+    await this.documents.indexDocumentEmbedding(orgId, documentId);
+    await job.progress(100);
+
+    this.logger.log('[generate-embedding] done doc=' + documentId);
+    return { documentId };
+  }
+
   // ─── Lifecycle hooks ──────────────────────────────────────────────────────────
 
   @OnQueueCompleted()
   async onCompleted(job: Job<DocumentJobData>, result: unknown) {
-    const { orgId, userId } = job.data;
+    const { orgId } = job.data;
+    const userId = (job.data as any).userId;
     const jobType = job.data.type;
+
+    // Silent jobs — no user notification needed
+    if (jobType === 'generate-embedding') return;
 
     const titleMap: Record<string, string> = {
       'pdf-import':  'PDF import complete',
@@ -155,6 +182,7 @@ export class DocumentWorker {
       'bulk-export': `${(result as any)?.count ?? 0} document(s) exported successfully.`,
     };
 
+    if (!userId) return;
     await this.notifications.send(orgId, userId, {
       type:     'document.job.complete',
       title:    titleMap[jobType] ?? 'Document job complete',
@@ -166,11 +194,14 @@ export class DocumentWorker {
 
   @OnQueueFailed()
   async onFailed(job: Job<DocumentJobData>, error: Error) {
-    const { orgId, userId } = job.data;
+    const { orgId } = job.data;
+    const userId = (job.data as any).userId;
+    if (job.data.type === 'generate-embedding') return;
     this.logger.error(`Document job ${job.data.type} failed (attempt ${job.attemptsMade}): ${error.message}`);
 
     // Only notify on final failure (after all retries exhausted)
     if (job.attemptsMade >= (job.opts.attempts ?? 3)) {
+      if (!userId) return;
       await this.notifications.send(orgId, userId, {
         type:     'document.job.failed',
         title:    'Document job failed',

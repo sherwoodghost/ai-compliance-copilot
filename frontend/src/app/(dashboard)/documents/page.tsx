@@ -66,11 +66,13 @@ async function importDocx(file: File): Promise<string> {
 
 export default function DocumentsPage() {
   const qc = useQueryClient();
-  const aiEnabled = useFlag('documents.aiFeatures');
+  const aiEnabled      = useFlag('documents.aiFeatures');
+  const vectorEnabled  = useFlag('documents.vectorSearch');
 
   // List state
   const [typeFilter, setTypeFilter] = useState<DocType | 'all'>('all');
   const [search, setSearch]         = useState('');
+  const [semanticMode, setSemanticMode] = useState(false);
 
   // Editor state
   const [editing, setEditing]   = useState<Document | null>(null);
@@ -101,10 +103,11 @@ export default function DocumentsPage() {
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const { data: docsData, isLoading } = useQuery({
-    queryKey: ['documents', typeFilter, search],
+    queryKey: ['documents', typeFilter, search, semanticMode],
     queryFn: () => documentsApi.list({
-      docType: typeFilter === 'all' ? undefined : typeFilter,
-      search:  search || undefined,
+      docType:        typeFilter === 'all' ? undefined : typeFilter,
+      search:         (!semanticMode && search) ? search : undefined,
+      semanticSearch: (semanticMode && search)  ? search : undefined,
     }),
     staleTime: 30_000,
   });
@@ -796,26 +799,58 @@ export default function DocumentsPage() {
           </button>
         ))}
 
-        {/* Search */}
-        <div className="ml-auto flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5 min-w-[160px]">
-          <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search…"
-            className="bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400 w-full"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="text-gray-400 hover:text-gray-600">
-              <X className="h-3.5 w-3.5" />
+        {/* Search + semantic toggle */}
+        <div className="ml-auto flex items-center gap-2">
+          {vectorEnabled && (
+            <button
+              onClick={() => setSemanticMode(!semanticMode)}
+              title={semanticMode ? 'Switch to keyword search' : 'Switch to semantic (AI) search'}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                semanticMode
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+              )}
+            >
+              <Sparkles className="h-3 w-3" />
+              AI
             </button>
           )}
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5 min-w-[160px]">
+            <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={semanticMode ? 'Semantic search…' : 'Search…'}
+              className="bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400 w-full"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="text-gray-400 hover:text-gray-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Document list */}
       <div className="flex-1 overflow-y-auto p-6">
+        {/* Search mode badge */}
+        {search && (docsData as any)?.searchMode && (
+          <div className="flex items-center gap-2 mb-4 max-w-4xl">
+            <span className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+              (docsData as any).searchMode === 'semantic'
+                ? 'bg-brand-50 text-brand-700 border border-brand-200'
+                : 'bg-gray-100 text-gray-600'
+            )}>
+              {(docsData as any).searchMode === 'semantic' && <Sparkles className="h-3 w-3" />}
+              {(docsData as any).searchMode === 'semantic' ? 'Semantic search' : (docsData as any).searchMode === 'fts' ? 'Full-text search' : 'Keyword search'}
+              {' · '}{(docsData as any).total ?? docs.length} result{((docsData as any).total ?? docs.length) !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
         {isLoading ? (
           <div className="grid grid-cols-1 gap-2.5 max-w-4xl">
             {Array.from({ length: 5 }).map((_, i) => (

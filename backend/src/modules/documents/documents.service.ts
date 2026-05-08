@@ -28,17 +28,25 @@ import {
   DocumentVersionCreatedEvent,
 } from './events/document.events';
 import { Prisma } from '@prisma/client';
+import { EmbeddingService } from '../../embeddings/embedding.service';
+import { FeatureFlagService } from '../feature-flags/feature-flag.service';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
+import { DOCUMENT_QUEUE } from './workers/document.worker';
 
 @Injectable()
 export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
 
   constructor(
-    private readonly prisma:     PrismaService,
-    private readonly sanitizer:  SanitizerService,
-    private readonly retention:  RetentionService,
-    private readonly aiFeatures: AiFeaturesService,
-    private readonly events:     EventEmitter2,
+    private readonly prisma:        PrismaService,
+    private readonly sanitizer:     SanitizerService,
+    private readonly retention:     RetentionService,
+    private readonly aiFeatures:    AiFeaturesService,
+    private readonly events:        EventEmitter2,
+    private readonly embeddings:    EmbeddingService,
+    private readonly featureFlags:  FeatureFlagService,
+    @InjectQueue(DOCUMENT_QUEUE) private readonly queue: Queue,
   ) {}
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -71,6 +79,17 @@ export class DocumentsService {
       ...(filters.classification && { classification: filters.classification as any }),
       ...(filters.ownerId        && { ownerId:        filters.ownerId }),
     };
+
+    // ── Semantic (vector) search path ────────────────────────────────────────
+    // Requires: pgvector extension + pgvector_setup.sql + feature flag enabled
+    if (filters.semanticSearch?.trim()) {
+      const flagEnabled = await this.featureFlags.isEnabled('documents.vectorSearch', orgId).catch(() => false);
+      if (flagEnabled) {
+        const semanticResults = await this.semanticSearch(orgId, filters.semanticSearch.trim(), pageSize, page);
+        if (semanticResults) return semanticResults;
+        // If semantic search fails, fall through to FTS/ILIKE
+      }
+    }
 
     // ── Full-text search path (PostgreSQL tsvector + GIN index) ─────────────
     // Requires documents_fts_setup.sql migration to have been applied.
@@ -225,6 +244,8 @@ export class DocumentsService {
     });
 
     this.events.emit('document.created', new DocumentCreatedEvent(orgId, doc.id, doc.title, actorId));
+    // Enqueue embedding generation (fire-and-forget, requires vectorSearch flag)
+    this.enqueueEmbeddingJob(orgId, doc.id).catch(() => {});
     return doc;
   }
 
@@ -270,6 +291,7 @@ export class DocumentsService {
     });
 
     this.events.emit('document.updated', new DocumentUpdatedEvent(orgId, id, actorId));
+    this.enqueueEmbeddingJob(orgId, id).catch(() => {});
     return updated;
   }
 
@@ -326,6 +348,8 @@ export class DocumentsService {
       'document.approved',
       new DocumentApprovedEvent(orgId, id, doc.title, actorId, doc.classification, doc.controlIds),
     );
+    // Re-index embedding on approval (approved docs get higher search priority)
+    this.enqueueEmbeddingJob(orgId, id).catch(() => {});
     return updated;
   }
 
@@ -490,4 +514,173 @@ export class DocumentsService {
     d.setDate(d.getDate() + days);
     return d;
   }
+
+  // ── Semantic Search (pgvector) ────────────────────────────────────────────────
+
+  /**
+   * Perform cosine-similarity semantic search over documents.
+   *
+   * Requirements:
+   *  1. pgvector Postgres extension installed
+   *  2. pgvector_setup.sql applied (creates `embedding` VECTOR(1536) on vector_embeddings)
+   *  3. Documents indexed via `indexDocumentEmbedding()`
+   *  4. Feature flag `documents.vectorSearch` enabled for the org
+   *
+   * Falls back to null on any failure (caller will use FTS/ILIKE instead).
+   */
+  async semanticSearch(
+    orgId:    string,
+    query:    string,
+    pageSize: number,
+    page:     number,
+  ): Promise<{ total: number; page: number; pageSize: number; items: any[]; searchMode: 'semantic' } | null> {
+    try {
+      const result = await this.embeddings.embed(query);
+      if (!result) return null;
+
+      const vectorStr = `[${result.embedding.join(',')}]`;
+
+      // Use pgvector cosine distance operator (<->) to rank by similarity
+      // Only search embeddings for documents in this org (sourceType='document')
+      const rows: { source_id: string; distance: number }[] = await this.prisma.$queryRawUnsafe(`
+        SELECT source_id, embedding <-> $1::vector AS distance
+        FROM   vector_embeddings
+        WHERE  org_id      = $2
+          AND  source_type = 'document'
+          AND  embedding   IS NOT NULL
+        ORDER  BY distance ASC
+        LIMIT  100
+      `, vectorStr, orgId);
+
+      if (!rows || rows.length === 0) return null;
+
+      // Map source_ids back to document IDs
+      const docIds = rows.map((r) => r.source_id).filter(Boolean);
+      const distMap = new Map(rows.map((r) => [r.source_id, r.distance]));
+
+      // Fetch matching documents (apply base filters)
+      const docs = await this.prisma.document.findMany({
+        where:   { id: { in: docIds }, orgId, deletedAt: null },
+        include: { owner: { select: { id: true, fullName: true } } },
+      });
+
+      // Sort by vector distance (lower = more similar)
+      const sorted = docs.sort((a, b) => (distMap.get(a.id) ?? 1) - (distMap.get(b.id) ?? 1));
+      const total  = sorted.length;
+      const items  = sorted.slice((page - 1) * pageSize, page * pageSize);
+
+      return { total, page, pageSize, items, searchMode: 'semantic' as const };
+    } catch (err) {
+      this.logger.warn(`Semantic search failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Index a document's content as a vector embedding in the `vector_embeddings` table.
+   * Called after create/update/approve. Idempotent — upserts by (orgId, sourceType, sourceId).
+   */
+  async indexDocumentEmbedding(orgId: string, documentId: string): Promise<void> {
+    try {
+      const doc = await this.prisma.document.findFirst({
+        where:  { id: documentId, orgId, deletedAt: null },
+        select: { id: true, title: true, contentText: true, contentHtml: true, tags: true },
+      });
+      if (!doc) return;
+
+      const text = `${doc.title}\n\n${doc.contentText ?? doc.contentHtml.replace(/<[^>]+>/g, ' ')}`.trim();
+      if (!text) return;
+
+      const result = await this.embeddings.embed(text);
+      if (!result) return;
+
+      const vectorStr = `[${result.embedding.join(',')}]`;
+
+      // Check if embedding row already exists for this document
+      const existing: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT id FROM vector_embeddings
+        WHERE  org_id      = $1
+          AND  source_type = 'document'
+          AND  source_id   = $2
+          AND  chunk_index = 0
+        LIMIT 1
+      `, orgId, documentId);
+
+      if (existing.length > 0) {
+        // Update existing row
+        await this.prisma.$executeRawUnsafe(`
+          UPDATE vector_embeddings
+          SET    chunk_text = $1,
+                 embedding  = $2::vector,
+                 created_at = NOW()
+          WHERE  org_id      = $3
+            AND  source_type = 'document'
+            AND  source_id   = $4
+            AND  chunk_index = 0
+        `, text.slice(0, 4000), vectorStr, orgId, documentId);
+      } else {
+        // Insert new row (two steps: insert then set vector)
+        await this.prisma.$executeRawUnsafe(`
+          INSERT INTO vector_embeddings (id, org_id, source_type, source_id, chunk_index, chunk_text, metadata, created_at)
+          VALUES (gen_random_uuid(), $1, 'document', $2, 0, $3, '{}', NOW())
+        `, orgId, documentId, text.slice(0, 4000));
+
+        await this.prisma.$executeRawUnsafe(`
+          UPDATE vector_embeddings
+          SET    embedding = $1::vector
+          WHERE  org_id      = $2
+            AND  source_type = 'document'
+            AND  source_id   = $3
+            AND  chunk_index = 0
+        `, vectorStr, orgId, documentId);
+      }
+
+      this.logger.debug(`Indexed embedding for document ${documentId}`);
+    } catch (err) {
+      // Non-blocking — if pgvector isn't set up, this just fails silently
+      this.logger.debug(`Embedding indexing skipped for ${documentId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Enqueue an embedding generation job if the feature flag is enabled.
+   * Called fire-and-forget after document create/update.
+   */
+  async enqueueEmbeddingJob(orgId: string, documentId: string): Promise<void> {
+    try {
+      const enabled = await this.featureFlags.isEnabled('documents.vectorSearch', orgId);
+      if (!enabled) return;
+
+      await this.queue.add('generate-embedding', {
+        type:       'generate-embedding',
+        orgId,
+        documentId,
+      }, {
+        attempts:        2,
+        backoff:         { type: 'exponential', delay: 5000 },
+        removeOnComplete: 50,
+        removeOnFail:    20,
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to enqueue embedding job: ${(err as Error).message}`);
+    }
+  }
+  /**
+   * Enqueue embedding jobs for all org documents (admin/manual trigger).
+   * Returns immediately with a count of queued jobs.
+   */
+  async bulkReindexEmbeddings(orgId: string): Promise<{ queued: number; message: string }> {
+    const docs = await this.prisma.document.findMany({
+      where:  { orgId, deletedAt: null },
+      select: { id: true },
+      take:   500,
+    });
+    let queued = 0;
+    for (const doc of docs) {
+      await this.enqueueEmbeddingJob(orgId, doc.id).catch(() => {});
+      queued++;
+    }
+    return { queued, message: 'Embedding indexing queued for ' + queued + ' document(s)' };
+  }
+
 }

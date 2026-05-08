@@ -153,6 +153,11 @@ export class ListDocumentsDto {
   @IsString()
   search?: string;
 
+  /** Semantic (vector) search query — requires pgvector + feature flag  */
+  @IsOptional()
+  @IsString()
+  semanticSearch?: string;
+
   @IsOptional()
   @IsString()
   ownerId?: string;

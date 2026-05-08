@@ -24,4 +24,14 @@ CREATE INDEX IF NOT EXISTS vector_embeddings_global_idx
   ON vector_embeddings (source_type, chunk_index)
   WHERE org_id IS NULL;
 
--- Done. The RagService will automatically detect pgvector and use it.
+-- 5. Unique constraint for upsert support (org_id, source_type, source_id, chunk_index)
+--    Allows ON CONFLICT DO UPDATE for idempotent embedding indexing.
+--    org_id can be NULL for global embeddings; use NULLS NOT DISTINCT for pg15+ or a coalesce workaround.
+ALTER TABLE vector_embeddings
+  DROP CONSTRAINT IF EXISTS vector_embeddings_source_uq;
+
+CREATE UNIQUE INDEX IF NOT EXISTS vector_embeddings_source_uq
+  ON vector_embeddings (coalesce(org_id, ''), source_type, coalesce(source_id, ''), chunk_index);
+
+-- Done. The DocumentsService will use this for semantic document search.
+-- The RagService will automatically detect pgvector and use it for RAG queries.
