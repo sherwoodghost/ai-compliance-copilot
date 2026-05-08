@@ -4,6 +4,7 @@ import { VelocityService } from './velocity.service';
 import { BenchmarkService } from './benchmark.service';
 import { LlmService } from '../../llm/llm.service';
 import { PrismaService } from '../../database/prisma.service';
+import { ResendService } from '../../notifications/resend.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('readiness')
@@ -15,6 +16,7 @@ export class ReadinessController {
     private readonly benchmarkService: BenchmarkService,
     private readonly llm: LlmService,
     private readonly prisma: PrismaService,
+    private readonly resend: ResendService,
   ) {}
 
   @Get()
@@ -173,7 +175,7 @@ Return 4–5 coaching items ordered by impact/effort ratio (highest first).`;
   }
 
   @Post('digest')
-  async generateDigest(@Req() req: any) {
+  async generateDigest(@Req() req: any, @Query('email') sendEmail?: string) {
     const orgId = req.user.orgId;
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -257,7 +259,7 @@ Return 4–5 coaching items ordered by impact/effort ratio (highest first).`;
       { agentName: 'audit', temperature: 0.3 },
     );
 
-    return {
+    const result = {
       digest: response.content,
       generatedAt: now.toISOString(),
       metadata: {
@@ -268,5 +270,26 @@ Return 4–5 coaching items ordered by impact/effort ratio (highest first).`;
         recentWins: recentWins.length,
       },
     };
+
+    // Optional: email the digest to all org admins when ?email=true
+    if (sendEmail === 'true') {
+      const [org, admins] = await Promise.all([
+        this.prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
+        this.prisma.user.findMany({ where: { orgId, role: 'admin', isActive: true }, select: { email: true } }),
+      ]);
+      const orgName = org?.name ?? companyName;
+      await Promise.all(
+        admins.map((a) =>
+          this.resend.sendAiDigest({
+            to:       a.email,
+            orgName,
+            digest:   response.content,
+            metadata: result.metadata as any,
+          }).catch(() => {}),
+        ),
+      );
+    }
+
+    return result;
   }
 }

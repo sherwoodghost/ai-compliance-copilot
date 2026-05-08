@@ -5,9 +5,10 @@ import { VelocityService } from './velocity.service';
 import { BenchmarkService } from './benchmark.service';
 import { LlmModule } from '../../llm/llm.module';
 import { DatabaseModule } from '../../database/database.module';
+import { NotificationsModule } from '../../notifications/notifications.module';
 
 @Module({
-  imports: [ReadinessModule, LlmModule, DatabaseModule],
+  imports: [ReadinessModule, LlmModule, DatabaseModule, NotificationsModule],
   providers: [VelocityService, BenchmarkService],
   controllers: [ReadinessController],
 })

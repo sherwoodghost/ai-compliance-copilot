@@ -214,6 +214,65 @@ export class ResendService {
     });
   }
 
+  // ─── AI Weekly Digest Email ───────────────────────────────────────────────
+  async sendAiDigest(opts: {
+    to:       string;
+    orgName:  string;
+    digest:   string; // markdown from LLM
+    metadata: { score: number | string; openHighRisks: number; overdueTasks: number; expiringEvidence: number; recentWins: number };
+  }): Promise<void> {
+    const { to, orgName, digest, metadata } = opts;
+    const scoreColor = Number(metadata.score) >= 80 ? '#10b981' : Number(metadata.score) >= 60 ? '#f59e0b' : '#ef4444';
+
+    // Convert markdown to very basic HTML (bold, headers, bullets)
+    const bodyHtml = digest
+      .replace(/^### (.+)$/gm, '<h3 style="margin:20px 0 8px;color:#1e293b">$1</h3>')
+      .replace(/^## (.+)$/gm,  '<h2 style="margin:24px 0 8px;color:#1e293b">$1</h2>')
+      .replace(/^# (.+)$/gm,   '<h1 style="margin:0 0 8px;color:#1e293b">$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^- (.+)$/gm,   '<li style="margin:4px 0;color:#374151">$1</li>')
+      .replace(/(<li.*<\/li>\n?)+/g, '<ul style="padding-left:20px;margin:8px 0">$&</ul>')
+      .replace(/\n\n/g, '<br/>');
+
+    await this.send({
+      to,
+      subject: `📊 Weekly Compliance Digest — ${orgName}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+          <div style="background:#1e293b;color:#fff;padding:20px 28px;border-radius:8px 8px 0 0">
+            <h2 style="margin:0">Weekly Compliance Digest</h2>
+            <p style="margin:4px 0;opacity:.7;font-size:14px">${orgName}</p>
+          </div>
+          <div style="padding:4px 0;background:#f8fafc;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb">
+            <div style="display:flex;gap:0;text-align:center">
+              <div style="flex:1;padding:14px 8px;border-right:1px solid #e5e7eb">
+                <div style="font-size:26px;font-weight:700;color:${scoreColor}">${metadata.score}%</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">Readiness</div>
+              </div>
+              <div style="flex:1;padding:14px 8px;border-right:1px solid #e5e7eb">
+                <div style="font-size:26px;font-weight:700;color:${metadata.openHighRisks > 0 ? '#ef4444' : '#10b981'}">${metadata.openHighRisks}</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">Open Risks</div>
+              </div>
+              <div style="flex:1;padding:14px 8px;border-right:1px solid #e5e7eb">
+                <div style="font-size:26px;font-weight:700;color:${metadata.overdueTasks > 0 ? '#f97316' : '#10b981'}">${metadata.overdueTasks}</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">Overdue Tasks</div>
+              </div>
+              <div style="flex:1;padding:14px 8px">
+                <div style="font-size:26px;font-weight:700;color:#10b981">${metadata.recentWins}</div>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">Recent Wins</div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;background:#fff">
+            <div style="font-size:14px;line-height:1.7;color:#374151">${bodyHtml}</div>
+            <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb"/>
+            <p style="color:#9ca3af;font-size:12px;margin:0">Sent by AI Compliance Copilot. Log in to view full details.</p>
+          </div>
+        </div>
+      `,
+    });
+  }
+
   // ─── Slack Webhook Notification ───────────────────────────────────────────
   async sendSlackNotification(webhookUrl: string, message: {
     text: string;

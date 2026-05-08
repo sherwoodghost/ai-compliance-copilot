@@ -2,6 +2,7 @@ import {
   Injectable, NotFoundException, UnauthorizedException, ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { ResendService } from '../../notifications/resend.service';
 import * as crypto from 'crypto';
 
 export interface CreateAuditorSessionDto {
@@ -23,7 +24,10 @@ export interface RespondRfiDto {
 
 @Injectable()
 export class AuditorPortalService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resend: ResendService,
+  ) {}
 
   // ─── Session Management (org admins) ────────────────────────────────────────
 
@@ -152,7 +156,7 @@ export class AuditorPortalService {
   async createRfi(token: string, dto: CreateRfiDto) {
     const session = await this.validateToken(token);
 
-    return this.prisma.auditorRfi.create({
+    const rfi = await this.prisma.auditorRfi.create({
       data: {
         orgId: session.orgId,
         auditorSessionId: session.id,
@@ -164,6 +168,37 @@ export class AuditorPortalService {
         control: { select: { id: true, code: true, title: true } },
       },
     });
+
+    // Notify org admins — fire-and-forget, never blocks the response
+    this.notifyAdminsOfRfi(session, rfi).catch(() => {});
+
+    return rfi;
+  }
+
+  private async notifyAdminsOfRfi(session: any, rfi: any): Promise<void> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: session.orgId },
+      select: { name: true },
+    });
+    const admins = await this.prisma.user.findMany({
+      where: { orgId: session.orgId, role: 'admin', isActive: true },
+      select: { email: true },
+    });
+    const orgName = org?.name ?? 'Your Organization';
+
+    await Promise.all(
+      admins.map((admin) =>
+        this.resend.sendAuditorRfiNotification({
+          to:          admin.email,
+          orgName,
+          auditorName: session.auditorName,
+          auditorFirm: session.auditorFirm,
+          question:    rfi.question,
+          controlCode: rfi.control?.code,
+          priority:    rfi.priority,
+        }),
+      ),
+    );
   }
 
   async listRfis(orgId: string, status?: string) {

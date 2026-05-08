@@ -8,7 +8,7 @@ import { ControlHealthMap } from '@/components/charts/ControlHealthMap';
 import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
-  XCircle, Activity, Gauge, CalendarDays, Sparkles, Copy, X,
+  XCircle, Activity, Gauge, CalendarDays, Sparkles, Copy, X, Mail,
 } from 'lucide-react';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -295,6 +295,12 @@ function DigestModal({ digest, generatedAt, onClose }: {
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+
+  const emailMutation = useMutation({
+    mutationFn: () => api.post('/readiness/digest?email=true', {}).then((r: any) => r.data),
+    onSuccess: () => { setEmailSent(true); setTimeout(() => setEmailSent(false), 4000); },
+  });
 
   function copyToClipboard() {
     navigator.clipboard.writeText(digest).then(() => {
@@ -317,12 +323,23 @@ function DigestModal({ digest, generatedAt, onClose }: {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => emailMutation.mutate()}
+              disabled={emailMutation.isPending || emailSent}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-blue-200
+                         text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors font-medium"
+            >
+              {emailMutation.isPending
+                ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                : <Mail className="w-3.5 h-3.5" />}
+              {emailSent ? 'Sent!' : emailMutation.isPending ? 'Sending…' : 'Email to admins'}
+            </button>
+            <button
               onClick={copyToClipboard}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-gray-200
                          text-gray-600 hover:bg-gray-50 transition-colors"
             >
               <Copy className="w-3.5 h-3.5" />
-              {copied ? 'Copied!' : 'Copy Markdown'}
+              {copied ? 'Copied!' : 'Copy'}
             </button>
             <button
               onClick={onClose}
