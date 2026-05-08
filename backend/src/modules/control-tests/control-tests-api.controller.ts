@@ -9,6 +9,7 @@ import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.de
 import { ControlTestRunnerService } from '../../control-tests/control-test-runner.service';
 import { ControlTestRegistry } from '../../control-tests/control-test.registry';
 import { MonitoringService } from '../../monitoring/monitoring.service';
+import { LlmService } from '../../llm/llm.service';
 
 @ApiTags('control-tests')
 @ApiBearerAuth('access-token')
@@ -21,6 +22,7 @@ export class ControlTestsApiController {
     private readonly runner:     ControlTestRunnerService,
     private readonly registry:   ControlTestRegistry,
     private readonly monitoring: MonitoringService,
+    private readonly llm:        LlmService,
   ) {}
 
   /** Latest result for each test registered for this org. */
@@ -66,5 +68,90 @@ export class ControlTestsApiController {
   async runOne(@Param('testId') testId: string, @CurrentUser() user: JwtPayload) {
     await this.runner.runTest(testId, user.orgId);
     return { message: `Test ${testId} executed`, testId, orgId: user.orgId };
+  }
+
+  /** AI analysis of all failing / erroring tests with remediation guidance. */
+  @Post('ai-analyze')
+  @Roles('admin', 'auditor', 'member')
+  @ApiOperation({ summary: 'AI: analyse failing control tests and produce remediation guidance' })
+  async aiAnalyzeFailures(@CurrentUser() user: JwtPayload) {
+    const latest = await this.runner.getLatestResults(user.orgId);
+    const failing = latest.filter((r) => r.outcome === 'fail' || r.outcome === 'error');
+
+    if (failing.length === 0) {
+      return { message: 'All tests passing — no failures to analyse.', analyses: [] };
+    }
+
+    const testSummaries = failing.map((r) => ({
+      testId:      r.testId,
+      name:        r.definition?.name ?? r.testId,
+      controlCode: r.definition?.controlCode ?? 'N/A',
+      outcome:     r.outcome,
+      details:     r.details,
+      errorMessage: r.errorMessage ?? null,
+      testedAt:    r.testedAt,
+    }));
+
+    const systemPrompt = `You are a DevSecOps and compliance engineer. You analyse automated control test failures and provide clear, actionable remediation guidance. Be specific and concise — no generic advice.`;
+
+    const userPrompt = `These automated compliance control tests are failing. Analyse each failure and provide a remediation plan:
+
+${testSummaries.map((t, i) => `
+Test ${i + 1}: ${t.name} (${t.testId})
+Control: ${t.controlCode}
+Outcome: ${t.outcome}
+Details: ${JSON.stringify(t.details, null, 2).slice(0, 500)}
+${t.errorMessage ? `Error: ${t.errorMessage}` : ''}
+`.trim()).join('\n\n---\n\n')}
+
+Return ONLY a JSON array (no markdown fences), one object per test:
+[
+  {
+    "testId": "test-id",
+    "rootCause": "1-2 sentences explaining the most likely root cause of this failure",
+    "remediationSteps": ["Step 1", "Step 2", "Step 3"],
+    "estimatedFixTime": "e.g. '30 minutes' or '2-3 days'",
+    "severity": "critical|high|medium|low",
+    "quickFix": "Single most impactful immediate action under 80 chars"
+  }
+]`;
+
+    const raw = await this.llm.complete(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      { agentName: 'audit', temperature: 0.2 },
+    );
+
+    let analyses: any[];
+    try {
+      analyses = JSON.parse(raw.content.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim());
+      if (!Array.isArray(analyses)) analyses = [];
+    } catch {
+      analyses = [];
+    }
+
+    const validSeverity = ['critical', 'high', 'medium', 'low'];
+
+    // Merge AI analysis back with test metadata
+    const enriched = failing.map((r) => {
+      const ai = analyses.find((a) => a?.testId === r.testId) ?? {};
+      return {
+        testId:           r.testId,
+        name:             r.definition?.name ?? r.testId,
+        controlCode:      r.definition?.controlCode ?? 'N/A',
+        outcome:          r.outcome,
+        testedAt:         r.testedAt,
+        rootCause:        String(ai.rootCause ?? '').slice(0, 300),
+        remediationSteps: (Array.isArray(ai.remediationSteps) ? ai.remediationSteps : []).slice(0, 5).map(String),
+        estimatedFixTime: String(ai.estimatedFixTime ?? '').slice(0, 40),
+        severity:         validSeverity.includes(ai.severity) ? ai.severity : 'medium',
+        quickFix:         String(ai.quickFix ?? '').slice(0, 120),
+      };
+    });
+
+    return {
+      failingCount: failing.length,
+      analyses:     enriched,
+      generatedAt:  new Date().toISOString(),
+    };
   }
 }

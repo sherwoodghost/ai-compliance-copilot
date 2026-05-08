@@ -1,11 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
 import {
   BarChart3, RefreshCw, TrendingUp, TrendingDown, Minus,
   Shield, FileText, FolderOpen, Zap, AlertTriangle, Calendar, Rocket,
-  Users, Award, ChevronRight,
+  Users, Award, ChevronRight, Sparkles, X, Clock, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -373,8 +374,108 @@ function BenchmarkWidget({ data }: { data: BenchmarkData }) {
   );
 }
 
+// ─── AI Coaching Panel ────────────────────────────────────────────────────────
+
+type CoachingItem = {
+  priority: number;
+  action: string;
+  impact: string;
+  effort: 'low' | 'medium' | 'high';
+  timeEstimate: string;
+  category: string;
+  why: string;
+};
+
+type CoachingResult = {
+  summary: string;
+  scoreToUnlock: string;
+  focusArea: string;
+  coachingItems: CoachingItem[];
+  currentScore: number;
+  generatedAt: string;
+};
+
+const EFFORT_CONFIG = {
+  low:    { cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'Low effort' },
+  medium: { cls: 'bg-amber-50 text-amber-700 border-amber-200',       label: 'Medium effort' },
+  high:   { cls: 'bg-red-50 text-red-700 border-red-200',             label: 'High effort' },
+};
+
+const CATEGORY_ICON: Record<string, React.ElementType> = {
+  evidence: FolderOpen, controls: Shield, policies: FileText,
+  operational: Zap, risks: AlertTriangle,
+};
+
+function CoachingPanel({ data, onClose }: { data: CoachingResult; onClose: () => void }) {
+  return (
+    <div className="card border-purple-200 bg-purple-50/30 p-6 space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-purple-600 shrink-0" />
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">AI Coaching Plan</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Based on current score ({data.currentScore}%) · Target: {data.scoreToUnlock}
+            </p>
+          </div>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="rounded-xl bg-white border border-purple-100 px-4 py-3">
+        <p className="text-sm text-gray-700">{data.summary}</p>
+      </div>
+
+      {/* Coaching items */}
+      <div className="space-y-3">
+        {data.coachingItems.map((item) => {
+          const Icon = CATEGORY_ICON[item.category] ?? Shield;
+          const effortCfg = EFFORT_CONFIG[item.effort] ?? EFFORT_CONFIG.medium;
+          return (
+            <div key={item.priority} className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  {item.priority}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{item.action}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{item.why}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap ml-9">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                  <ArrowRight className="w-3 h-3" /> {item.impact}
+                </span>
+                <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border', effortCfg.cls)}>
+                  {effortCfg.label}
+                </span>
+                {item.timeEstimate && (
+                  <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                    <Clock className="w-3 h-3" /> {item.timeEstimate}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                  <Icon className="w-3 h-3" /> {item.category}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-gray-400 text-center">
+        Generated {new Date(data.generatedAt).toLocaleString()} — refresh score then re-generate to update
+      </p>
+    </div>
+  );
+}
+
 export default function ReadinessPage() {
   const qc = useQueryClient();
+  const [coaching, setCoaching] = useState<CoachingResult | null>(null);
 
   const { data: breakdown, isLoading } = useQuery<ReadinessScore>({
     queryKey: ['readiness-breakdown'],
@@ -407,6 +508,11 @@ export default function ReadinessPage() {
     },
   });
 
+  const getCoaching = useMutation({
+    mutationFn: () => api.post('/readiness/coach').then((r: any) => r.data),
+    onSuccess: (data) => setCoaching(data),
+  });
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -422,6 +528,18 @@ export default function ReadinessPage() {
         </div>
         <div className="flex items-center gap-3">
           {breakdown && <ReadinessLabel score={breakdown.overallScore} />}
+          {breakdown && (
+            <button
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-sm font-medium hover:bg-purple-100 transition-colors disabled:opacity-60"
+              onClick={() => getCoaching.mutate()}
+              disabled={getCoaching.isPending}
+            >
+              {getCoaching.isPending
+                ? <><span className="w-3.5 h-3.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />Analysing…</>
+                : <><Sparkles className="w-3.5 h-3.5" />AI Coach</>
+              }
+            </button>
+          )}
           <button
             className="btn-secondary flex items-center gap-2 text-sm"
             onClick={() => recalculate.mutate()}
@@ -446,6 +564,9 @@ export default function ReadinessPage() {
             <GradeRing score={breakdown.evidenceScore} label="Evidence" />
             <GradeRing score={breakdown.policyScore} label="Policies" />
           </div>
+
+          {/* AI Coaching Panel */}
+          {coaching && <CoachingPanel data={coaching} onClose={() => setCoaching(null)} />}
 
           {/* Velocity & Forecast */}
           {velocityData && <VelocityWidget data={velocityData} />}

@@ -70,6 +70,108 @@ export class ReadinessController {
     return this.benchmarkService.getBenchmark(req.user.orgId);
   }
 
+  @Post('coach')
+  async generateCoaching(@Req() req: any) {
+    const orgId = req.user.orgId;
+
+    const [breakdown, velocity, openHighRisks, overdueTasks, unapprovedPolicies, notStartedControls] = await Promise.all([
+      this.readinessService.getLatest(orgId),
+      this.velocityService.getVelocity(orgId),
+      this.prisma.riskItem.count({ where: { orgId, status: 'open', severity: { in: ['critical', 'high'] } } }),
+      this.prisma.task.count({ where: { orgId, status: { not: 'done' }, dueDate: { lt: new Date() } } }),
+      this.prisma.policy.count({ where: { orgId, status: { not: 'approved' } } }).catch(() => 0),
+      this.prisma.organizationControl.count({ where: { orgId, status: 'not_started' } }).catch(() => 0),
+    ]);
+
+    if (!breakdown) return { message: 'No readiness score yet. Click Recalculate first.' };
+
+    const profile = await this.prisma.businessProfile.findFirst({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const pd = (profile?.profileData as any) ?? {};
+    const frameworks = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
+    const companyName = pd.companyName ?? 'your organisation';
+    const industry = pd.industry ?? 'technology';
+
+    const b = breakdown as any;
+    const inputs = b.scoreInputs ?? {};
+    const vel = (velocity as any)?.velocity ?? {};
+    const forecast = (velocity as any)?.forecast ?? {};
+
+    const systemPrompt = `You are a senior compliance coach giving candid, actionable guidance. Be direct and specific — avoid generic advice. Prioritise actions by ROI (points gained per hour of effort).`;
+
+    const userPrompt = `Analyse this compliance posture for ${companyName} (${industry}) targeting ${frameworks}:
+
+SCORE BREAKDOWN:
+- Overall: ${b.overallScore}%
+- Control Design: ${b.controlDesignScore}% (${inputs.implementedControls ?? 0}/${inputs.applicableControls ?? 0} implemented — 35% weight)
+- Evidence: ${b.evidenceScore}% (${inputs.validEvidenceItems ?? 0}/${inputs.requiredEvidenceItems ?? 0} valid items — 30% weight)
+- Policy: ${b.policyScore}% (${inputs.approvedPolicies ?? 0}/${inputs.requiredPolicies ?? 0} approved — 25% weight)
+- Operational: ${b.operationalScore}% (${overdueTasks} overdue tasks — 10% weight)
+
+ADDITIONAL SIGNALS:
+- Not-started controls: ${notStartedControls}
+- Unapproved policies: ${unapprovedPolicies}
+- Open high/critical risks: ${openHighRisks}
+- Velocity: ${vel.completedLast30Days ?? 0} controls completed last 30 days (trend: ${vel.trend ?? 'unknown'})
+- Forecast: ${forecast.daysToCompletion != null ? `audit-ready in ${forecast.daysToCompletion} days at current pace` : 'insufficient velocity data'}
+
+Return ONLY a JSON object (no markdown fences):
+{
+  "summary": "2 sentences: honest current posture + single most critical gap to fix",
+  "scoreToUnlock": "What overall % score is realistically achievable in 30 days with focused effort",
+  "focusArea": "evidence|controls|policies|operational|risks",
+  "coachingItems": [
+    {
+      "priority": 1,
+      "action": "Specific action (verb + object, under 80 chars)",
+      "impact": "e.g. '+6–8 points on Evidence score'",
+      "effort": "low|medium|high",
+      "timeEstimate": "e.g. '2–3 hours'",
+      "category": "evidence|controls|policies|operational|risks",
+      "why": "One sentence — why this moves the needle most right now"
+    }
+  ]
+}
+
+Return 4–5 coaching items ordered by impact/effort ratio (highest first).`;
+
+    const raw = await this.llm.complete(
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      { agentName: 'audit', temperature: 0.25 },
+    );
+
+    let result: any;
+    try {
+      result = JSON.parse(raw.content.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim());
+    } catch {
+      result = {};
+    }
+
+    const validEffort = ['low', 'medium', 'high'];
+    const validCategory = ['evidence', 'controls', 'policies', 'operational', 'risks'];
+
+    return {
+      summary: String(result.summary ?? '').slice(0, 500),
+      scoreToUnlock: String(result.scoreToUnlock ?? '').slice(0, 20),
+      focusArea: validCategory.includes(result.focusArea) ? result.focusArea : 'controls',
+      coachingItems: (Array.isArray(result.coachingItems) ? result.coachingItems : [])
+        .slice(0, 5)
+        .map((item: any, i: number) => ({
+          priority: Number(item.priority) || i + 1,
+          action: String(item.action ?? '').slice(0, 120),
+          impact: String(item.impact ?? '').slice(0, 60),
+          effort: validEffort.includes(item.effort) ? item.effort : 'medium',
+          timeEstimate: String(item.timeEstimate ?? '').slice(0, 30),
+          category: validCategory.includes(item.category) ? item.category : 'controls',
+          why: String(item.why ?? '').slice(0, 200),
+        })),
+      currentScore: b.overallScore,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   @Post('digest')
   async generateDigest(@Req() req: any) {
     const orgId = req.user.orgId;

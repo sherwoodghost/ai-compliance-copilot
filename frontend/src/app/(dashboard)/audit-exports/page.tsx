@@ -8,6 +8,7 @@ import { Soc2ReadinessPdf, ControlMatrixPdf, IsoSoaPdf } from '@/components/pdf/
 import {
   Download, Shield, FileText, Table, Plus, CheckCircle, Clock,
   Calendar, Package, AlertTriangle, ChevronDown, ArrowUpDown, Filter,
+  Sparkles, X, Copy, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -245,6 +246,160 @@ function ExportRow({ exp, onDownload }: { exp: AuditExport; onDownload: () => vo
   );
 }
 
+// ─── AI Executive Summary Modal ───────────────────────────────────────────────
+
+type ExecSummary = {
+  headline: string;
+  executiveSummary: string;
+  auditReadinessStatement: string;
+  keyStrengths: string[];
+  keyRisks: string[];
+  managementAttestation: string;
+  nextSteps: string[];
+  metadata: { score: number | string; implemented: number; total: number; openHighRisks: number; overdueTasks: number };
+  generatedAt: string;
+};
+
+function ExecutiveSummaryModal({ data, onClose }: { data: ExecSummary; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  function copyText() {
+    const text = [
+      `EXECUTIVE SUMMARY`,
+      ``,
+      data.headline,
+      ``,
+      `AUDIT READINESS STATEMENT`,
+      data.auditReadinessStatement,
+      ``,
+      `OVERVIEW`,
+      data.executiveSummary,
+      ``,
+      `KEY STRENGTHS`,
+      ...data.keyStrengths.map((s) => `• ${s}`),
+      ``,
+      `KEY RISKS`,
+      ...data.keyRisks.map((r) => `• ${r}`),
+      ``,
+      `MANAGEMENT ATTESTATION`,
+      data.managementAttestation,
+      ``,
+      `NEXT STEPS`,
+      ...data.nextSteps.map((s, i) => `${i + 1}. ${s}`),
+      ``,
+      `Generated: ${new Date(data.generatedAt).toLocaleString()}`,
+    ].join('\n');
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              AI Executive Summary
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">Readiness: {data.metadata.score}% · {data.metadata.implemented}/{data.metadata.total} controls</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyText}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+            >
+              {copied ? <><Check className="w-3.5 h-3.5 text-green-600" />Copied!</> : <><Copy className="w-3.5 h-3.5" />Copy All</>}
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          {/* Headline */}
+          <div className="rounded-xl bg-purple-50 border border-purple-200 px-4 py-3">
+            <p className="text-sm font-semibold text-purple-900">{data.headline}</p>
+          </div>
+
+          {/* Readiness Statement */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Audit Readiness Statement</p>
+            <p className="text-sm text-gray-700 italic border-l-4 border-purple-200 pl-3">{data.auditReadinessStatement}</p>
+          </div>
+
+          {/* Executive Summary */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Executive Overview</p>
+            <div className="text-sm text-gray-700 leading-relaxed space-y-2">
+              {data.executiveSummary.split('\n\n').map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
+          </div>
+
+          {/* Strengths & Risks side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Key Strengths</p>
+              <ul className="space-y-1.5">
+                {data.keyStrengths.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-2">Key Risks</p>
+              <ul className="space-y-1.5">
+                {data.keyRisks.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Management Attestation */}
+          <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Management Attestation</p>
+            <p className="text-sm text-gray-700 italic">{data.managementAttestation}</p>
+            <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between text-xs text-gray-400">
+              <span>Signature: ___________________</span>
+              <span>Date: ___________________</span>
+            </div>
+          </div>
+
+          {/* Next Steps */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Next Steps</p>
+            <ol className="space-y-1.5">
+              {data.nextSteps.map((step, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                  <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+
+        <div className="px-6 py-3 border-t shrink-0">
+          <p className="text-xs text-gray-400 text-center">
+            AI-generated draft · Review before sharing · Generated {new Date(data.generatedAt).toLocaleString()}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AuditExportsPage() {
@@ -253,6 +408,12 @@ export default function AuditExportsPage() {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortAsc, setSortAsc] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [execSummary, setExecSummary] = useState<ExecSummary | null>(null);
+
+  const generateExecSummary = useMutation({
+    mutationFn: () => api.post('/audit-exports/ai-executive-summary').then((r: any) => r.data),
+    onSuccess: (data: any) => setExecSummary(data),
+  });
 
   const { data: exports = [], isLoading } = useQuery<AuditExport[]>({
     queryKey: ['audit-exports'],
@@ -351,12 +512,29 @@ export default function AuditExportsPage() {
   return (
     <div className="p-8 max-w-5xl space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Audit Exports</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Generate audit-ready packages — all include a mandatory disclaimer
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Audit Exports</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Generate audit-ready packages — all include a mandatory disclaimer
+          </p>
+        </div>
+        <button
+          className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 text-sm font-medium hover:bg-purple-100 transition-colors disabled:opacity-60"
+          onClick={() => generateExecSummary.mutate()}
+          disabled={generateExecSummary.isPending}
+        >
+          {generateExecSummary.isPending
+            ? <><span className="w-3.5 h-3.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />Drafting…</>
+            : <><Sparkles className="w-3.5 h-3.5" />AI Executive Summary</>
+          }
+        </button>
       </div>
+
+      {/* AI Executive Summary Modal */}
+      {execSummary && (
+        <ExecutiveSummaryModal data={execSummary} onClose={() => setExecSummary(null)} />
+      )}
 
       {/* Disclaimer */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
