@@ -8,7 +8,7 @@ import {
   ArrowLeft, CheckCircle, Clock, XCircle, AlertCircle, FileText,
   ClipboardList, AlertTriangle, Shield, User, Calendar,
   ChevronDown, ChevronRight, Sparkles, Upload, Plus, Link as LinkIcon,
-  ArrowLeftRight, Edit3, Save, X,
+  ArrowLeftRight, Edit3, Save, X, RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -234,16 +234,40 @@ function EvidenceItem({ item }: { item: ControlDetail['evidence'][0] }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type ImplementationGuide = {
+  guide: string;
+  steps: string[];
+  toolSpecific: string[];
+  estimatedEffort: string;
+  controlCode: string;
+  controlTitle: string;
+};
+
 export default function ControlDetailPage() {
   const { controlId } = useParams<{ controlId: string }>();
   const router = useRouter();
   const qc = useQueryClient();
+  const [aiGuide, setAiGuide] = useState<ImplementationGuide | null>(null);
+  const [guideLoading, setGuideLoading] = useState(false);
 
   const { data, isLoading, isError } = useQuery<ControlDetail>({
     queryKey: ['control-detail', controlId],
     queryFn: () => api.get(`/controls/${controlId}`).then((r: any) => r.data),
     enabled: !!controlId,
   });
+
+  async function fetchImplementationGuide() {
+    if (!controlId || guideLoading) return;
+    setGuideLoading(true);
+    try {
+      const res = await api.post(`/controls/${controlId}/implementation-guide`, {});
+      setAiGuide((res as any).data);
+    } catch {
+      setAiGuide({ guide: 'Failed to generate guide — please try again.', steps: [], toolSpecific: [], estimatedEffort: 'Unknown', controlCode: '', controlTitle: '' });
+    } finally {
+      setGuideLoading(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -315,11 +339,71 @@ export default function ControlDetailPage() {
         <p className="text-sm text-gray-600 leading-relaxed mb-4">{control.description}</p>
 
         {control.guidance && (
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3">
             <p className="text-xs font-semibold text-blue-800 mb-1 flex items-center gap-1.5">
               <Shield className="w-3 h-3" /> Implementation Guidance
             </p>
             <p className="text-xs text-blue-700 leading-relaxed">{control.guidance}</p>
+          </div>
+        )}
+
+        {/* AI Implementation Guide */}
+        {!aiGuide ? (
+          <button
+            onClick={fetchImplementationGuide}
+            disabled={guideLoading}
+            className="flex items-center gap-2 text-xs text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 rounded-lg px-3 py-2 mb-4 transition-colors disabled:opacity-60"
+          >
+            <Sparkles className={cn('w-3.5 h-3.5', guideLoading && 'animate-pulse')} />
+            {guideLoading ? 'Generating tailored implementation guide…' : 'Get AI implementation guide for your stack'}
+          </button>
+        ) : (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-indigo-900 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                AI Implementation Guide
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                  ~{aiGuide.estimatedEffort}
+                </span>
+                <button
+                  onClick={() => { setAiGuide(null); fetchImplementationGuide(); }}
+                  className="text-indigo-400 hover:text-indigo-600 transition-colors"
+                  title="Regenerate"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-indigo-800 leading-relaxed">{aiGuide.guide}</p>
+            {aiGuide.steps.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-indigo-700 mb-1.5">Implementation steps</p>
+                <ol className="space-y-1.5">
+                  {aiGuide.steps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-indigo-800">
+                      <span className="w-4 h-4 rounded-full bg-indigo-200 text-indigo-700 flex items-center justify-center font-bold shrink-0 mt-0.5 text-[10px]">{i + 1}</span>
+                      <span className="leading-relaxed">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            {aiGuide.toolSpecific.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-indigo-700 mb-1.5">Tool-specific tips</p>
+                <ul className="space-y-1">
+                  {aiGuide.toolSpecific.map((tip, i) => (
+                    <li key={i} className="text-xs text-indigo-800 flex items-start gap-1.5">
+                      <span className="text-indigo-400 shrink-0 mt-0.5">→</span>
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 

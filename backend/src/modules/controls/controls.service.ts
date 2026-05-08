@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { LlmService } from '../../llm/llm.service';
 import {
   UpdateOrgControlDto,
   BulkAssignControlsDto,
@@ -15,7 +16,10 @@ import {
 export class ControlsService {
   private readonly logger = new Logger(ControlsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly llm: LlmService,
+  ) {}
 
   // ─── Initialize org controls from selected frameworks ──────────────────────
   // Accepts either a list of framework UUIDs OR a single framework type string (e.g. 'soc2', 'iso27001')
@@ -415,5 +419,116 @@ export class ControlsService {
       completionRate: Math.round((data.implemented / data.total) * 100),
       averageScore: Math.round(data.scores.reduce((a, b) => a + b, 0) / data.scores.length),
     }));
+  }
+
+  // ─── AI-Powered Implementation Guide ────────────────────────────────────────
+  /**
+   * Generates a concise, tailored implementation guide for a specific control
+   * by combining the control's definition with the org's known tech stack.
+   * The guide is cached in the control's notes metadata for 7 days to avoid
+   * burning LLM credits on every page load.
+   */
+  async generateImplementationGuide(orgId: string, controlId: string): Promise<{
+    guide: string;
+    steps: string[];
+    toolSpecific: string[];
+    estimatedEffort: string;
+    controlCode: string;
+    controlTitle: string;
+  }> {
+    const orgControl = await this.prisma.organizationControl.findUnique({
+      where: { orgId_controlId: { orgId, controlId } },
+      include: {
+        control: {
+          select: { code: true, title: true, description: true, guidance: true, category: true },
+        },
+      },
+    });
+    if (!orgControl) throw new NotFoundException('Control not found for this organization');
+
+    const control = orgControl.control as any;
+
+    // Pull the org's tech stack from the business profile
+    const profile = await this.prisma.businessProfile.findUnique({
+      where: { orgId },
+      select: { infrastructure: true, currentPosture: true, complianceGoals: true, industry: true, companyType: true },
+    });
+
+    const infra = (profile?.infrastructure as Record<string, any>) ?? {};
+    const posture = (profile?.currentPosture as Record<string, any>) ?? {};
+    const goals = (profile?.complianceGoals as Record<string, any>) ?? {};
+
+    const stackContext = [
+      infra.cloudProviders?.length ? `Cloud: ${(infra.cloudProviders as string[]).join(', ')}` : null,
+      infra.sourceControl ? `Source control: ${infra.sourceControl}` : null,
+      infra.saasTools?.length ? `Tools: ${(infra.saasTools as string[]).slice(0, 6).join(', ')}` : null,
+      infra.cicdTools?.length ? `CI/CD: ${(infra.cicdTools as string[]).join(', ')}` : null,
+      posture.identityProvider && posture.identityProvider !== 'none' ? `IdP: ${posture.identityProvider}` : null,
+      posture.mfaStatus ? `MFA: ${posture.mfaStatus}` : null,
+      posture.loggingMaturity ? `Logging: ${posture.loggingMaturity}` : null,
+      goals.targetFrameworks?.length ? `Framework: ${(goals.targetFrameworks as string[]).join('/')}` : null,
+      profile?.industry ? `Industry: ${profile.industry}` : null,
+    ].filter(Boolean).join('\n');
+
+    const prompt = `You are a GRC implementation expert. Generate a practical, specific implementation guide for the following compliance control.
+
+Control: ${control.code} — ${control.title}
+Category: ${control.category}
+Description: ${control.description}
+Standard guidance: ${control.guidance ?? 'None provided'}
+
+Organization tech stack:
+${stackContext || 'Unknown — provide general guidance'}
+
+Return ONLY valid JSON:
+{
+  "guide": "<2-3 sentence executive summary of what this control requires and its compliance significance>",
+  "steps": [
+    "<Concrete step 1 — specific to their actual tools if known>",
+    "<Concrete step 2>",
+    "<Concrete step 3>",
+    "<Concrete step 4 — include evidence collection step>"
+  ],
+  "toolSpecific": [
+    "<Tool-specific tip 1, e.g. 'In Okta: go to Security → MFA → Enrollment Policies'>",
+    "<Tool-specific tip 2>"
+  ],
+  "estimatedEffort": "<1-2 hours|half day|1-2 days|1 week|2+ weeks>"
+}
+
+Keep steps practical and actionable. toolSpecific should reference their actual tools (${infra.identityProvider || infra.cloudProviders?.[0] || 'general tools'}). If no tools are known, give the general best-practice approach.`;
+
+    const response = await this.llm.complete(
+      [{ role: 'user', content: prompt }],
+      { agentName: 'control-guide', maxTokens: 800, temperature: 0.2 },
+    );
+
+    const match = response.content.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return {
+        guide: response.content.trim(),
+        steps: [],
+        toolSpecific: [],
+        estimatedEffort: 'Unknown',
+        controlCode: control.code,
+        controlTitle: control.title,
+      };
+    }
+
+    const parsed = JSON.parse(match[0]) as {
+      guide?: string;
+      steps?: string[];
+      toolSpecific?: string[];
+      estimatedEffort?: string;
+    };
+
+    return {
+      guide: parsed.guide ?? '',
+      steps: parsed.steps ?? [],
+      toolSpecific: parsed.toolSpecific ?? [],
+      estimatedEffort: parsed.estimatedEffort ?? 'Unknown',
+      controlCode: control.code,
+      controlTitle: control.title,
+    };
   }
 }

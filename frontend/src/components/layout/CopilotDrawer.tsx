@@ -19,12 +19,12 @@ type Message = {
 // ─── Suggested prompts ────────────────────────────────────────────────────────
 
 const QUICK_PROMPTS = [
-  { label: 'What controls need attention?',    icon: AlertTriangle },
-  { label: 'Summarize my compliance status',   icon: BarChart3 },
-  { label: 'Show expiring evidence',           icon: FileText },
-  { label: 'What are my biggest risks?',       icon: Shield },
-  { label: 'Which tasks are overdue?',         icon: CheckSquare },
-  { label: 'Draft a weekly status email',      icon: Zap },
+  { label: 'What should I focus on today?',            icon: Zap },
+  { label: 'Which critical controls are not started?', icon: AlertTriangle },
+  { label: 'List expiring evidence with control names', icon: FileText },
+  { label: 'Show overdue tasks and who owns them',     icon: CheckSquare },
+  { label: 'What are my top unmitigated risks?',       icon: Shield },
+  { label: 'Draft a compliance status update email',   icon: BarChart3 },
 ];
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
@@ -242,8 +242,8 @@ export function CopilotDrawer() {
                   <Bot className="w-3.5 h-3.5 text-brand-600" />
                 </div>
                 <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-3 py-2.5 text-sm text-gray-700 max-w-[calc(100%-3rem)]">
-                  <p>Hi! I&apos;m your Compliance Copilot. I have access to live data on your controls, evidence, risks, policies, and readiness score.</p>
-                  <p className="mt-1.5">What would you like to know?</p>
+                  <p>Hi! I&apos;m your Compliance Copilot. I know your specific controls by name, which evidence is expiring and for which controls, who owns overdue tasks, and your top risks — live from the DB.</p>
+                  <p className="mt-1.5">Ask me anything specific, or pick a prompt below.</p>
                 </div>
               </div>
 

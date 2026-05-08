@@ -101,4 +101,13 @@ export class ControlsController {
     const ids = body.frameworkIds ?? (body.frameworkId ? [body.frameworkId] : []);
     return this.controlsService.initializeForOrg(user.orgId, ids);
   }
+
+  @Post(':controlId/implementation-guide')
+  @ApiOperation({ summary: 'Generate an AI-powered, stack-specific implementation guide for a control' })
+  generateGuide(
+    @CurrentUser() user: JwtPayload,
+    @Param('controlId', ParseUUIDPipe) controlId: string,
+  ) {
+    return this.controlsService.generateImplementationGuide(user.orgId, controlId);
+  }
 }
