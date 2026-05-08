@@ -376,7 +376,7 @@ function GuidedTasksBanner() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const pending = program ? program.thisWeek.length + program.readyNow.length : 0;
+  const pending = (program?.thisWeek?.length ?? 0) + (program?.readyNow?.length ?? 0);
   const total   = program?.stats?.total ?? 0;
   const done    = program?.stats?.done ?? 0;
 

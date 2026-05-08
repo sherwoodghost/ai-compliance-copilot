@@ -9,3 +9,10 @@ build/
 coverage/
 prisma/migrations/
 .claude/
+
+.vercel
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/

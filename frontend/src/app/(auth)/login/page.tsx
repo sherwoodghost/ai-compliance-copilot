@@ -50,31 +50,35 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
               <input
+                id="email"
                 type="email"
                 className="input"
                 placeholder="you@company.com"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 required
+                autoComplete="email"
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
                 <Link href="/forgot-password" className="text-xs text-brand-600 hover:underline">
                   Forgot password?
                 </Link>
               </div>
               <input
+                id="password"
                 type="password"
                 className="input"
                 placeholder="••••••••"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 required
+                autoComplete="current-password"
               />
             </div>
 

@@ -123,8 +123,9 @@ function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCr
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+            <label htmlFor="inc-title" className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
             <input
+              id="inc-title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="e.g. Unauthorized access to production database"
@@ -134,8 +135,9 @@ function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCr
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Severity *</label>
+              <label htmlFor="inc-severity" className="block text-xs font-medium text-gray-700 mb-1">Severity *</label>
               <select
+                id="inc-severity"
                 value={form.severity}
                 onChange={(e) => setForm({ ...form, severity: e.target.value as Severity })}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -146,8 +148,9 @@ function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCr
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Category *</label>
+              <label htmlFor="inc-category" className="block text-xs font-medium text-gray-700 mb-1">Category *</label>
               <select
+                id="inc-category"
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -160,8 +163,9 @@ function CreateIncidentModal({ onClose, onCreated }: { onClose: () => void; onCr
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Description *</label>
+            <label htmlFor="inc-description" className="block text-xs font-medium text-gray-700 mb-1">Description *</label>
             <textarea
+              id="inc-description"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
@@ -604,6 +608,17 @@ function IncidentDetail({
 // ─── Metrics Panel ────────────────────────────────────────────────────────────
 
 function MetricsPanel({ metrics }: { metrics: any }) {
+  // Always render a stable grid so server/client HTML matches (prevents hydration mismatch).
+  // Show skeleton placeholders while data is loading.
+  if (!metrics) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 h-[74px] animate-pulse" />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="bg-white rounded-xl border border-gray-100 p-4">
@@ -727,8 +742,8 @@ export default function IncidentsPage() {
         </div>
       )}
 
-      {/* Metrics */}
-      {metrics && <MetricsPanel metrics={metrics} />}
+      {/* Metrics — always rendered (skeleton when loading) to prevent SSR/hydration mismatch */}
+      <MetricsPanel metrics={metrics ?? null} />
 
       {/* Status pipeline */}
       <div className="bg-white rounded-xl border border-gray-100 px-5 py-4">
