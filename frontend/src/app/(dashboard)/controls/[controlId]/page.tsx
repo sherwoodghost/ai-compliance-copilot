@@ -124,7 +124,7 @@ function StatusEditor({ controlId, current, onSaved }: { controlId: string; curr
   const qc = useQueryClient();
 
   const save = useMutation({
-    mutationFn: () => controlsApi.update(controlId, { status }),
+    mutationFn: () => controlsApi.update(controlId, { status: status as import('@/lib/api/controls').ControlStatus }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['control-detail', controlId] }); setEditing(false); onSaved(); },
   });
 

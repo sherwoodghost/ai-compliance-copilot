@@ -225,4 +225,13 @@ export const auditApi = {
   triggerAssessment(frameworkType: string): Promise<{ jobId: string }> {
     return apiClient.post('/orchestrator/assess', { frameworkType }).then((r) => r.data);
   },
+
+  /**
+   * Download the full audit package as a ZIP file.
+   * Returns a Blob (client should trigger browser download).
+   */
+  async downloadAuditPackage(): Promise<Blob> {
+    const response = await apiClient.post('/audit-exports/audit-package', {}, { responseType: 'blob' });
+    return response.data as Blob;
+  },
 };

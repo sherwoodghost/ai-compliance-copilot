@@ -141,7 +141,7 @@ describe('DocumentNotificationListener', () => {
       const event = new DocumentApprovedEvent(ORG, DOC_ID, DOC_TITLE, ACTOR_B, 'internal', []);
       await listener.onApproved(event);
 
-      expect(notifications.send).toHaveBeenCalledOnce();
+      expect(notifications.send).toHaveBeenCalledTimes(1);
       expect(notifications.send).toHaveBeenCalledWith(
         ORG,
         ACTOR_A,
@@ -213,7 +213,7 @@ describe('DocumentNotificationListener', () => {
       );
       await listener.onRejected(event);
 
-      expect(notifications.send).toHaveBeenCalledOnce();
+      expect(notifications.send).toHaveBeenCalledTimes(1);
       expect(notifications.send).toHaveBeenCalledWith(
         ORG,
         ACTOR_A,

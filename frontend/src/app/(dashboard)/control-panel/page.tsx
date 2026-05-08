@@ -406,7 +406,7 @@ function WorkflowCanvas({ workflowId }: { workflowId: string }) {
 
   const diagnose = useMutation({
     mutationFn: () => controlPanelApi.aiDiagnose(workflowId),
-    onSuccess: (res) => setDiagnoseResult(res),
+    onSuccess: (res) => setDiagnoseResult(res as any),
   });
 
   if (isLoading) {
@@ -583,7 +583,7 @@ export default function ControlPanelPage() {
           ].map((s) => (
             <div key={s.label} className="card p-4 text-center">
               <p className="text-xs text-gray-400">{s.label}</p>
-              <p className={cn('text-lg font-bold mt-1', s.color)}>{s.value}</p>
+              <p className={cn('text-lg font-bold mt-1', s.color)}>{String(s.value ?? 0)}</p>
             </div>
           ))}
         </div>

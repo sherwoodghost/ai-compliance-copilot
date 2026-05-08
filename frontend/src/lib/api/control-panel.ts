@@ -21,9 +21,12 @@ export interface WorkflowEvent {
 }
 
 export interface WorkflowCanvas {
-  nodes: { id: string; type: string; label: string; status?: string }[];
-  edges: { from: string; to: string }[];
-  [key: string]: unknown;
+  nodes:          { id: string; type: string; label: string; status?: string }[];
+  edges:          { from: string; to: string }[];
+  workflow?:      Record<string, unknown>;
+  totalCostUsd?:  number;
+  totalDurationMs?: number;
+  [key: string]:  unknown;
 }
 
 export interface ControlPanelStats {
@@ -35,10 +38,19 @@ export interface ControlPanelStats {
 }
 
 export interface AiDiagnoseResult {
-  diagnosis:       string;
-  recommendations: string[];
-  severity:        'low' | 'medium' | 'high';
-  [key: string]: unknown;
+  diagnosis?:       string;
+  recommendations?: string[];
+  severity?:        'low' | 'medium' | 'high';
+  // Extended fields matching the page's DiagnoseResult local type
+  workflowId?:      string;
+  workflowName?:    string;
+  overallHealth?:   'healthy' | 'degraded' | 'failed';
+  summary?:         string;
+  issues?:          Record<string, unknown>[];
+  bottleneck?:      string | null;
+  costOptimizations?: string[];
+  stats?:           Record<string, unknown>;
+  [key: string]:    unknown;
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────────

@@ -186,7 +186,15 @@ export const controlsApi = {
   },
 
   /** AI-draft justification for a control exception */
-  aiDraftException(controlId: string): Promise<{ justification: string; riskLevel: string; suggestedReviewDate: string }> {
+  aiDraftException(controlId: string): Promise<{
+    justification:       string;
+    riskLevel:           string;
+    suggestedReviewDate: string;
+    title?:              string;
+    compensatingControl?: string;
+    suggestedExpiryMonths?: number;
+    [key: string]: unknown;
+  }> {
     return apiClient.post('/controls/exceptions/ai-draft', { controlId }).then((r) => r.data);
   },
 };

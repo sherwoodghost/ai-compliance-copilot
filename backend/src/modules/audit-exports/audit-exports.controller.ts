@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Param, UseGuards, Req, Res } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { AuditExportService } from '../../audit-exports/audit-export.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LlmService } from '../../llm/llm.service';
@@ -38,6 +40,19 @@ export class AuditExportsController {
   @Post('control-matrix')
   async generateControlMatrix(@Req() req: any) {
     return this.auditExportService.generateControlMatrix(req.user.orgId, req.user.id);
+  }
+
+  @Post('audit-package')
+  @ApiOperation({ summary: 'Generate downloadable ZIP audit package with all approved policies, evidence index, control matrix, and risk register' })
+  async generateAuditPackage(@Req() req: any, @Res() res: Response) {
+    const buffer = await this.auditExportService.generateAuditPackageZip(req.user.orgId, req.user.id);
+    const filename = `audit-package-${new Date().toISOString().split('T')[0]}.zip`;
+    res.set({
+      'Content-Type':        'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length':      buffer.length.toString(),
+    });
+    res.send(buffer);
   }
 
   @Post('ai-executive-summary')

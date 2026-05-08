@@ -14,6 +14,7 @@ export interface AuditorSession {
   lastUsedAt?:  string | null;
   status:       'active' | 'expired' | 'revoked';
   createdAt:    string;
+  token?:       string;  // returned on create
   [key: string]: unknown;
 }
 
@@ -37,9 +38,13 @@ export interface AuditorRfi {
 }
 
 export interface RfiAiResult {
-  suggestedResponse: string;
-  confidence:        string;
-  sourcedFrom:       string[];
+  suggestedResponse:  string;
+  confidence?:        string;
+  confidenceLevel?:   string;
+  sourcedFrom?:       string[];
+  supportingEvidence?: string[];
+  referencedControls?: string[];
+  caveats?:           string[];
   [key: string]: unknown;
 }
 

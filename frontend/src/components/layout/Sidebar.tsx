@@ -35,6 +35,8 @@ import {
   ClipboardCheck,
   ScrollText,
   Cpu,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -106,13 +108,34 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** Mobile-accessible hamburger trigger — rendered in the main content area on small screens */
+export function MobileMenuButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="md:hidden fixed top-3 left-3 z-50 w-9 h-9 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:bg-gray-50"
+      aria-label="Open navigation"
+    >
+      <Menu className="w-4 h-4" />
+    </button>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, clearUser } = useAuthStore();
   const [signingOut, setSigningOut] = useState(false);
+  // Mobile open state
+  const [mobileOpen, setMobileOpen] = useState(false);
   // Collapsed groups — start with "Advanced" collapsed
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['Advanced']));
+
+  // Close mobile nav on route change
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    // NOTE: pathname change will cause re-render; closing here is fine
+  }
 
   // Guided program badge count
   const { data: guidedProgram } = useQuery({
@@ -161,8 +184,33 @@ export function Sidebar() {
   }
 
   return (
+    <>
+      {/* Mobile hamburger button (shown outside sidebar) */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-3 left-3 z-50 w-9 h-9 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:bg-gray-50"
+        aria-label="Open navigation"
+      >
+        <Menu className="w-4 h-4" />
+      </button>
+
+      {/* Mobile overlay backdrop */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
     <aside
-      className="flex flex-col bg-white border-r border-gray-200 shrink-0"
+      className={cn(
+        'flex flex-col bg-white border-r border-gray-200 shrink-0 transition-transform duration-300',
+        // Desktop: always visible
+        'md:relative md:translate-x-0 md:z-auto',
+        // Mobile: fixed overlay, slide in/out
+        'fixed inset-y-0 left-0 z-50',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+      )}
       style={{ width: 'var(--sidebar-width)' }}
     >
       {/* Logo + notification bell */}
@@ -175,7 +223,17 @@ export function Sidebar() {
             <span className="text-sm font-bold text-gray-900 truncate block">Compliance Copilot</span>
           </div>
         </div>
-        <NotificationBell />
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          {/* Close button — only shown on mobile */}
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="md:hidden w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Close navigation"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Nav groups */}
@@ -264,5 +322,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

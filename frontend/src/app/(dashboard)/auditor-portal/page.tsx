@@ -229,7 +229,7 @@ function NewSessionModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => auditorPortalApi.createSession(form),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['auditor-sessions'] });
-      setCreated({ token: data.token, auditorName: data.auditorName });
+      setCreated({ token: data.token ?? '', auditorName: data.auditorName });
     },
   });
 
@@ -469,7 +469,7 @@ function RfiRow({ rfi }: { rfi: AuditorRfi }) {
   const suggestResponse = useMutation({
     mutationFn: () => auditorPortalApi.aiSuggestRfiResponse(rfi.id),
     onSuccess: (res) => {
-      setAiSuggestion(res);
+      setAiSuggestion(res as any);
       setResponse(res.suggestedResponse ?? '');
       setResponding(true);
     },
