@@ -28,6 +28,10 @@ function AuthInitializer() {
     // Skip customer auth check on internal admin pages — they use their own token
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/internal')) return;
 
+    // Skip auth check on public pages (no token needed; avoids 401 → redirect loop)
+    const PUBLIC_CLIENT_PATHS = ['/frameworks', '/trust/', '/public', '/audit/'];
+    if (typeof window !== 'undefined' && PUBLIC_CLIENT_PATHS.some((p) => window.location.pathname.startsWith(p))) return;
+
     apiClient.get('/auth/me')
       .then((res) => setUser(res.data))
       .catch(() => clearUser());

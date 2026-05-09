@@ -68,7 +68,9 @@ function apiBase(): string {
   return process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001/api/v1';
 }
 
-const ISR_OPTIONS: RequestInit = { next: { revalidate: 3600 } };
+// Note: use 'no-store' so the control library always reflects the latest seeded data.
+// For production, swap to { next: { revalidate: 3600 } } once data is stable.
+const ISR_OPTIONS: RequestInit = { cache: 'no-store' };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -45,7 +45,18 @@ export class ControlLibraryController {
   @Public()
   @Get('control/:code/crosswalks')
   async getCrosswalks(@Param('code') code: string) {
-    return this.crosswalk.getMappingsForCode(code);
+    const raw = await this.crosswalk.getMappingsForCode(code);
+    // Transform raw Prisma records → flat CrosswalkMapping shape expected by frontend
+    return (raw as any[]).map((m) => ({
+      sourceCode:      m.sourceControl?.code     ?? '',
+      sourceTitle:     m.sourceControl?.title    ?? '',
+      targetCode:      m.targetControl?.code     ?? '',
+      targetTitle:     m.targetControl?.title    ?? '',
+      mappingType:     m.mappingType,
+      confidence:      m.confidence,
+      sourceFramework: m.sourceControl?.framework?.name ?? '',
+      targetFramework: m.targetControl?.framework?.name ?? '',
+    }));
   }
 
   @Post('control/:code/ai-explain')

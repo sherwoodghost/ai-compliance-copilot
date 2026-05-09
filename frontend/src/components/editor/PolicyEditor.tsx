@@ -398,6 +398,9 @@ export function PolicyEditor({
       // When collaborative: disable StarterKit history (Yjs provides CRDT undo/redo)
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        // Disable extensions we add separately to avoid "duplicate extension" warnings in TipTap v3
+        link: false,
+        underline: false,
         ...(collaborativeOptions && ydocRef.current ? { history: false } : {}),
       }),
       // Collaboration extension (Yjs) — only when collaborative mode active

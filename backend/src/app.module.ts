@@ -56,6 +56,7 @@ import { ControlEffectivenessModule } from './modules/control-effectiveness/cont
 import { IncidentModule } from './modules/incidents/incident.module';
 import { InternalAuditModule } from './modules/internal-audit/internal-audit.module';
 // P19 — Documents + Enterprise Infrastructure
+import { BullModule } from '@nestjs/bull';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
@@ -86,6 +87,7 @@ import { HealthController } from './health/health.controller';
     OrganizationsModule,
     UsersModule,
     FrameworksModule,
+    ControlLibraryApiModule,  // ← must register before ControlsModule (controls/library prefix is more specific)
     ExceptionsModule,   // ← must register before ControlsModule to take /controls/exceptions routes
     ControlsModule,
     EvidenceModule,
@@ -106,7 +108,6 @@ import { HealthController } from './health/health.controller';
     ReadinessModule,
     ScopingModule,
     AuditExportModule,
-    ControlLibraryApiModule,
     ScopingApiModule,
     ReadinessApiModule,
     AuditExportsApiModule,
@@ -126,6 +127,13 @@ import { HealthController } from './health/health.controller';
     AuditMemoryModule,
     AgentSchedulerModule,
     // P19 — Documents + Enterprise Infrastructure
+    BullModule.forRoot({
+      redis: {
+        host: process.env['REDIS_HOST'] ?? 'localhost',
+        port: parseInt(process.env['REDIS_PORT'] ?? '6379', 10),
+        password: process.env['REDIS_PASSWORD'] ?? undefined,
+      },
+    }),
     EventEmitterModule.forRoot({ wildcard: false, delimiter: '.', global: true }),
     DocumentsModule,
     FeatureFlagsModule,

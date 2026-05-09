@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi, GuidedTask, GuidedProgram } from '@/lib/api/team';
 import { tasksApi } from '@/lib/api/tasks';
@@ -476,6 +476,8 @@ export default function GettingStartedPage() {
   const [selectedTask, setSelectedTask] = useState<GuidedTask | null>(null);
   const [mineOnly, setMineOnly] = useState(false);
   const [generateSuccess, setGenerateSuccess] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
 
   const { data: program, isLoading } = useQuery<GuidedProgram>({
     queryKey: ['guided-program', mineOnly],
@@ -549,7 +551,7 @@ export default function GettingStartedPage() {
         </div>
       )}
 
-      {isLoading ? (
+      {!isMounted || isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
         </div>

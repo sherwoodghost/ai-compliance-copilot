@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { getFrameworkControls } from '@/lib/api/frameworks';
 import type { Control } from '@/lib/api/frameworks';
-import ControlSearch, { getCategoryColor } from './ControlSearch';
+import ControlSearch from './ControlSearch';
+import { getCategoryColor } from './colors';
 
 export const metadata: Metadata = {
   title: 'SOC 2 Trust Services Criteria | ComplianceOS',

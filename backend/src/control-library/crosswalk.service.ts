@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
 import { ControlLibraryService } from './control-library.service';
 
 /**
@@ -78,16 +79,77 @@ const SOC2_ISO_CROSSWALKS: Array<{
 export class CrosswalkService implements OnModuleInit {
   private readonly logger = new Logger(CrosswalkService.name);
 
-  constructor(private readonly library: ControlLibraryService) {}
+  constructor(
+    private readonly library: ControlLibraryService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async onModuleInit() {
-    // Seed crosswalks after control library is initialized
+    // Seed crosswalks using direct DB lookups (not in-memory map) to avoid
+    // initialization ordering race conditions.
     try {
-      await this.library.seedCrosswalks(SOC2_ISO_CROSSWALKS);
-      this.logger.log(`Seeded ${SOC2_ISO_CROSSWALKS.length} SOC2↔ISO27001 crosswalk mappings`);
+      await this.seedCrosswalksFromDb();
     } catch (err) {
-      this.logger.warn('Crosswalk seeding skipped (controls not yet seeded?):', err.message);
+      this.logger.warn('Crosswalk seeding failed:', err.message);
     }
+  }
+
+  /**
+   * Seeds crosswalk mappings by looking up control IDs directly from the DB.
+   * This avoids the race condition where the in-memory map might not be ready.
+   */
+  private async seedCrosswalksFromDb(): Promise<void> {
+    // Load all needed control codes in one query
+    const allCodes = [
+      ...new Set([
+        ...SOC2_ISO_CROSSWALKS.map((m) => m.sourceCode),
+        ...SOC2_ISO_CROSSWALKS.map((m) => m.targetCode),
+      ]),
+    ];
+
+    const controls = await this.prisma.control.findMany({
+      where: { code: { in: allCodes } },
+      select: { id: true, code: true },
+    });
+
+    if (controls.length === 0) {
+      this.logger.warn('Crosswalk seeding skipped — no controls found in DB yet');
+      return;
+    }
+
+    const codeToId = new Map(controls.map((c) => [c.code, c.id]));
+    let seeded = 0;
+    let skipped = 0;
+
+    for (const m of SOC2_ISO_CROSSWALKS) {
+      const sourceId = codeToId.get(m.sourceCode);
+      const targetId = codeToId.get(m.targetCode);
+      if (!sourceId || !targetId) {
+        skipped++;
+        continue;
+      }
+
+      await this.prisma.frameworkCrosswalk.upsert({
+        where: { sourceControlId_targetControlId: { sourceControlId: sourceId, targetControlId: targetId } },
+        create: {
+          sourceControlId: sourceId,
+          targetControlId: targetId,
+          mappingType: m.mappingType,
+          confidence: m.confidence,
+          rationale: m.rationale ?? null,
+          automatable: m.automatable ?? false,
+        },
+        update: {
+          mappingType: m.mappingType,
+          confidence: m.confidence,
+          rationale: m.rationale ?? null,
+          automatable: m.automatable ?? false,
+        },
+      });
+      seeded++;
+    }
+
+    this.logger.log(`Crosswalk seeding: ${seeded} upserted, ${skipped} skipped (missing codes)`);
   }
 
   /**
