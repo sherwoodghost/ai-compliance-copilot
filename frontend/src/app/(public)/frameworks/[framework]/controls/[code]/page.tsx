@@ -32,9 +32,10 @@ export async function generateStaticParams(): Promise<
 export async function generateMetadata({
   params,
 }: {
-  params: { framework: string; code: string };
+  params: Promise<{ framework: string; code: string }>;
 }): Promise<Metadata> {
-  const code    = decodeURIComponent(params.code);
+  const { code: rawCode } = await params;
+  const code    = decodeURIComponent(rawCode);
   const control = await getControlByCode(code);
   if (!control) {
     return { title: 'Control Not Found | ComplianceOS' };
@@ -132,10 +133,10 @@ function CrosswalkChip({
 export default async function ControlDetailPage({
   params,
 }: {
-  params: { framework: string; code: string };
+  params: Promise<{ framework: string; code: string }>;
 }) {
-  const { framework } = params;
-  const code          = decodeURIComponent(params.code);
+  const { framework, code: rawCode } = await params;
+  const code          = decodeURIComponent(rawCode);
 
   // Validate framework param
   if (!['soc2', 'iso27001'].includes(framework)) {

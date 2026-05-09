@@ -35,6 +35,7 @@
     "@tiptap/pm": "^3.23.1",
     "@tiptap/react": "^3.22.5",
     "@tiptap/starter-kit": "^3.22.5",
+    "@tiptap/y-tiptap": "^3.0.3",
     "axios": "^1.7.2",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
@@ -50,6 +51,7 @@
     "recharts": "^2.12.7",
     "socket.io-client": "^4.7.5",
     "tailwind-merge": "^2.3.0",
+    "y-protocols": "^1.0.7",
     "yjs": "^13.6.30",
     "zustand": "^4.5.2"
   },
