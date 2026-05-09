@@ -267,7 +267,11 @@ export class LlmGatewayService {
   async callRaw(
     rawSystemPrompt: string,
     userMessage: string,
-    options: Omit<LlmGatewayRequest, 'promptTemplateId' | 'variables'> & { promptTemplateId?: string },
+    options: Omit<LlmGatewayRequest, 'promptTemplateId' | 'variables'> & {
+      promptTemplateId?: string;
+      imageBuffer?: Buffer;
+      imageMimeType?: string;
+    },
   ): Promise<LlmGatewayResponse> {
     const {
       taskType = 'onboarding',
@@ -285,6 +289,14 @@ export class LlmGatewayService {
 
     const startTime = Date.now();
 
+    // Build user message content — multimodal if image provided
+    const messageContent: any = options.imageBuffer
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: options.imageMimeType ?? 'image/png', data: options.imageBuffer.toString('base64') } },
+          { type: 'text', text: userMessage },
+        ]
+      : userMessage;
+
     // Call LLM directly — bypasses template registry, context packing, and output schema validation
     let content = '';
     let inputTokens = 0;
@@ -292,7 +304,7 @@ export class LlmGatewayService {
 
     try {
       const response = await this.llm.completeWithRetry(
-        [{ role: 'user', content: userMessage }],
+        [{ role: 'user', content: messageContent }],
         {
           agentName,
           model,

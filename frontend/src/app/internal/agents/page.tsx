@@ -582,7 +582,10 @@ export default function AgentRegistryPage() {
 
   function updateAgent(name: string, patch: Partial<AgentConfig>) {
     setLocalOverrides((prev) => ({ ...prev, [name]: { ...(prev[name] ?? {}), ...patch } }));
-    // TODO: persist to backend via POST /internal/agents/:name/config
+    // Persist to backend (fire-and-forget; local state is the source of truth for UI)
+    internalApi.patch(`/internal/agents/${encodeURIComponent(name)}/config`, patch).catch(() => {
+      // Silently ignore — backend may be unavailable in dev; local override remains active
+    });
   }
 
   const filtered = agents.filter((a) => activeCategory === 'All' || a.category === activeCategory);

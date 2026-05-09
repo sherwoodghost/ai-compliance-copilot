@@ -84,7 +84,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Invite a new user to the organization (admin only)' })
   @ApiResponse({ status: 201, description: 'User invited. Returns user + temporary password.' })
   async inviteUser(@CurrentUser() user: JwtPayload, @Body() dto: InviteUserDto) {
-    return this.usersService.invite(user.orgId, dto);
+    return this.usersService.invite(user.orgId, dto, user.email);
   }
 
   @Delete(':userId')

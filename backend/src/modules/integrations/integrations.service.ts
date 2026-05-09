@@ -16,6 +16,30 @@ import { GcpAdapter } from './adapters/gcp.adapter';
 import { RipplingAdapter } from './adapters/rippling.adapter';
 import { JamfAdapter } from './adapters/jamf.adapter';
 import { AzureAdAdapter } from './adapters/azure-ad.adapter';
+import {
+  OneLoginAdapter, Auth0Adapter, DuoAdapter, JumpCloudAdapter, PingIdentityAdapter,
+  CyberArkAdapter, DelineaAdapter, BeyondTrustAdapter,
+  DigitalOceanAdapter, CloudflareAdapter, VercelAdapter, HerokuAdapter,
+  AzureDevOpsAdapter, BitbucketAdapter, CircleCIAdapter, JenkinsAdapter,
+  CodecovAdapter, SonarQubeAdapter, SemgrepAdapter,
+  CrowdStrikeAdapter, SentinelOneAdapter, CarbonBlackAdapter, Rapid7Adapter,
+  QualysAdapter, TenableAdapter, WizAdapter, LaceworkAdapter,
+  AquaSecurityAdapter, VeracodeAdapter, BugcrowdAdapter, HackerOneAdapter,
+  KandjiAdapter, MosyleAdapter, FleetAdapter, HexnodeAdapter, VMwareWorkspaceOneAdapter,
+  WorkdayAdapter, AdpAdapter, GustoAdapter, HiBobAdapter, PersonioAdapter, DeelAdapter,
+  ServiceNowAdapter, ZendeskAdapter, FreshserviceAdapter, LinearAdapter,
+  AsanaAdapter, MondayAdapter, ClickUpAdapter, NotionAdapter, ConfluenceAdapter,
+  NewRelicAdapter, GrafanaAdapter, SentryAdapter, DynatraceAdapter, SumoLogicAdapter,
+  SplunkAdapter, ElasticAdapter, OpsgenieAdapter, VictorOpsAdapter,
+  FireHydrantAdapter, StatuspageAdapter,
+  SlackAdapter, MicrosoftTeamsAdapter, ZoomAdapter, MattermostAdapter,
+  OnePasswordAdapter, LastPassAdapter, BitwardenAdapter, HashiCorpVaultAdapter, DopplerAdapter,
+  KnowBe4Adapter, ProofpointAdapter, InfosecIqAdapter,
+  CheckrAdapter, SterlingAdapter,
+  SalesforceAdapter, HubSpotAdapter,
+  BoxAdapter, DropboxAdapter, SharepointAdapter, GoogleDriveAdapter,
+  SnowflakeAdapter, MongoDBAtlasAdapter, DatabricksAdapter,
+} from './adapters/stub-adapters';
 import { IntegrationAdapter } from './adapters/integration.interface';
 import { IntegrationProvider } from '@prisma/client';
 import { SecretManagerService } from '../../integrations/secret-manager.service';
@@ -27,6 +51,7 @@ export class IntegrationsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    // Core adapters
     private readonly githubAdapter: GitHubAdapter,
     private readonly awsAdapter: AwsAdapter,
     private readonly oktaAdapter: OktaAdapter,
@@ -38,20 +63,221 @@ export class IntegrationsService {
     private readonly ripplingAdapter: RipplingAdapter,
     private readonly jamfAdapter: JamfAdapter,
     private readonly azureAdAdapter: AzureAdAdapter,
+    // Identity
+    private readonly oneLoginAdapter: OneLoginAdapter,
+    private readonly auth0Adapter: Auth0Adapter,
+    private readonly duoAdapter: DuoAdapter,
+    private readonly jumpCloudAdapter: JumpCloudAdapter,
+    private readonly pingIdentityAdapter: PingIdentityAdapter,
+    private readonly cyberArkAdapter: CyberArkAdapter,
+    private readonly delineaAdapter: DelineaAdapter,
+    private readonly beyondTrustAdapter: BeyondTrustAdapter,
+    // Cloud
+    private readonly digitalOceanAdapter: DigitalOceanAdapter,
+    private readonly cloudflareAdapter: CloudflareAdapter,
+    private readonly vercelAdapter: VercelAdapter,
+    private readonly herokuAdapter: HerokuAdapter,
+    // CI/CD
+    private readonly azureDevOpsAdapter: AzureDevOpsAdapter,
+    private readonly bitbucketAdapter: BitbucketAdapter,
+    private readonly circleCIAdapter: CircleCIAdapter,
+    private readonly jenkinsAdapter: JenkinsAdapter,
+    private readonly codecovAdapter: CodecovAdapter,
+    private readonly sonarQubeAdapter: SonarQubeAdapter,
+    private readonly semgrepAdapter: SemgrepAdapter,
+    // Security
+    private readonly crowdStrikeAdapter: CrowdStrikeAdapter,
+    private readonly sentinelOneAdapter: SentinelOneAdapter,
+    private readonly carbonBlackAdapter: CarbonBlackAdapter,
+    private readonly rapid7Adapter: Rapid7Adapter,
+    private readonly qualysAdapter: QualysAdapter,
+    private readonly tenableAdapter: TenableAdapter,
+    private readonly wizAdapter: WizAdapter,
+    private readonly laceworkAdapter: LaceworkAdapter,
+    private readonly aquaSecurityAdapter: AquaSecurityAdapter,
+    private readonly veracodeAdapter: VeracodeAdapter,
+    private readonly bugcrowdAdapter: BugcrowdAdapter,
+    private readonly hackerOneAdapter: HackerOneAdapter,
+    // MDM
+    private readonly kandjiAdapter: KandjiAdapter,
+    private readonly mosyleAdapter: MosyleAdapter,
+    private readonly fleetAdapter: FleetAdapter,
+    private readonly hexnodeAdapter: HexnodeAdapter,
+    private readonly vmwareWorkspaceOneAdapter: VMwareWorkspaceOneAdapter,
+    // HR
+    private readonly workdayAdapter: WorkdayAdapter,
+    private readonly adpAdapter: AdpAdapter,
+    private readonly gustoAdapter: GustoAdapter,
+    private readonly hiBobAdapter: HiBobAdapter,
+    private readonly personioAdapter: PersonioAdapter,
+    private readonly deelAdapter: DeelAdapter,
+    // Ticketing
+    private readonly serviceNowAdapter: ServiceNowAdapter,
+    private readonly zendeskAdapter: ZendeskAdapter,
+    private readonly freshserviceAdapter: FreshserviceAdapter,
+    private readonly linearAdapter: LinearAdapter,
+    private readonly asanaAdapter: AsanaAdapter,
+    private readonly mondayAdapter: MondayAdapter,
+    private readonly clickUpAdapter: ClickUpAdapter,
+    private readonly notionAdapter: NotionAdapter,
+    private readonly confluenceAdapter: ConfluenceAdapter,
+    // Monitoring
+    private readonly newRelicAdapter: NewRelicAdapter,
+    private readonly grafanaAdapter: GrafanaAdapter,
+    private readonly sentryAdapter: SentryAdapter,
+    private readonly dynatraceAdapter: DynatraceAdapter,
+    private readonly sumoLogicAdapter: SumoLogicAdapter,
+    private readonly splunkAdapter: SplunkAdapter,
+    private readonly elasticAdapter: ElasticAdapter,
+    private readonly opsgenieAdapter: OpsgenieAdapter,
+    private readonly victorOpsAdapter: VictorOpsAdapter,
+    private readonly fireHydrantAdapter: FireHydrantAdapter,
+    private readonly statuspageAdapter: StatuspageAdapter,
+    // Collaboration
+    private readonly slackAdapter: SlackAdapter,
+    private readonly microsoftTeamsAdapter: MicrosoftTeamsAdapter,
+    private readonly zoomAdapter: ZoomAdapter,
+    private readonly mattermostAdapter: MattermostAdapter,
+    // Secrets
+    private readonly onePasswordAdapter: OnePasswordAdapter,
+    private readonly lastPassAdapter: LastPassAdapter,
+    private readonly bitwardenAdapter: BitwardenAdapter,
+    private readonly hashiCorpVaultAdapter: HashiCorpVaultAdapter,
+    private readonly dopplerAdapter: DopplerAdapter,
+    // Training
+    private readonly knowBe4Adapter: KnowBe4Adapter,
+    private readonly proofpointAdapter: ProofpointAdapter,
+    private readonly infosecIqAdapter: InfosecIqAdapter,
+    // Background
+    private readonly checkrAdapter: CheckrAdapter,
+    private readonly sterlingAdapter: SterlingAdapter,
+    // CRM
+    private readonly salesforceAdapter: SalesforceAdapter,
+    private readonly hubSpotAdapter: HubSpotAdapter,
+    // Storage
+    private readonly boxAdapter: BoxAdapter,
+    private readonly dropboxAdapter: DropboxAdapter,
+    private readonly sharepointAdapter: SharepointAdapter,
+    private readonly googleDriveAdapter: GoogleDriveAdapter,
+    // Data
+    private readonly snowflakeAdapter: SnowflakeAdapter,
+    private readonly mongoDBAtlasAdapter: MongoDBAtlasAdapter,
+    private readonly databricksAdapter: DatabricksAdapter,
     private readonly secretManager: SecretManagerService,
   ) {
     this.adapterMap = {
-      github: this.githubAdapter,
-      aws: this.awsAdapter,
-      okta: this.oktaAdapter,
-      jira: this.jiraAdapter,
-      datadog: this.datadogAdapter,
+      // Core
+      github:           this.githubAdapter,
+      aws:              this.awsAdapter,
+      okta:             this.oktaAdapter,
+      jira:             this.jiraAdapter,
+      datadog:          this.datadogAdapter,
       google_workspace: this.googleWorkspaceAdapter,
-      gitlab: this.gitlabAdapter,
-      gcp: this.gcpAdapter,
-      rippling: this.ripplingAdapter,
-      jamf: this.jamfAdapter,
-      azure: this.azureAdAdapter,
+      gitlab:           this.gitlabAdapter,
+      gcp:              this.gcpAdapter,
+      rippling:         this.ripplingAdapter,
+      jamf:             this.jamfAdapter,
+      azure:            this.azureAdAdapter,
+      // Identity
+      onelogin:         this.oneLoginAdapter,
+      auth0:            this.auth0Adapter,
+      duo:              this.duoAdapter,
+      jumpcloud:        this.jumpCloudAdapter,
+      ping_identity:    this.pingIdentityAdapter,
+      cyberark:         this.cyberArkAdapter,
+      delinea:          this.delineaAdapter,
+      beyondtrust:      this.beyondTrustAdapter,
+      // Cloud
+      digitalocean:     this.digitalOceanAdapter,
+      cloudflare:       this.cloudflareAdapter,
+      vercel:           this.vercelAdapter,
+      heroku:           this.herokuAdapter,
+      // CI/CD
+      azure_devops:     this.azureDevOpsAdapter,
+      bitbucket:        this.bitbucketAdapter,
+      circleci:         this.circleCIAdapter,
+      jenkins:          this.jenkinsAdapter,
+      codecov:          this.codecovAdapter,
+      sonarqube:        this.sonarQubeAdapter,
+      semgrep:          this.semgrepAdapter,
+      // Security
+      crowdstrike:      this.crowdStrikeAdapter,
+      sentinelone:      this.sentinelOneAdapter,
+      carbon_black:     this.carbonBlackAdapter,
+      rapid7:           this.rapid7Adapter,
+      qualys:           this.qualysAdapter,
+      tenable:          this.tenableAdapter,
+      wiz:              this.wizAdapter,
+      lacework:         this.laceworkAdapter,
+      aqua_security:    this.aquaSecurityAdapter,
+      veracode:         this.veracodeAdapter,
+      bugcrowd:         this.bugcrowdAdapter,
+      hackerone:        this.hackerOneAdapter,
+      // MDM
+      kandji:              this.kandjiAdapter,
+      mosyle:              this.mosyleAdapter,
+      fleet:               this.fleetAdapter,
+      hexnode:             this.hexnodeAdapter,
+      vmware_workspace_one: this.vmwareWorkspaceOneAdapter,
+      // HR
+      workday:          this.workdayAdapter,
+      adp:              this.adpAdapter,
+      gusto:            this.gustoAdapter,
+      hibob:            this.hiBobAdapter,
+      personio:         this.personioAdapter,
+      deel:             this.deelAdapter,
+      // Ticketing
+      servicenow:       this.serviceNowAdapter,
+      zendesk:          this.zendeskAdapter,
+      freshservice:     this.freshserviceAdapter,
+      linear:           this.linearAdapter,
+      asana:            this.asanaAdapter,
+      monday:           this.mondayAdapter,
+      clickup:          this.clickUpAdapter,
+      notion:           this.notionAdapter,
+      confluence:       this.confluenceAdapter,
+      // Monitoring
+      newrelic:         this.newRelicAdapter,
+      grafana:          this.grafanaAdapter,
+      sentry:           this.sentryAdapter,
+      dynatrace:        this.dynatraceAdapter,
+      sumo_logic:       this.sumoLogicAdapter,
+      splunk:           this.splunkAdapter,
+      elastic:          this.elasticAdapter,
+      opsgenie:         this.opsgenieAdapter,
+      victorops:        this.victorOpsAdapter,
+      firehydrant:      this.fireHydrantAdapter,
+      statuspage:       this.statuspageAdapter,
+      // Collaboration
+      slack:            this.slackAdapter,
+      microsoft_teams:  this.microsoftTeamsAdapter,
+      zoom:             this.zoomAdapter,
+      mattermost:       this.mattermostAdapter,
+      // Secrets
+      onepassword:      this.onePasswordAdapter,
+      lastpass:         this.lastPassAdapter,
+      bitwarden:        this.bitwardenAdapter,
+      hashicorp_vault:  this.hashiCorpVaultAdapter,
+      doppler:          this.dopplerAdapter,
+      // Training
+      knowbe4:          this.knowBe4Adapter,
+      proofpoint:       this.proofpointAdapter,
+      infosec_iq:       this.infosecIqAdapter,
+      // Background
+      checkr:           this.checkrAdapter,
+      sterling:         this.sterlingAdapter,
+      // CRM
+      salesforce:       this.salesforceAdapter,
+      hubspot:          this.hubSpotAdapter,
+      // Storage
+      box:              this.boxAdapter,
+      dropbox:          this.dropboxAdapter,
+      sharepoint:       this.sharepointAdapter,
+      google_drive:     this.googleDriveAdapter,
+      // Data
+      snowflake:        this.snowflakeAdapter,
+      mongodb_atlas:    this.mongoDBAtlasAdapter,
+      databricks:       this.databricksAdapter,
     };
   }
 
@@ -81,7 +307,6 @@ export class IntegrationsService {
       throw new BadRequestException(`Integration for "${provider}" is not yet supported`);
     }
 
-    // Test connection before saving
     const testResult = await adapter.testConnection(credentials);
     if (!testResult.connected) {
       throw new BadRequestException(`Connection test failed: ${testResult.error}`);
@@ -136,7 +361,6 @@ export class IntegrationsService {
       const evidence = await adapter.collectEvidence(credentials);
 
       for (const item of evidence) {
-        // Find matching control
         const control = await this.prisma.control.findFirst({
           where: { code: item.controlCode },
         });

@@ -64,6 +64,11 @@ import { StorageModule } from './modules/storage/storage.module';
 import { ConnectorsModule } from './modules/connectors/connectors.module';
 import { ApprovalWorkflowModule } from './modules/approval-workflow/approval-workflow.module';
 import { HealthController } from './health/health.controller';
+// P26 — Bulk Ingestion + GDPR + ISO9001
+import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { GdprModule } from './modules/gdpr/gdpr.module';
+import { QualityModule } from './modules/quality/quality.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 @Module({
   imports: [
@@ -140,6 +145,11 @@ import { HealthController } from './health/health.controller';
     StorageModule,
     ConnectorsModule,
     ApprovalWorkflowModule,
+    // P26
+    JobsModule,
+    IngestionModule,
+    GdprModule,
+    QualityModule,
   ],
   controllers: [HealthController],
 })

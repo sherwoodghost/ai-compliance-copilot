@@ -188,7 +188,7 @@ export class ControlLibraryService implements OnModuleInit {
   /**
    * Get controls for a specific framework with full metadata.
    */
-  async getControlsByFramework(frameworkType: 'SOC2' | 'ISO27001') {
+  async getControlsByFramework(frameworkType: string) {
     return this.prisma.control.findMany({
       where: { framework: { type: frameworkType as any } },
       include: {

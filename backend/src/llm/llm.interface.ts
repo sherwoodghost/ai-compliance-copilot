@@ -1,6 +1,10 @@
+export type LLMContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+
 export interface LLMMessage {
   role: 'user' | 'assistant' | 'system';
-  content: string;
+  content: string | LLMContentBlock[];
 }
 
 export interface LLMOptions {

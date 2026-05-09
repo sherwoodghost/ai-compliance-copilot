@@ -22,6 +22,7 @@ import { DASHBOARD_PROMPT_V1 } from '../prompts/dashboard/dashboard-v1.prompt';
 import { DIALOGUE_QUESTION_PROMPT_V1 } from '../prompts/onboarding/dialogue-question-v1.prompt';
 import { INFERENCE_RATIONALE_V1 } from '../prompts/inference/inference-rationale-v1.prompt';
 import { ONBOARDING_NEXT_QUESTION_V1 } from '../prompts/onboarding/onboarding-next-question-v1.prompt';
+import { ONBOARDING_CHAT_V2 } from '../prompts/onboarding/onboarding-chat-v2.prompt';
 
 export class PolicyViolationException extends Error {
   constructor(message: string) {
@@ -52,6 +53,7 @@ const ALL_PROMPTS: PromptTemplate[] = [
   DIALOGUE_QUESTION_PROMPT_V1,
   INFERENCE_RATIONALE_V1,
   ONBOARDING_NEXT_QUESTION_V1,
+  ONBOARDING_CHAT_V2,
 ];
 
 @Injectable()

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import {
   S3Client,
   PutObjectCommand,
@@ -102,5 +102,30 @@ export class StorageService {
   /** Build a temp import key (cleaned up after processing) */
   importKey(orgId: string, jobId: string, filename: string): string {
     return `imports/${orgId}/temp/${jobId}/${filename}`;
+  }
+
+  /** Build a staging key for bulk ingestion files */
+  ingestionKey(orgId: string, batchId: string, filename: string): string {
+    return `ingestion/${orgId}/batch-${batchId}/${filename}`;
+  }
+
+  /**
+   * Verify that a storage key belongs to the given org.
+   * Throws ForbiddenException if the key doesn't start with any of the org-scoped prefixes.
+   * All ingestion workers MUST call this before reading or writing files.
+   */
+  assertOrgOwnership(orgId: string, key: string): void {
+    const allowedPrefixes = [
+      `documents/${orgId}/`,
+      `evidence/${orgId}/`,
+      `imports/${orgId}/`,
+      `ingestion/${orgId}/`,
+    ];
+    const owned = allowedPrefixes.some((prefix) => key.startsWith(prefix));
+    if (!owned) {
+      throw new ForbiddenException(
+        `Storage key '${key}' does not belong to org '${orgId}'. Tenant isolation violation.`,
+      );
+    }
   }
 }

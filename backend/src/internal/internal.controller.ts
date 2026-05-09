@@ -1,6 +1,6 @@
 import {
-  Controller, Post, Get, Body, UnauthorizedException,
-  UseGuards, Req, HttpCode, HttpStatus,
+  Controller, Post, Get, Patch, Body, Param, UnauthorizedException,
+  UseGuards, Req, HttpCode, HttpStatus, Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -148,16 +148,22 @@ export class InternalController {
       }
     }
 
-    // Merge real stats into registry, falling back to defaults for agents with no runs yet
+    // Merge real stats + in-memory config overrides into registry
     return AGENT_REGISTRY.map((agent) => {
       // Try to match by agent name (e.g. ScopingAgent → "scoping" in DB)
       const dbKey = agent.name.replace('Agent', '').toLowerCase();
       const stats = statsByAgent.get(dbKey) ?? statsByAgent.get(agent.name) ?? null;
+      const configOverride = this.agentConfigOverrides.get(agent.name) ?? {};
 
-      if (!stats) return agent; // No runs yet — return static config as-is
+      const base = {
+        ...agent,
+        ...configOverride,
+      };
+
+      if (!stats) return base; // No runs yet — return config only
 
       return {
-        ...agent,
+        ...base,
         totalRuns:     stats.total,
         successRate:   stats.total > 0 ? parseFloat(((stats.success / stats.total) * 100).toFixed(1)) : 0,
         avgCostUsd:    stats.total > 0 ? parseFloat((stats.totalCost / stats.total).toFixed(4)) : 0,
@@ -166,6 +172,24 @@ export class InternalController {
         lastRunStatus: stats.lastStatus as any ?? undefined,
       };
     });
+  }
+
+  // In-memory store for agent config overrides (survives until next deploy)
+  private readonly agentConfigOverrides = new Map<string, Partial<{ enabled: boolean; circuitBreakerOpen: boolean }>>();
+  private readonly controllerLogger = new Logger(InternalController.name);
+
+  @Patch('agents/:name/config')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Override an agent\'s enabled/circuitBreaker config (persists in memory until restart)' })
+  patchAgentConfig(
+    @Param('name') name: string,
+    @Body() patch: { enabled?: boolean; circuitBreakerOpen?: boolean },
+  ) {
+    const current = this.agentConfigOverrides.get(name) ?? {};
+    const updated = { ...current, ...patch };
+    this.agentConfigOverrides.set(name, updated);
+    this.controllerLogger.log(`Agent config override: ${name} → ${JSON.stringify(updated)}`);
+    return { name, ...updated };
   }
 
   @Get('stats')

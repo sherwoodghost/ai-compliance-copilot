@@ -12,10 +12,12 @@ import {
   XCircle, Activity, Gauge, CalendarDays, Sparkles, Copy, X, Mail,
   Rocket,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, Suspense, lazy, type ComponentType } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useActiveFrameworks } from '@/lib/hooks/useActiveFrameworks';
+import { getActiveWidgets, type WidgetSpec } from '@/lib/dashboard/framework-registry';
 
 function StatCard({ label, value, icon: Icon, sub, color, accent }: {
   label: string;
@@ -441,6 +443,42 @@ function GuidedTasksBanner() {
   );
 }
 
+// ─── Framework Widget Grid ────────────────────────────────────────────────────
+
+/** Widget slot with lazy loading + Suspense shell */
+function LazyWidget({ spec }: { spec: WidgetSpec }) {
+  const Component = lazy(spec.component as () => Promise<{ default: ComponentType<object> }>);
+  return (
+    <div className={spec.width === 'full' ? 'lg:col-span-2' : ''}>
+      <Suspense
+        fallback={
+          <div className="rounded-xl border border-gray-200 bg-white p-5 animate-pulse h-[120px]" />
+        }
+      >
+        <Component />
+      </Suspense>
+    </div>
+  );
+}
+
+function FrameworkWidgetsSection() {
+  const { data: frameworks = [], isLoading } = useActiveFrameworks();
+  const widgets = getActiveWidgets(frameworks);
+
+  if (isLoading || widgets.length === 0) return null;
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-gray-900 mb-3">Framework Dashboards</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {widgets.map(spec => (
+          <LazyWidget key={spec.id} spec={spec} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
@@ -740,6 +778,9 @@ export default function OverviewPage() {
         </div>
         <ControlHealthMap />
       </div>
+
+      {/* Framework-specific widgets — dynamically composed from active frameworks */}
+      <FrameworkWidgetsSection />
     </div>
   );
 }

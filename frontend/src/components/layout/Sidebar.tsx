@@ -39,13 +39,24 @@ import {
   X,
   Map,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { teamApi } from '@/lib/api/team';
 import { NotificationBell } from './NotificationBell';
+import { useActiveFrameworks } from '@/lib/hooks/useActiveFrameworks';
+import { getActiveNavGroups, type NavGroupSpec } from '@/lib/dashboard/framework-registry';
 
 type NavItem = { href: string; label: string; icon: React.ElementType; badge?: string };
 type NavGroup = { label: string; items: NavItem[] };
+
+/** Resolve icon name string (from framework registry) → Lucide component */
+const ICON_MAP: Record<string, React.ElementType> = {
+  FileText, Users, ShieldAlert, Siren, AlertTriangle,
+  ClipboardCheck, Target, ScrollText, Shield, BarChart3,
+  Activity, BookOpen, Download, Globe, CheckSquare, Library,
+  FolderOpen, ClipboardList, Building2, Plug, Zap, GitBranch,
+  LayoutDashboard, Rocket, UserCircle2, Map,
+};
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -72,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/policies',        label: 'Policies',        icon: FileText },
       { href: '/documents',       label: 'Documents',       icon: BookOpen },
+      { href: '/ingestion',       label: 'Import Docs',     icon: Download },
     ],
   },
   {
@@ -130,8 +142,22 @@ export function Sidebar() {
   const [signingOut, setSigningOut] = useState(false);
   // Mobile open state
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Collapsed groups — start with "Advanced" collapsed
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['Advanced']));
+  // Collapsed groups — start with "Advanced" collapsed; framework groups start collapsed too
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(['Advanced', 'GDPR', 'ISO 9001', 'ISO 14001', 'ISO 45001', 'HIPAA', 'PCI DSS', 'FedRAMP', 'NIST CSF']));
+
+  // Dynamic framework nav groups — only shown when the framework is active for this org
+  const { data: frameworks = [] } = useActiveFrameworks();
+  const dynamicGroups = useMemo((): NavGroup[] => {
+    const rawGroups = getActiveNavGroups(frameworks);
+    return rawGroups.map((g: NavGroupSpec) => ({
+      label: g.label,
+      items: g.items.map(item => ({
+        href:  item.href,
+        label: item.label,
+        icon:  ICON_MAP[item.icon] ?? FileText,
+      })),
+    }));
+  }, [frameworks]);
 
   // Close mobile nav on route change
   if (typeof window !== 'undefined') {
@@ -240,7 +266,7 @@ export function Sidebar() {
 
       {/* Nav groups */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto scrollbar-thin">
-        {NAV_GROUPS.map(({ label, items }) => {
+        {[...NAV_GROUPS, ...dynamicGroups].map(({ label, items }) => {
           const isCollapsed = collapsed.has(label);
           const hasActive = isGroupActive(items);
           // Auto-expand group if a child is active

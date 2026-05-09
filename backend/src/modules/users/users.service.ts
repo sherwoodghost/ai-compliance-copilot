@@ -11,6 +11,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { UpdateUserDto, ChangePasswordDto } from './dto/update-user.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { UserRole } from '@prisma/client';
+import { ResendService } from '../../notifications/resend.service';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -30,7 +31,10 @@ const USER_SELECT = {
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly resend: ResendService,
+  ) {}
 
   async findById(userId: string, orgId: string) {
     const user = await this.prisma.user.findFirst({
@@ -113,7 +117,11 @@ export class UsersService {
     this.logger.log(`Password changed for user: ${user.email}`);
   }
 
-  async invite(orgId: string, dto: InviteUserDto): Promise<{ user: any; temporaryPassword: string }> {
+  async invite(
+    orgId: string,
+    dto: InviteUserDto,
+    inviterName?: string,
+  ): Promise<{ user: any; temporaryPassword: string }> {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -122,7 +130,7 @@ export class UsersService {
       throw new ConflictException('A user with this email already exists');
     }
 
-    // Generate a temporary password — in production, send via email instead
+    // Generate a temporary password — delivered via email below
     const temporaryPassword = this.generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(temporaryPassword, BCRYPT_ROUNDS);
 
@@ -138,9 +146,33 @@ export class UsersService {
       select: USER_SELECT,
     });
 
-    this.logger.log(`User invited: ${user.email} to org: ${orgId}`);
+    // Look up org name for the email
+    let orgName = 'your organization';
+    try {
+      const org = await this.prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { name: true },
+      });
+      if (org?.name) orgName = org.name;
+    } catch { /* non-fatal */ }
 
-    // TODO Phase 6: Send invitation email with temporary password
+    // Send invite email with the temporary password
+    const appUrl = process.env['APP_URL'] ?? process.env['FRONTEND_URL'] ?? 'http://localhost:3000';
+    const acceptUrl = `${appUrl}/auth/accept-invite?email=${encodeURIComponent(dto.email.toLowerCase())}`;
+
+    this.resend.sendInviteEmail({
+      to:          dto.email.toLowerCase(),
+      inviteeName: dto.fullName,
+      inviterName: inviterName ?? 'A team member',
+      orgName,
+      role:        dto.role,
+      acceptUrl,
+      expiresIn:   '7 days',
+    }).catch((err: Error) => {
+      this.logger.warn(`Failed to send invite email to ${dto.email}: ${err.message}`);
+    });
+
+    this.logger.log(`User invited: ${user.email} to org: ${orgId}`);
     return { user, temporaryPassword };
   }
 

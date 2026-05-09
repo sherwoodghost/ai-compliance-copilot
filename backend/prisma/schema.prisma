@@ -36,6 +36,10 @@ enum FrameworkType {
   PCI_DSS
   GDPR
   FEDRAMP
+  ISO9001
+  NIST_CSF
+  ISO14001
+  ISO45001
 }
 
 enum ControlStatus {
@@ -123,23 +127,124 @@ enum TaskSource {
 }
 
 enum IntegrationProvider {
+  // ── Cloud Infrastructure ───────────────────────────────
   aws
-  github
-  okta
-  slack
-  jira
   gcp
   azure
+  digitalocean
+  heroku
+  cloudflare
+  vercel
+  // ── Identity & Access Management ──────────────────────
+  okta
   google_workspace
-  datadog
-  snyk
-  pagerduty
+  azure_ad
+  onelogin
+  auth0
+  duo
+  jumpcloud
+  ping_identity
+  cyberark
+  delinea
+  beyondtrust
+  // ── Source Control & CI/CD ─────────────────────────────
+  github
   github_actions
   gitlab
-  bamboohr
-  rippling
+  bitbucket
+  azure_devops
+  circleci
+  jenkins
+  codecov
+  sonarqube
+  semgrep
+  // ── Security & Vulnerability Management ───────────────
+  crowdstrike
+  sentinelone
+  carbon_black
+  rapid7
+  qualys
+  tenable
+  wiz
+  lacework
+  aqua_security
+  veracode
+  snyk
+  bugcrowd
+  hackerone
+  // ── Device Management (MDM) ────────────────────────────
   jamf
+  kandji
+  mosyle
+  fleet
   intune
+  hexnode
+  vmware_workspace_one
+  // ── HR & People Management ─────────────────────────────
+  rippling
+  bamboohr
+  workday
+  adp
+  gusto
+  hibob
+  personio
+  deel
+  // ── Ticketing & Project Management ────────────────────
+  jira
+  servicenow
+  zendesk
+  freshservice
+  linear
+  asana
+  monday
+  clickup
+  notion
+  confluence
+  // ── Monitoring & Observability ─────────────────────────
+  datadog
+  newrelic
+  grafana
+  sentry
+  dynatrace
+  sumo_logic
+  splunk
+  elastic
+  opsgenie
+  pagerduty
+  victorops
+  firehydrant
+  statuspage
+  // ── Collaboration & Communication ─────────────────────
+  slack
+  microsoft_teams
+  zoom
+  webex
+  mattermost
+  // ── Secrets & Password Management ─────────────────────
+  onepassword
+  lastpass
+  bitwarden
+  hashicorp_vault
+  doppler
+  // ── Security Training ──────────────────────────────────
+  knowbe4
+  proofpoint
+  infosec_iq
+  // ── Background Checks ──────────────────────────────────
+  checkr
+  sterling
+  // ── CRM & Business ─────────────────────────────────────
+  salesforce
+  hubspot
+  // ── Document & File Storage ────────────────────────────
+  box
+  dropbox
+  sharepoint
+  google_drive
+  // ── Data & Analytics ──────────────────────────────────
+  snowflake
+  mongodb_atlas
+  databricks
 }
 
 enum IntegrationStatus {
@@ -484,6 +589,18 @@ model Organization {
   // SSO/SAML configuration (P23)
   ssoEnabled               Boolean   @default(false)  @map("sso_enabled")
   ssoConfig                SsoConfig?
+  // P26 — Bulk ingestion budget cap (separate from monthly AI token budget)
+  ingestionBudgetUsd       Decimal   @default(50)     @map("ingestion_budget_usd") @db.Decimal(10, 2)
+  // P26 — new framework modules
+  ingestionBatches         IngestionBatch[]
+  gdprActivities           GdprProcessingActivity[]
+  dsarRequests             DataSubjectRequest[]
+  dpiaRecords              DpiaRecord[]
+  breachNotifications      BreachNotification[]
+  nonconformities          Nonconformity[]
+  qualityObjectives        QualityObjective[]
+  processAudits            ProcessAudit[]
+  jobStatuses              JobStatus[]
 
   @@map("organizations")
 }
@@ -2302,6 +2419,10 @@ model Document {
   purgedAt        DateTime?         @map("purged_at")
   // Collaborative editing (Yjs binary state — populated by Hocuspocus on change)
   yjsState        String?           @db.Text @map("yjs_state")
+  // P26 — ingestion provenance (set when document originated from bulk import)
+  detectedFrameworks String[]       @default([]) @map("detected_frameworks")
+  activeForOrg    Boolean           @default(true) @map("active_for_org")
+  ingestionFileId String?           @map("ingestion_file_id")
   metadata        Json              @default("{}")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt      @map("updated_at")
@@ -2401,4 +2522,316 @@ model ConnectorCredential {
   @@unique([orgId, connectorId])
   @@index([orgId])
   @@map("connector_credentials")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P26 — BULK INGESTION + GDPR + ISO9001
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Async Job Status ───────────────────────────────────────────────────────────
+
+model JobStatus {
+  id            String   @id @default(uuid())
+  orgId         String   @map("org_id")
+  type          String   // applicability-review | ingestion-batch | pdf-import | ai-gaps
+  status        String   @default("queued") // queued | processing | completed | failed
+  progress      Int      @default(0)  // 0-100
+  resultPayload Json?    @map("result_payload")
+  errorMessage  String?  @map("error_message")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt      @map("updated_at")
+
+  organization  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, type, status])
+  @@map("job_statuses")
+}
+
+// ── Bulk Document Ingestion ────────────────────────────────────────────────────
+
+model IngestionBatch {
+  id             String   @id @default(uuid())
+  orgId          String   @map("org_id")
+  totalFiles     Int      @map("total_files")
+  processedFiles Int      @default(0) @map("processed_files")
+  autoPlaced     Int      @default(0) @map("auto_placed")
+  needsReview    Int      @default(0) @map("needs_review")
+  failed         Int      @default(0)
+  status         String   @default("queued") // queued | processing | review_pending | completed | failed
+  jobStatusId    String?  @map("job_status_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt      @map("updated_at")
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  files        IngestionFile[]
+
+  @@index([orgId, status])
+  @@map("ingestion_batches")
+}
+
+model IngestionFile {
+  id                   String   @id @default(uuid())
+  batchId              String   @map("batch_id")
+  orgId                String   @map("org_id")
+  originalName         String   @map("original_name")
+  storageKey           String   @map("storage_key")  // staging path before classification
+  mimeType             String   @map("mime_type")
+  sizeBytes            Int      @map("size_bytes")
+  folderPath           String?  @map("folder_path")  // preserved from upload
+  tier                 Int?     // 1, 2, or 3
+  status               String   @default("queued")   // queued | extracting | classifying | mapped | needs_review | error | skipped
+  confidence           Float?
+  detectedType         String?  @map("detected_type") // policy | procedure | evidence | report | template | other
+  detectedFrameworks   String[] @default([]) @map("detected_frameworks")
+  suggestedControlIds  String[] @default([]) @map("suggested_control_ids")
+  classificationReason String?  @db.Text @map("classification_reason")
+  documentId           String?  @map("document_id")     // set when mapped to Document
+  versionClusterId     String?  @map("version_cluster_id") // set when part of a version cluster
+  errorMessage         String?  @map("error_message")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt      @map("updated_at")
+
+  batch        IngestionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, status])
+  @@index([orgId, status])
+  @@map("ingestion_files")
+}
+
+// ── GDPR Module ────────────────────────────────────────────────────────────────
+
+enum LawfulBasis {
+  consent
+  contract
+  legal_obligation
+  vital_interests
+  public_task
+  legitimate_interests
+}
+
+enum DsarType {
+  access
+  erasure
+  portability
+  rectification
+  objection
+  restriction
+}
+
+enum DsarStatus {
+  received
+  in_progress
+  completed
+  denied
+  extended
+}
+
+enum DpiaStatus {
+  not_required
+  required
+  in_progress
+  completed
+  overdue_review
+}
+
+enum BreachNotificationStatus {
+  detected
+  investigating
+  supervisory_notified
+  subjects_notified
+  closed
+}
+
+model GdprProcessingActivity {
+  id                 String      @id @default(uuid())
+  orgId              String      @map("org_id")
+  name               String
+  purpose            String
+  lawfulBasis        LawfulBasis @map("lawful_basis")
+  dataCategories     String[]    @map("data_categories")
+  dataSubjects       String[]    @map("data_subjects")
+  retentionPeriod    String?     @map("retention_period")
+  internationalTransfers Boolean @default(false) @map("international_transfers")
+  transferMechanisms String[]    @map("transfer_mechanisms")
+  controllerId       String?     @map("controller_id")
+  processorName      String?     @map("processor_name")
+  dpaRequired        Boolean     @default(false) @map("dpa_required")
+  dpaSigned          Boolean     @default(false) @map("dpa_signed")
+  dpiaRequired       Boolean     @default(false) @map("dpia_required")
+  reviewDue          DateTime?   @map("review_due")
+  notes              String?     @db.Text
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  dpias        DpiaRecord[]
+
+  @@index([orgId])
+  @@map("gdpr_processing_activities")
+}
+
+model DataSubjectRequest {
+  id             String     @id @default(uuid())
+  orgId          String     @map("org_id")
+  type           DsarType
+  status         DsarStatus @default(received)
+  receivedAt     DateTime   @map("received_at")
+  dueAt          DateTime   @map("due_at")       // receivedAt + 30 days
+  completedAt    DateTime?  @map("completed_at")
+  requestorEmail String?    @map("requestor_email")
+  assignedTo     String?    @map("assigned_to")
+  description    String?    @db.Text
+  notes          String?    @db.Text
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([orgId, dueAt])
+  @@map("data_subject_requests")
+}
+
+model DpiaRecord {
+  id                         String     @id @default(uuid())
+  orgId                      String     @map("org_id")
+  processingActivityId       String?    @map("processing_activity_id")
+  title                      String
+  status                     DpiaStatus @default(required)
+  triggeredAt                DateTime   @map("triggered_at")
+  completedAt                DateTime?  @map("completed_at")
+  reviewDue                  DateTime?  @map("review_due")
+  risks                      Json[]     @default([])
+  mitigations                Json[]     @default([])
+  dpoConsulted               Boolean    @default(false) @map("dpo_consulted")
+  supervisoryAuthorityConsulted Boolean @default(false) @map("supervisory_authority_consulted")
+  createdAt                  DateTime   @default(now()) @map("created_at")
+  updatedAt                  DateTime   @updatedAt      @map("updated_at")
+
+  organization      Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  processingActivity GdprProcessingActivity? @relation(fields: [processingActivityId], references: [id])
+
+  @@index([orgId, status])
+  @@map("dpia_records")
+}
+
+model BreachNotification {
+  id                       String                   @id @default(uuid())
+  orgId                    String                   @map("org_id")
+  incidentId               String?                  @map("incident_id")
+  status                   BreachNotificationStatus @default(detected)
+  detectedAt               DateTime                 @map("detected_at")
+  deadlineAt               DateTime                 @map("deadline_at")  // detectedAt + 72h
+  supervisoryNotifiedAt    DateTime?                @map("supervisory_notified_at")
+  dataSubjectsNotifiedAt   DateTime?                @map("data_subjects_notified_at")
+  supervisoryAuthority     String?                  @map("supervisory_authority")
+  breachDescription        String?                  @db.Text @map("breach_description")
+  affectedDataSubjects     Int?                     @map("affected_data_subjects")
+  affectedDataCategories   String[]                 @map("affected_data_categories")
+  likelyConsequences       String?                  @db.Text @map("likely_consequences")
+  measuresAdopted          String?                  @db.Text @map("measures_adopted")
+  closedAt                 DateTime?                @map("closed_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([orgId, deadlineAt])
+  @@map("breach_notifications")
+}
+
+// ── ISO 9001 Quality Module ───────────────────────────────────────────────────
+
+enum NonconformitySource {
+  internal_audit
+  customer_complaint
+  process_failure
+  product_failure
+  supplier_issue
+  management_review
+  other
+}
+
+enum NonconformitySeverity {
+  major
+  minor
+  observation
+}
+
+enum NonconformityStatus {
+  open
+  investigating
+  action_taken
+  verifying
+  closed
+}
+
+model Nonconformity {
+  id                String                @id @default(uuid())
+  orgId             String                @map("org_id")
+  title             String
+  description       String                @db.Text
+  source            NonconformitySource
+  severity          NonconformitySeverity @default(minor)
+  status            NonconformityStatus   @default(open)
+  detectedAt        DateTime              @map("detected_at")
+  reportedBy        String?               @map("reported_by")
+  assignedTo        String?               @map("assigned_to")
+  containedAt       DateTime?             @map("contained_at")
+  rootCause         String?               @db.Text @map("root_cause")
+  capaId            String?               @map("capa_id")
+  closedAt          DateTime?             @map("closed_at")
+  closedBy          String?               @map("closed_by")
+  evidenceId        String?               @map("evidence_id")
+  notes             String?               @db.Text
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([orgId, detectedAt])
+  @@map("nonconformities")
+}
+
+model QualityObjective {
+  id                   String   @id @default(uuid())
+  orgId                String   @map("org_id")
+  metric               String
+  target               Float
+  unit                 String
+  targetDirection      String   @default("above") @map("target_direction") // above | below | equal
+  currentValue         Float?   @map("current_value")
+  measurementFrequency String   @default("monthly") @map("measurement_frequency")
+  ownerId              String?  @map("owner_id")
+  measurements         Json[]   @default([])  // { value: Float, measuredAt: ISO, note?: string }
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("quality_objectives")
+}
+
+model ProcessAudit {
+  id          String    @id @default(uuid())
+  orgId       String    @map("org_id")
+  processName String    @map("process_name")
+  scheduledAt DateTime  @map("scheduled_at")
+  completedAt DateTime? @map("completed_at")
+  auditorId   String?   @map("auditor_id")
+  status      String    @default("scheduled") // scheduled | in_progress | completed | overdue
+  findings    Json[]    @default([])
+  notes       String?   @db.Text
+  evidenceId  String?   @map("evidence_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+  @@index([orgId, scheduledAt])
+  @@map("process_audits")
 }

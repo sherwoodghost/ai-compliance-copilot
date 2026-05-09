@@ -1,4 +1,12 @@
 import { PrismaClient, FrameworkType, CompanyType, Industry, CollectedVia, UserRole, Plan, RiskLikelihood, RiskImpact, RiskStatus, GeneratedBy, PolicyStatus, EvidenceType, EvidenceSource, ControlStatus, TaskPriority, TaskStatus, TaskSource, ReviewStatus } from '@prisma/client';
+import { GDPR_CONTROLS } from '../src/control-library/seeds/gdpr-controls.seed';
+import { ISO9001_CONTROLS } from '../src/control-library/seeds/iso9001-controls.seed';
+import { HIPAA_CONTROLS } from '../src/control-library/seeds/hipaa-controls.seed';
+import { PCI_DSS_CONTROLS } from '../src/control-library/seeds/pci-dss-controls.seed';
+import { FEDRAMP_CONTROLS } from '../src/control-library/seeds/fedramp-controls.seed';
+import { NIST_CSF_CONTROLS } from '../src/control-library/seeds/nist-csf-controls.seed';
+import { ISO14001_CONTROLS } from '../src/control-library/seeds/iso14001-controls.seed';
+import { ISO45001_CONTROLS } from '../src/control-library/seeds/iso45001-controls.seed';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -681,6 +689,206 @@ async function main() {
     });
   }
   console.log(`✅ Seeded ${ISO27001_CONTROLS.length} ISO 27001 controls`);
+
+  // Seed GDPR Framework
+  const gdprFramework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.GDPR, version: '2016/679' } },
+    update: {},
+    create: {
+      name: 'GDPR',
+      type: FrameworkType.GDPR,
+      version: '2016/679',
+      description: 'EU General Data Protection Regulation — rules for processing personal data of EU residents.',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${gdprFramework.name}`);
+
+  for (const control of GDPR_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: gdprFramework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: { frameworkId: gdprFramework.id, code: control.code, title: control.title, description: control.description, category: control.category, guidance: (control as any).guidance, weight: control.weight },
+    });
+  }
+  console.log(`✅ Seeded ${GDPR_CONTROLS.length} GDPR controls`);
+
+  // Seed ISO 9001 Framework
+  const iso9001Framework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.ISO9001, version: '2015' } },
+    update: {},
+    create: {
+      name: 'ISO 9001',
+      type: FrameworkType.ISO9001,
+      version: '2015',
+      description: 'International standard for quality management systems (QMS).',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${iso9001Framework.name}`);
+
+  for (const control of ISO9001_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: iso9001Framework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: { frameworkId: iso9001Framework.id, code: control.code, title: control.title, description: control.description, category: control.category, guidance: (control as any).guidance, weight: control.weight },
+    });
+  }
+  console.log(`✅ Seeded ${ISO9001_CONTROLS.length} ISO 9001 controls`);
+
+  // Seed HIPAA Framework
+  const hipaaFramework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.HIPAA, version: '2013' } },
+    update: {},
+    create: {
+      name: 'HIPAA Security Rule',
+      type: FrameworkType.HIPAA,
+      version: '2013',
+      description: 'HIPAA Security Rule (45 CFR §164) — standards for protecting electronic Protected Health Information (ePHI).',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${hipaaFramework.name}`);
+
+  for (const control of HIPAA_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: hipaaFramework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: { frameworkId: hipaaFramework.id, code: control.code, title: control.title, description: control.description, category: control.category, guidance: control.guidance, weight: control.weight },
+    });
+  }
+  console.log(`✅ Seeded ${HIPAA_CONTROLS.length} HIPAA controls`);
+
+  // Seed PCI DSS Framework
+  const pciDssFramework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.PCI_DSS, version: '4.0' } },
+    update: {},
+    create: {
+      name: 'PCI DSS',
+      type: FrameworkType.PCI_DSS,
+      version: '4.0',
+      description: 'Payment Card Industry Data Security Standard v4.0 — 12 requirements for securing payment card data.',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${pciDssFramework.name}`);
+
+  for (const control of PCI_DSS_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: pciDssFramework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: { frameworkId: pciDssFramework.id, code: control.code, title: control.title, description: control.description, category: control.category, guidance: control.guidance, weight: control.weight },
+    });
+  }
+  console.log(`✅ Seeded ${PCI_DSS_CONTROLS.length} PCI DSS controls`);
+
+  // Seed FedRAMP Framework
+  const fedrampFramework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.FEDRAMP, version: 'Moderate' } },
+    update: {},
+    create: {
+      name: 'FedRAMP',
+      type: FrameworkType.FEDRAMP,
+      version: 'Moderate',
+      description: 'Federal Risk and Authorization Management Program — NIST SP 800-53 Rev 5 Moderate baseline for cloud services used by US federal agencies.',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${fedrampFramework.name}`);
+
+  for (const control of FEDRAMP_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: fedrampFramework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: { frameworkId: fedrampFramework.id, code: control.code, title: control.title, description: control.description, category: control.category, guidance: control.guidance, weight: control.weight },
+    });
+  }
+  console.log(`✅ Seeded ${FEDRAMP_CONTROLS.length} FedRAMP controls`);
+
+  // Seed NIST CSF Framework
+  const nistCsfFramework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.NIST_CSF, version: '2.0' } },
+    update: {},
+    create: {
+      name: 'NIST CSF',
+      type: FrameworkType.NIST_CSF,
+      version: '2.0',
+      description: 'NIST Cybersecurity Framework 2.0 — A voluntary framework of standards, guidelines, and best practices to manage cybersecurity risk, organized around six core Functions: Govern, Identify, Protect, Detect, Respond, and Recover.',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${nistCsfFramework.name}`);
+
+  for (const control of NIST_CSF_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: nistCsfFramework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: { frameworkId: nistCsfFramework.id, code: control.code, title: control.title, description: control.description, category: control.category, guidance: control.guidance, weight: control.weight },
+    });
+  }
+  console.log(`✅ Seeded ${NIST_CSF_CONTROLS.length} NIST CSF controls`);
+
+  // Seed ISO 14001 Framework
+  const iso14001Framework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.ISO14001, version: '2015' } },
+    update: {},
+    create: {
+      name: 'ISO 14001',
+      type: FrameworkType.ISO14001,
+      version: '2015',
+      description: 'ISO 14001:2015 Environmental Management System (EMS) — international standard for managing environmental responsibilities and reducing environmental impact.',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${iso14001Framework.name}`);
+
+  for (const control of ISO14001_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: iso14001Framework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: {
+        frameworkId: iso14001Framework.id,
+        code: control.code,
+        title: control.title,
+        description: control.description,
+        category: control.category,
+        guidance: control.guidance,
+        weight: control.weight,
+      },
+    });
+  }
+  console.log(`✅ Seeded ${ISO14001_CONTROLS.length} ISO 14001 controls`);
+
+  // Seed ISO 45001 Framework
+  const iso45001Framework = await prisma.framework.upsert({
+    where: { type_version: { type: FrameworkType.ISO45001, version: '2018' } },
+    update: {},
+    create: {
+      name: 'ISO 45001',
+      type: FrameworkType.ISO45001,
+      version: '2018',
+      description: 'ISO 45001:2018 Occupational Health & Safety Management System (OHSMS) — international standard for improving worker safety, reducing workplace risks, and creating better working conditions.',
+      isActive: true,
+    },
+  });
+  console.log(`✅ Framework created: ${iso45001Framework.name}`);
+
+  for (const control of ISO45001_CONTROLS) {
+    await prisma.control.upsert({
+      where: { frameworkId_code: { frameworkId: iso45001Framework.id, code: control.code } },
+      update: { title: control.title, description: control.description, weight: control.weight },
+      create: {
+        frameworkId: iso45001Framework.id,
+        code: control.code,
+        title: control.title,
+        description: control.description,
+        category: control.category,
+        guidance: control.guidance,
+        weight: control.weight,
+      },
+    });
+  }
+  console.log(`✅ Seeded ${ISO45001_CONTROLS.length} ISO 45001 controls`);
 
   // ─── Demo Organization & Users ──────────────────────────────────────────────
 

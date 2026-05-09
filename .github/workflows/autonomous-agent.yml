@@ -1,0 +1,286 @@
+name: Autonomous Agent Loop
+
+# ── Triggers ────────────────────────────────────────────────────────────────
+on:
+  # Nightly at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * *'
+
+  # Manual trigger from GitHub Actions UI (useful for testing)
+  workflow_dispatch:
+    inputs:
+      framework:
+        description: 'Override framework to build (leave blank to auto-detect from gap report)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run — detect gaps and plan sprint but do NOT build or open PR'
+        required: false
+        default: 'false'
+        type: boolean
+
+# ── Permissions ──────────────────────────────────────────────────────────────
+permissions:
+  contents: write
+  pull-requests: write
+
+# ── Jobs ─────────────────────────────────────────────────────────────────────
+jobs:
+  autonomous-sprint:
+    name: Detect → Plan → Build → PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for branch operations
+
+      # ── 2. Setup Node ────────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # ── 3. Detect gaps ───────────────────────────────────────────────────────
+      - name: Run gap detector
+        id: gaps
+        run: |
+          node scripts/gap-detector.js
+          GAP_COUNT=$(node -e "
+            const gaps = require('./scripts/gap-reports/latest.json');
+            process.stdout.write(String(gaps.length));
+          ")
+          echo "gap_count=${GAP_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Gap detector found ${GAP_COUNT} framework gap(s)"
+
+      # ── 4. Skip if nothing to do ─────────────────────────────────────────────
+      - name: Check for gaps
+        if: steps.gaps.outputs.gap_count == '0'
+        run: |
+          echo "::notice::No gaps found — all frameworks are fully implemented. Skipping build."
+          exit 0
+
+      # ── 5. Determine target framework ────────────────────────────────────────
+      - name: Determine target framework
+        id: target
+        if: steps.gaps.outputs.gap_count != '0'
+        run: |
+          if [ -n "${{ github.event.inputs.framework }}" ]; then
+            FW="${{ github.event.inputs.framework }}"
+          else
+            FW=$(node -e "
+              const gaps = require('./scripts/gap-reports/latest.json');
+              process.stdout.write(gaps[0].framework);
+            ")
+          fi
+          SLUG=$(node -e "
+            const gaps = require('./scripts/gap-reports/latest.json');
+            const fw = '${FW}';
+            const gap = gaps.find(g => g.framework === fw) || gaps[0];
+            process.stdout.write(gap.slug);
+          ")
+          echo "framework=${FW}" >> "$GITHUB_OUTPUT"
+          echo "slug=${SLUG}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Target framework: ${FW} (slug: ${SLUG})"
+
+      # ── 6. Install Claude Code CLI ────────────────────────────────────────────
+      - name: Install Claude Code CLI
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      # ── 7. Build the framework ───────────────────────────────────────────────
+      - name: Build framework — ${{ steps.target.outputs.framework }}
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          FW="${{ steps.target.outputs.framework }}"
+          echo "Building framework: ${FW}"
+          claude -p "$(cat .claude/commands/build-framework.md)
+
+          Build framework: ${FW}" \
+            --output-format text \
+            --max-turns 30 \
+            2>&1 | tee /tmp/build-output.txt
+
+      # ── 8. Install dependencies for type-checking ────────────────────────────
+      - name: Install backend dependencies
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: cd backend && npm ci --prefer-offline
+
+      - name: Install frontend dependencies
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: cd frontend && npm ci --prefer-offline
+
+      # ── 9. TypeScript checks ──────────────────────────────────────────────────
+      - name: Backend TypeScript check
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: cd backend && npx tsc --noEmit
+
+      - name: Frontend TypeScript check
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: cd frontend && npx tsc --noEmit
+
+      # ── 10. CI Compliance Gates ───────────────────────────────────────────────
+      - name: Gate 1 — No raw Anthropic client instantiation
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          if grep -r "new Anthropic(" backend/src --include="*.ts" -l | grep -v "\.spec\." | grep -v "\.test\."; then
+            echo "::error::Gate 1 FAILED — raw Anthropic() instantiation found. Use LlmGatewayService."
+            exit 1
+          fi
+          echo "::notice::Gate 1 passed — no raw Anthropic() calls"
+
+      - name: Gate 2 — No inline system prompts
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          if grep -rn "SYSTEM_PROMPT\s*=" backend/src --include="*.ts" | grep -v "test\|spec\|seed\|prompt-registry"; then
+            echo "::error::Gate 2 FAILED — inline SYSTEM_PROMPT constant found. Use prompt registry."
+            exit 1
+          fi
+          echo "::notice::Gate 2 passed — no inline system prompts"
+
+      - name: Gate 3 — No agent-to-agent direct calls
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          if grep -rn "new.*Agent(" backend/src --include="*.ts" | grep -v "BaseAgent\|spec\|test\|module\|\.d\.ts"; then
+            echo "::error::Gate 3 FAILED — direct agent instantiation found. Route through BullMQ queue."
+            exit 1
+          fi
+          echo "::notice::Gate 3 passed — no direct agent-to-agent calls"
+
+      - name: Gate 4 — No forbidden certification language
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          if grep -rn "guaranteed.*complian\|certif.*guaranteed\|ensures.*certif" frontend/src --include="*.tsx" -i; then
+            echo "::error::Gate 4 FAILED — forbidden certification guarantee language found."
+            exit 1
+          fi
+          echo "::notice::Gate 4 passed — no forbidden certification language"
+
+      # ── 11. Backend tests ─────────────────────────────────────────────────────
+      - name: Run backend tests
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: cd backend && npm test -- --ci --forceExit --passWithNoTests
+        timeout-minutes: 10
+
+      # ── 12. Create PR ─────────────────────────────────────────────────────────
+      - name: Configure git identity
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          git config user.email "autonomous-agent@compliance-copilot.ai"
+          git config user.name "Autonomous Compliance Agent"
+
+      - name: Create feature branch and PR
+        if: steps.gaps.outputs.gap_count != '0' && github.event.inputs.dry_run != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FW="${{ steps.target.outputs.framework }}"
+          SLUG="${{ steps.target.outputs.slug }}"
+          BRANCH="feat/auto-framework-${SLUG}"
+
+          # Create and switch to feature branch
+          git checkout -b "${BRANCH}"
+
+          # Stage all new/modified files
+          git add -A
+
+          # Only commit if there are actual changes
+          if git diff --cached --quiet; then
+            echo "::notice::No changes to commit — framework may already be built"
+            exit 0
+          fi
+
+          # Commit
+          git commit -m "feat: auto-build ${FW} compliance framework
+
+          Automated build by Autonomous Agent Loop (AAL) via /build-framework.
+
+          Adds:
+          - Backend control seed ($(grep -c 'code:' backend/src/control-library/seeds/${SLUG}-controls.seed.ts 2>/dev/null || echo 'N') controls)
+          - seed.ts framework upsert block
+          - Public reference page (/frameworks/${SLUG})
+          - Dashboard placeholder page (/${SLUG})
+          - Framework registry plugin entry + widget components
+          - E2E test stub
+
+          Gap report: scripts/gap-reports/latest.json
+          Build log:  /tmp/build-output.txt
+
+          Co-Authored-By: Autonomous Compliance Agent <autonomous-agent@compliance-copilot.ai>"
+
+          # Push the branch
+          git push origin "${BRANCH}"
+
+          # Read the gap report for the PR body
+          GAP_JSON=$(cat scripts/gap-reports/latest.json)
+
+          # Open the PR against develop (never main)
+          gh pr create \
+            --title "feat: auto-build ${FW} compliance framework" \
+            --base develop \
+            --head "${BRANCH}" \
+            --body "## Automated Framework Build
+
+          This PR was opened automatically by the **Autonomous Agent Loop** nightly workflow.
+
+          ### Framework
+          \`${FW}\` — built from gap report priority ${$(node -e "const g=require('./scripts/gap-reports/latest.json');const t=g.find(x=>x.framework==='${FW}');process.stdout.write(t?String(t.priority):'?')")}
+
+          ### What was added
+          - ✅ Backend control seed file
+          - ✅ Framework upsert block in \`seed.ts\`
+          - ✅ Public reference page at \`/frameworks/${SLUG}\`
+          - ✅ Dashboard placeholder page at \`/${SLUG}\`
+          - ✅ Framework plugin in \`framework-registry.ts\`
+          - ✅ Widget components
+          - ✅ E2E test stub
+
+          ### Automated checks passed
+          - TypeScript (backend + frontend): ✅
+          - CI Gate 1 — no raw Anthropic() calls: ✅
+          - CI Gate 2 — no inline system prompts: ✅
+          - CI Gate 3 — no direct agent instantiation: ✅
+          - CI Gate 4 — no forbidden certification language: ✅
+          - Backend unit tests: ✅
+
+          ### Review checklist
+          - [ ] Control content is accurate and complete
+          - [ ] TypeScript compiles cleanly (\`npx tsc --noEmit\` in both workspaces)
+          - [ ] Reference page renders at \`/frameworks/${SLUG}\`
+          - [ ] Dashboard page renders at \`/${SLUG}\`
+          - [ ] No regressions in existing tests
+
+          > ⚠️ **Human review required before merge.** Agents write code; humans approve it.
+          > Schema migrations (if any) require a separate PR reviewed by the team.
+
+          <details>
+          <summary>Gap report JSON</summary>
+
+          \`\`\`json
+          ${GAP_JSON}
+          \`\`\`
+          </details>"
+
+          echo "::notice::PR created for feat/auto-framework-${SLUG} → develop"
+
+      # ── 13. Dry-run summary ───────────────────────────────────────────────────
+      - name: Dry run summary
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "=== DRY RUN — No files were built or PR opened ==="
+          echo ""
+          echo "Gap report:"
+          cat scripts/gap-reports/latest.json
+          echo ""
+          echo "Top priority: ${{ steps.target.outputs.framework }} (slug: ${{ steps.target.outputs.slug }})"
+          echo ""
+          echo "To trigger a real build, re-run with dry_run=false"

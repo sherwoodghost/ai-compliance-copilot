@@ -103,10 +103,37 @@ function extractCategories(controls: Control[]): string[] {
 export async function getFrameworks(): Promise<{
   soc2:     FrameworkInfo;
   iso27001: FrameworkInfo;
+  gdpr:     FrameworkInfo;
+  iso9001:  FrameworkInfo;
+  hipaa:    FrameworkInfo;
+  pciDss:   FrameworkInfo;
+  fedRamp:  FrameworkInfo;
+  nistCsf:  FrameworkInfo;
+  iso14001: FrameworkInfo;
+  iso45001: FrameworkInfo;
 }> {
-  const [soc2Controls, iso27001Controls] = await Promise.all([
+  const [
+    soc2Controls,
+    iso27001Controls,
+    gdprControls,
+    iso9001Controls,
+    hipaaControls,
+    pciDssControls,
+    fedRampControls,
+    nistCsfControls,
+    iso14001Controls,
+    iso45001Controls,
+  ] = await Promise.all([
     safeFetch<Control[]>(`${apiBase()}/controls/library/soc2`),
     safeFetch<Control[]>(`${apiBase()}/controls/library/iso27001`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/gdpr`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/iso9001`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/hipaa`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/pci-dss`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/fedramp`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/nist-csf`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/iso14001`),
+    safeFetch<Control[]>(`${apiBase()}/controls/library/iso45001`),
   ]);
 
   return {
@@ -122,11 +149,64 @@ export async function getFrameworks(): Promise<{
       controlCount: iso27001Controls?.length ?? 97,
       categories:   iso27001Controls ? extractCategories(iso27001Controls) : [],
     },
+    gdpr: {
+      name:         'GDPR',
+      version:      'Regulation (EU) 2016/679',
+      controlCount: gdprControls?.length ?? 30,
+      categories:   gdprControls ? extractCategories(gdprControls) : [],
+    },
+    iso9001: {
+      name:         'ISO 9001',
+      version:      'ISO 9001:2015',
+      controlCount: iso9001Controls?.length ?? 29,
+      categories:   iso9001Controls ? extractCategories(iso9001Controls) : [],
+    },
+    hipaa: {
+      name:         'HIPAA',
+      version:      '45 CFR Parts 160 & 164',
+      controlCount: hipaaControls?.length ?? 54,
+      categories:   hipaaControls ? extractCategories(hipaaControls) : [],
+    },
+    pciDss: {
+      name:         'PCI DSS',
+      version:      'PCI DSS v4.0',
+      controlCount: pciDssControls?.length ?? 12,
+      categories:   pciDssControls ? extractCategories(pciDssControls) : [],
+    },
+    fedRamp: {
+      name:         'FedRAMP',
+      version:      'FedRAMP Rev 5',
+      controlCount: fedRampControls?.length ?? 20,
+      categories:   fedRampControls ? extractCategories(fedRampControls) : [],
+    },
+    nistCsf: {
+      name:         'NIST CSF',
+      version:      'NIST CSF 2.0',
+      controlCount: nistCsfControls?.length ?? 23,
+      categories:   nistCsfControls ? extractCategories(nistCsfControls) : [],
+    },
+    iso14001: {
+      name:         'ISO 14001',
+      version:      'ISO 14001:2015',
+      controlCount: iso14001Controls?.length ?? 22,
+      categories:   iso14001Controls ? extractCategories(iso14001Controls) : [],
+    },
+    iso45001: {
+      name:         'ISO 45001',
+      version:      'ISO 45001:2018',
+      controlCount: iso45001Controls?.length ?? 20,
+      categories:   iso45001Controls ? extractCategories(iso45001Controls) : [],
+    },
   };
 }
 
+export type FrameworkSlug =
+  | 'soc2' | 'iso27001' | 'gdpr' | 'iso9001'
+  | 'hipaa' | 'pci-dss' | 'fedramp' | 'nist-csf'
+  | 'iso14001' | 'iso45001';
+
 export async function getFrameworkControls(
-  framework: 'soc2' | 'iso27001',
+  framework: FrameworkSlug,
 ): Promise<Control[]> {
   const result = await safeFetch<Control[]>(
     `${apiBase()}/controls/library/${framework}`,

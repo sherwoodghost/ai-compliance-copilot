@@ -6,7 +6,9 @@ import { settingsApi, SsoConfigInput } from '@/lib/api/settings';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api/auth';
-import { User, Building, Lock, LogOut, Bot, Key, CheckCircle2, XCircle, Loader2, Bell, Webhook, RotateCcw, AlertTriangle, ShieldCheck, ExternalLink, Copy, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react';
+import { User, Building, Lock, LogOut, Bot, Key, CheckCircle2, XCircle, Loader2, Bell, Webhook, RotateCcw, AlertTriangle, ShieldCheck, ExternalLink, Copy, Eye, EyeOff, ToggleLeft, ToggleRight, Layers, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 function Section({ title, icon: Icon, children }: {
   title: string;
@@ -863,13 +865,135 @@ function DangerZoneSection() {
   );
 }
 
+// ── Frameworks section ────────────────────────────────────────────────────────
+
+const ALL_FRAMEWORKS = [
+  { id: 'soc2',     name: 'SOC 2',       version: 'Trust Services Criteria 2017',  color: 'emerald', href: '/frameworks/soc2',     dashHref: '/controls?framework=SOC2',    category: 'Security & Privacy' },
+  { id: 'iso27001', name: 'ISO 27001',   version: 'ISO/IEC 27001:2022',            color: 'indigo',  href: '/frameworks/iso27001', dashHref: '/controls?framework=ISO27001', category: 'Security & Privacy' },
+  { id: 'hipaa',    name: 'HIPAA',       version: '45 CFR Parts 160 & 164',        color: 'rose',    href: '/frameworks/hipaa',    dashHref: '/hipaa',                       category: 'Security & Privacy' },
+  { id: 'pci-dss',  name: 'PCI DSS',     version: 'PCI DSS v4.0',                  color: 'amber',   href: '/frameworks/pci-dss',  dashHref: '/pci-dss',                     category: 'Security & Privacy' },
+  { id: 'gdpr',     name: 'GDPR',        version: 'Regulation (EU) 2016/679',      color: 'violet',  href: '/frameworks/gdpr',     dashHref: '/gdpr',                        category: 'Security & Privacy' },
+  { id: 'fedramp',  name: 'FedRAMP',     version: 'NIST SP 800-53 Rev 5 Moderate', color: 'sky',     href: '/frameworks/fedramp',  dashHref: '/fedramp',                     category: 'Government & Federal' },
+  { id: 'nist-csf', name: 'NIST CSF',    version: 'NIST CSF 2.0',                  color: 'orange',  href: '/frameworks/nist-csf', dashHref: '/nist-csf',                    category: 'Government & Federal' },
+  { id: 'iso9001',  name: 'ISO 9001',    version: 'ISO 9001:2015',                 color: 'teal',    href: '/frameworks/iso9001',  dashHref: '/iso9001',                     category: 'Quality & Management' },
+  { id: 'iso14001', name: 'ISO 14001',   version: 'ISO 14001:2015',                color: 'green',   href: '/frameworks/iso14001', dashHref: '/iso14001',                    category: 'Quality & Management' },
+  { id: 'iso45001', name: 'ISO 45001',   version: 'ISO 45001:2018',                color: 'yellow',  href: '/frameworks/iso45001', dashHref: '/iso45001',                    category: 'Quality & Management' },
+] as const;
+
+const COLOR_CLASSES: Record<string, { badge: string; dot: string }> = {
+  emerald: { badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  indigo:  { badge: 'bg-indigo-100 text-indigo-700',   dot: 'bg-indigo-500' },
+  rose:    { badge: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-500' },
+  amber:   { badge: 'bg-amber-100 text-amber-700',     dot: 'bg-amber-500' },
+  violet:  { badge: 'bg-violet-100 text-violet-700',   dot: 'bg-violet-500' },
+  sky:     { badge: 'bg-sky-100 text-sky-700',         dot: 'bg-sky-500' },
+  orange:  { badge: 'bg-orange-100 text-orange-700',   dot: 'bg-orange-500' },
+  teal:    { badge: 'bg-teal-100 text-teal-700',       dot: 'bg-teal-500' },
+  green:   { badge: 'bg-green-100 text-green-700',     dot: 'bg-green-500' },
+  yellow:  { badge: 'bg-yellow-100 text-yellow-700',   dot: 'bg-yellow-500' },
+};
+
+function FrameworksSection() {
+  const queryClient = useQueryClient();
+  const { data: profileData } = useQuery({
+    queryKey: ['onboarding-profile'],
+    queryFn: async () => {
+      const { data } = await import('@/lib/api/client').then(m => m.apiClient.get('/onboarding/profile'));
+      return data?.data ?? data;
+    },
+  });
+
+  const activeRaw: string[] = profileData?.complianceGoals?.targetFrameworks ?? [];
+  const activeSet = new Set(activeRaw.map((f: string) => {
+    const m: Record<string, string> = {
+      SOC2: 'soc2', SOC2_TYPE1: 'soc2', SOC2_TYPE2: 'soc2',
+      ISO27001: 'iso27001', HIPAA: 'hipaa', PCI_DSS: 'pci-dss', 'PCI-DSS': 'pci-dss',
+      GDPR: 'gdpr', FEDRAMP: 'fedramp', ISO9001: 'iso9001',
+      NIST_CSF: 'nist-csf', ISO14001: 'iso14001', ISO45001: 'iso45001',
+    };
+    return m[f] ?? f.toLowerCase();
+  }));
+
+  const categories = [...new Set(ALL_FRAMEWORKS.map(f => f.category))];
+
+  return (
+    <Section title="Active Frameworks" icon={Layers}>
+      <div className="space-y-6">
+        <p className="text-sm text-gray-500">
+          These are the compliance frameworks configured for your organisation during onboarding.
+          To add or remove frameworks, re-run the onboarding interview or contact support.
+        </p>
+
+        {categories.map(cat => (
+          <div key={cat}>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{cat}</p>
+            <div className="space-y-2">
+              {ALL_FRAMEWORKS.filter(f => f.category === cat).map(fw => {
+                const active = activeSet.has(fw.id);
+                const colors = COLOR_CLASSES[fw.color] ?? COLOR_CLASSES.emerald;
+                return (
+                  <div key={fw.id} className={cn(
+                    'flex items-center justify-between p-3 rounded-lg border transition-colors',
+                    active ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100 opacity-60',
+                  )}>
+                    <div className="flex items-center gap-3">
+                      <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', active ? colors.dot : 'bg-gray-300')} />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-gray-900">{fw.name}</span>
+                          {active && (
+                            <span className={cn('text-xs font-medium px-1.5 py-0.5 rounded-full', colors.badge)}>Active</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">{fw.version}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {active && (
+                        <Link
+                          href={fw.dashHref}
+                          className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 px-2 py-1 rounded-md hover:bg-brand-50 transition-colors"
+                        >
+                          Open Dashboard <ChevronRight className="w-3 h-3" />
+                        </Link>
+                      )}
+                      <Link
+                        href={fw.href}
+                        target="_blank"
+                        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
+                      >
+                        Reference <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div className="bg-brand-50 border border-brand-100 rounded-lg p-4">
+          <p className="text-sm text-brand-700 font-medium">Want to add a new framework?</p>
+          <p className="text-xs text-brand-600 mt-1">
+            Ask the Compliance Copilot — it can guide you through activating HIPAA, FedRAMP, GDPR, ISO 14001, or any other framework for your organisation.
+          </p>
+          <Link href="/overview" className="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg transition-colors">
+            Open Compliance Copilot <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type SettingsTab = 'account' | 'organization' | 'ai' | 'security' | 'advanced';
+type SettingsTab = 'account' | 'organization' | 'frameworks' | 'ai' | 'security' | 'advanced';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'account',      label: 'Account',      icon: User },
   { id: 'organization', label: 'Organization',  icon: Building },
+  { id: 'frameworks',   label: 'Frameworks',    icon: Layers },
   { id: 'ai',          label: 'AI & Integrations', icon: Bot },
   { id: 'security',    label: 'Security',      icon: ShieldCheck },
   { id: 'advanced',    label: 'Advanced',      icon: Lock },
@@ -944,6 +1068,12 @@ export default function SettingsPage() {
           <>
             <OrgSection />
             <NotificationsSection />
+          </>
+        )}
+
+        {activeTab === 'frameworks' && (
+          <>
+            <FrameworksSection />
           </>
         )}
 

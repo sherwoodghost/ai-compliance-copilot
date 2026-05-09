@@ -109,12 +109,12 @@ export class IncidentService {
       },
     });
 
-    // Notify SECURITY_LEAD and COMPLIANCE_LEAD
-    await this._notifyLeads(orgId, actorId, incident, 'incident.opened',
+    // Notify SECURITY_LEAD and COMPLIANCE_LEAD (non-blocking — never fail the create)
+    this._notifyLeads(orgId, actorId, incident, 'incident.opened',
       `New ${dto.severity} incident: ${dto.title}`,
       dto.description,
       `/incidents/${incident.id}`,
-    );
+    ).catch((err: Error) => this.logger.warn(`Notification failed for incident ${incident.id}: ${err.message}`));
 
     this.logger.log(`Incident ${incident.id} created (${dto.severity}) by ${actorId}`);
     return incident;
@@ -321,11 +321,11 @@ export class IncidentService {
 
     this.logger.log(`Incident ${id} closed by ${actorId}. Evidence ${evidence.id} generated.`);
 
-    // Notify SECURITY_LEAD + COMPLIANCE_LEAD of closure
+    // Notify SECURITY_LEAD + COMPLIANCE_LEAD of closure (non-blocking)
     const mttdStr = mttd != null ? `MTTD ${Math.round(mttd / 60)}h` : null;
     const mttrStr = mttr != null ? `MTTR ${Math.round(mttr / 60)}h` : null;
     const metricsStr = [mttdStr, mttrStr].filter(Boolean).join(' · ');
-    await this._notifyLeads(
+    this._notifyLeads(
       orgId,
       actorId,
       updated,
@@ -333,7 +333,7 @@ export class IncidentService {
       `Incident closed: ${updated.title}`,
       `${updated.severity} ${updated.category} incident resolved${metricsStr ? ` — ${metricsStr}` : ''}. Root cause documented.`,
       `/incidents`,
-    );
+    ).catch((err: Error) => this.logger.warn(`Close notification failed for incident ${id}: ${err.message}`));
 
     return updated;
   }

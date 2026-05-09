@@ -6,6 +6,6 @@ import { OpenRouterProvider } from './providers/openrouter.provider';
 @Global()
 @Module({
   providers: [LlmService, AnthropicProvider, OpenRouterProvider],
-  exports: [LlmService],
+  exports: [LlmService, AnthropicProvider],
 })
 export class LlmModule {}
