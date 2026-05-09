@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Post, Body, UseGuards, Req } from '@nestjs/common'; // v2
 import { ApiOperation } from '@nestjs/swagger';
 import { ControlLibraryService } from '../../control-library/control-library.service';
 import { ControlApplicabilityEngine } from '../../control-library/applicability-engine.service';
@@ -26,12 +26,20 @@ export class ControlLibraryController {
     return this.library.getFullLibrary();
   }
 
+  /** Must be declared BEFORE @Get(':framework') to avoid the parameterised route swallowing it */
+  @Get('applicability')
+  async getApplicabilityMatrix(@Req() req: any) {
+    return this.applicability.getApplicabilityMatrix(req.user.orgId);
+  }
+
   /** Public — used by external framework reference pages */
   @Public()
   @Get(':framework')
   async getByFramework(@Param('framework') framework: string) {
-    const type = framework.toUpperCase() as 'SOC2' | 'ISO27001';
-    return this.library.getControlsByFramework(type);
+    const type = framework.toUpperCase();
+    // Guard: only pass valid FrameworkType values to Prisma
+    if (type !== 'SOC2' && type !== 'ISO27001') return [];
+    return this.library.getControlsByFramework(type as 'SOC2' | 'ISO27001');
   }
 
   /** Public — used by external control detail pages and ControlChip popover */
@@ -165,11 +173,6 @@ Return ONLY a JSON object (no markdown):
       difficulty:         validDifficulty.includes(result.difficulty) ? result.difficulty : 'medium',
       relatedTools:       (Array.isArray(result.relatedTools) ? result.relatedTools : []).slice(0, 6).map(String),
     };
-  }
-
-  @Get('applicability')
-  async getApplicabilityMatrix(@Req() req: any) {
-    return this.applicability.getApplicabilityMatrix(req.user.orgId);
   }
 
   @Patch('applicability/:controlId')

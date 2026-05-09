@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { controlsApi } from '@/lib/api/controls';
 import { apiClient } from '@/lib/api/client';
 import {
@@ -200,6 +201,31 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
   const [explaining, setExplaining] = useState(false);
   const [explainResult, setExplainResult] = useState<ExplainResult | null>(null);
   const [ownerOpen, setOwnerOpen] = useState(false);
+  const ownerBtnRef = useRef<HTMLButtonElement>(null);
+  const ownerDropRef = useRef<HTMLDivElement>(null);
+  const [ownerDropPos, setOwnerDropPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Recalculate dropdown position when it opens
+  useEffect(() => {
+    if (ownerOpen && ownerBtnRef.current) {
+      const rect = ownerBtnRef.current.getBoundingClientRect();
+      setOwnerDropPos({ top: rect.bottom + 4, left: rect.left });
+    } else {
+      setOwnerDropPos(null);
+    }
+  }, [ownerOpen]);
+
+  // Close on outside click — must check both the trigger button AND the portal dropdown
+  useEffect(() => {
+    if (!ownerOpen) return;
+    const handler = (e: MouseEvent) => {
+      const inButton = ownerBtnRef.current?.contains(e.target as Node);
+      const inDropdown = ownerDropRef.current?.contains(e.target as Node);
+      if (!inButton && !inDropdown) setOwnerOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ownerOpen]);
 
   async function handleExplain(e: React.MouseEvent) {
     e.stopPropagation();
@@ -309,9 +335,10 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
 
               {/* Inline owner assignment */}
               {onAssignOwner && (
-                <div className="relative">
+                <div>
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Control Owner</p>
                   <button
+                    ref={ownerBtnRef}
                     onClick={() => setOwnerOpen((v) => !v)}
                     className="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand-300 transition-colors min-w-[180px]"
                   >
@@ -322,8 +349,12 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
                     <ChevronDown className="w-3.5 h-3.5 text-gray-300 shrink-0" />
                   </button>
 
-                  {ownerOpen && (
-                    <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                  {ownerOpen && ownerDropPos && createPortal(
+                    <div
+                      ref={ownerDropRef}
+                      style={{ position: 'fixed', top: ownerDropPos.top, left: ownerDropPos.left, zIndex: 9999, width: 256 }}
+                      className="bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+                    >
                       <div className="py-1 max-h-52 overflow-y-auto">
                         <button
                           className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 text-gray-500"
@@ -351,7 +382,8 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
                           </button>
                         ))}
                       </div>
-                    </div>
+                    </div>,
+                    document.body,
                   )}
                 </div>
               )}
@@ -529,7 +561,7 @@ export default function ControlLibraryPage() {
               control={control}
               expanded={expanded.has(control.id)}
               onToggle={() => toggleExpanded(control.id)}
-              aiData={aiLookup.get(control.code)}
+              aiData={aiByControlId.get(control.id) ?? aiLookup.get(control.code)}
               members={members}
               onAssignOwner={(controlId, ownerId) => assignOwnerMutation.mutate({ controlId, ownerId })}
             />
