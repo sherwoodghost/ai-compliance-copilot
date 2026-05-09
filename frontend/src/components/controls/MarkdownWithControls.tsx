@@ -40,32 +40,33 @@ function extractText(children: React.ReactNode): string {
   return '';
 }
 
+// Shared quick-test regex — matches any known control code prefix.
+// Avoids calling the full linkifyText on every text node unnecessarily.
+const HAS_CONTROL_CODE =
+  /\b(?:CC[1-9]\.\d+|A\.\d+\.\d+|PI\d+\.\d+|C\d+\.\d+|A1\.\d+|GDPR-Art-|ISO9001-|HIPAA-\d{3}-|PCI-\d+|(?:AC|AT|AU|CA|CM|CP|IA|IR|MA|MP|PE|PL|PM|PS|RA|SA|SC|SI|SR)-\d+|(?:GV|ID|PR|DE|RS|RC)\.[A-Z]{2}-|ISO14001-|ISO45001-|P[1-8]\.\d+)/;
+
 function LinkifiedParagraph({ children, ...rest }: React.HTMLAttributes<HTMLParagraphElement>) {
   const text = extractText(children);
-  // If linkifying would produce chips, render linkified; otherwise pass through
-  const hasControlCode = /\b(CC[1-9]\.\d+|A\.\d+\.\d+(?:\.\d+)?|PI\d+\.\d+|C\d+\.\d+|P\d+\.\d+|A1\.\d+)\b/.test(text);
   return (
     <p {...rest}>
-      {hasControlCode ? linkifyText(text) : children}
+      {HAS_CONTROL_CODE.test(text) ? linkifyText(text) : children}
     </p>
   );
 }
 
 function LinkifiedListItem({ children, ...rest }: React.HTMLAttributes<HTMLLIElement>) {
   const text = extractText(children);
-  const hasControlCode = /\b(CC[1-9]\.\d+|A\.\d+\.\d+(?:\.\d+)?|PI\d+\.\d+|C\d+\.\d+|P\d+\.\d+|A1\.\d+)\b/.test(text);
   return (
     <li {...rest}>
-      {hasControlCode ? linkifyText(text) : children}
+      {HAS_CONTROL_CODE.test(text) ? linkifyText(text) : children}
     </li>
   );
 }
 
 function LinkifiedCode({ children, ...rest }: React.HTMLAttributes<HTMLElement>) {
   const text = extractText(children);
-  const hasControlCode = /\b(CC[1-9]\.\d+|A\.\d+\.\d+(?:\.\d+)?|PI\d+\.\d+|C\d+\.\d+|P\d+\.\d+|A1\.\d+)\b/.test(text);
   // Inline code that looks like a control code → render as chip, otherwise keep <code>
-  if (hasControlCode) {
+  if (HAS_CONTROL_CODE.test(text)) {
     return <>{linkifyText(text)}</>;
   }
   return <code {...rest}>{children}</code>;

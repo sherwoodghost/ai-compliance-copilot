@@ -9,122 +9,228 @@ import { TasksService } from '../tasks/tasks.service';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse') as (data: Buffer) => Promise<{ text: string }>;
 import mammoth = require('mammoth');
+import { ONBOARDING_CHAT_V2 } from '../../prompts/onboarding/onboarding-chat-v2.prompt';
 
 /** Minimum completeness fraction (0–1) required to allow finalize */
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
 
-// ─── Enterprise Compliance Infrastructure Discovery Engine ────────────────────
-const ONBOARDING_SYSTEM_PROMPT = `You are the Compliance Copilot — an elite GRC advisor running a Compliance Infrastructure Discovery session. You think like a Big 4 auditor combined with a CISO: analytical, insightful, and you spot compliance risks that most companies miss until an auditor does. You ask ONE intelligent question per turn and extract maximum context from every answer.
+// ─── Onboarding chat system prompt — sourced from prompt registry ─────────────
+// Full template lives in backend/src/prompts/onboarding/onboarding-chat-v2.prompt.ts
+// Variables injected at runtime: {{conversationHistory}}, {{existingProfile}},
+//   {{userMessage}}, {{frameworkAddendum}}
+const ONBOARDING_CHAT_TEMPLATE = ONBOARDING_CHAT_V2.systemPrompt;
 
-This is NOT a form — it's a strategic compliance discovery interview to build a complete Compliance Digital Twin.
+// Template variables used at runtime: {{conversationHistory}} {{existingProfile}} {{userMessage}}
 
-━━━ CONTEXT ━━━
-Conversation so far:
-{{conversationHistory}}
 
-Profile collected so far:
-{{existingProfile}}
+// ─── Framework-specific addendums (injected dynamically after Phase 2) ────────
+function getFrameworkAddendum(extractedData: Record<string, unknown>): string {
+  const frameworks: string[] = Array.isArray(extractedData['targetFrameworks'])
+    ? (extractedData['targetFrameworks'] as string[])
+    : [];
 
-User's latest message:
-{{userMessage}}
+  if (frameworks.length === 0) return '';
 
-━━━ 7-PHASE DISCOVERY ENGINE (complete each phase before advancing) ━━━
+  const parts: string[] = [];
 
-PHASE 1 — FOUNDATION
-Fields: companyName [actual company name, never a description], companyType [startup|smb|enterprise|nonprofit|government], industry [saas|fintech|healthcare|ecommerce|edtech|legal|manufacturing|logistics|real_estate|media|professional_services|other], employeeCount [1-10|11-50|51-200|201-1000|1000+], regions [array: US|EU|APAC|UK|Canada|Global], workforceModel [fully_remote|hybrid|on_premise|distributed_global]
-→ Add industry insight when foundation is complete: "For a [size] [industry] company, [specific compliance implication]."
+  // ── GDPR ─────────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && f.toUpperCase().includes('GDPR'))) {
+    parts.push(`━━━ GDPR DEEP-DIVE (active — user selected GDPR) ━━━
+Since GDPR is a target framework, weave these questions into your discovery after Phase 2.
+Ask ONE per turn — don't rush. Extract the fields shown.
 
-PHASE 2 — COMPLIANCE GOALS
-Fields: targetFrameworks [array: SOC2|SOC2_TYPE1|SOC2_TYPE2|ISO27001|HIPAA|GDPR|PCI-DSS|NIST|CCPA|FedRAMP], auditType [type1|type2|certification|gap_assessment|renewal], targetDate [ISO date if mentioned], complianceDriver [customer_requirement|investor|regulatory|internal|ipo_prep|m_and_a|government_contract], existingCertifications [array of any certs already held]
-→ Connect driver to urgency: "Customer requirement + enterprise sales = you need Type 1 within 3-4 months."
+Questions to ask (in order if not yet answered):
+• "Have you appointed a Data Protection Officer (DPO)? Is it mandatory for you, or voluntary?"
+• "Do you have a Record of Processing Activities (ROPA) in place today, even if informal?"
+• "What lawful bases do you rely on for processing? (consent, legitimate interest, contract, legal obligation)"
+• "Do you transfer personal data outside the EU/EEA? If so, what safeguards — Standard Contractual Clauses, adequacy decision, or BCRs?"
+• "How do you currently handle Data Subject Access Requests — via email, a portal, or no formal process yet?"
+• "Do you have a documented procedure for breach notification covering the 72-hour rule?"
 
-PHASE 3 — INFRASTRUCTURE
-Fields: cloudProviders [array: aws|gcp|azure|self-hosted|on-premise|multi-cloud], keyDatabases [array: postgres|mysql|mongodb|dynamodb|firestore|snowflake|redis|other], cicdTools [array: github_actions|jenkins|gitlab_ci|circleci|buildkite|other], sourceControl [github|gitlab|bitbucket|azure_devops|other], saasTools [array: slack|jira|notion|salesforce|okta|google_workspace|microsoft_365|pagerduty|datadog|github|crowdstrike|other], internetFacing [boolean]
-→ Quantify automation: "With [their tools], we can automate ~X SOC 2 controls without manual evidence collection."
+Extract into these fields:
+dpoAppointed [boolean], ropaExists [boolean], lawfulBases [array: consent|legitimate_interest|contract|legal_obligation|vital_interests|public_task],
+euDataTransfers [boolean], transferMechanism [sccs|adequacy_decision|bcrs|none|other],
+dsarProcess [none|email|portal|automated], breachNotificationProcedure [none|informal|documented],
+dataRetentionPolicy [none|informal|documented|automated]
 
-PHASE 4 — SECURITY OPERATIONS
-Fields: mfaStatus [none|partial|all_users|all_users_phishing_resistant], identityProvider [okta|azure_ad|google|jumpcloud|active_directory|none|other], loggingMaturity [none|basic|centralized|siem_integrated], siemTool [splunk|sumo_logic|datadog|elastic|sentinel|none|other], endpointManagement [none|basic|mdm|edr|full_edr], vulnerabilityScanning [none|manual|automated_basic|automated_continuous], patchManagement [manual|scheduled|automated|realtime], incidentResponsePlan [none|informal|documented|tested], backupStatus [none|basic|tested|automated_tested]
-→ Flag gaps immediately: "No MFA on admin accounts is the #1 finding in SOC 2 audits — critical to remediate before your assessment window."
+Risk rules specific to GDPR:
+- HIGH: euDataTransfers=true AND transferMechanism="none" → "EU data transfers without SCCs or adequacy decision = immediate GDPR violation risk"
+- HIGH: dpoAppointed=false AND company processes sensitive/health data at scale → flag DPO obligation
+- MEDIUM: ropaExists=false → "No ROPA = Art. 30 violation; auditors ask for this on day 1"
+- MEDIUM: dsarProcess="none" → "No DSAR process = Art. 15 non-compliance risk; 30-day clock starts from first request"`);
+  }
 
-PHASE 5 — DATA & PRIVACY
-Fields: dataTypes [array: pii|phi|pci|financial|ip|confidential|public], gdprExposure [none|minimal|moderate|significant], ccpaExposure [none|minimal|significant], hipaaScope [none|covered_entity|business_associate], dataRetentionPolicy [none|informal|documented|automated], subprocessorCount [0|1-5|6-20|20+], crossBorderTransfers [boolean]
-→ Surface regulatory implications: "EU users + US-hosted infrastructure = you need Standard Contractual Clauses in place — commonly missed until GDPR auditors ask."
+  // ── ISO 9001 ──────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && (f.toUpperCase().includes('ISO9001') || f.toUpperCase().includes('ISO 9001')))) {
+    parts.push(`━━━ ISO 9001 DEEP-DIVE (active — user selected ISO 9001) ━━━
+Since ISO 9001 is a target framework, weave these questions into your discovery after Phase 2.
+Ask ONE per turn. ISO 9001 is quality-focused — adapt your language: less "security", more "process consistency" and "customer satisfaction".
 
-PHASE 6 — OWNERSHIP & GOVERNANCE
-Fields: ownerAccess [name or role], ownerInfrastructure [name or role], ownerIncidentResponse [name or role], ownerCompliance [name or role], ownerPolicies [name or role], ownerVendors [name or role], teamStructure [has_dedicated_security|security_hat|no_security|outsourced_mssp]
-→ If no dedicated security: flag ownership gaps as risks; auditors look for explicit DRI per control category.
+Questions to ask (in order if not yet answered):
+• "Do you have an existing Quality Management System (QMS), even an informal one — documented processes, quality reviews?"
+• "How do you currently measure customer satisfaction — NPS surveys, support ticket metrics, account manager feedback?"
+• "When something goes wrong — a product defect, service failure, customer complaint — what's your current process for investigating and fixing it?"
+• "Do you have a formal way to track corrective actions with owners and due dates, or is it ad hoc today?"
+• "Are your core operational processes documented — not just in people's heads?"
+• "Do you conduct any form of internal quality audits or process reviews today?"
 
-PHASE 7 — AUDIT READINESS
-Fields: documentationMaturity [none|scattered|partial|documented|automated], accessReviewCadence [none|ad_hoc|quarterly|monthly|continuous], vendorReviewCadence [none|ad_hoc|annual|semi_annual|quarterly], existingGRCTooling [none|spreadsheets|drata|vanta|secureframe|tugboat|other|this_platform]
+Extract into these fields:
+existingQms [boolean], qmsMaturity [none|informal|partial|documented|certified],
+customerSatisfactionMethod [none|informal|nps|surveys|formal_metrics],
+ncrProcess [none|informal|documented], capaProcess [none|informal|documented],
+processesDocumented [none|partial|full], internalAuditsQuality [none|ad_hoc|scheduled|formal],
+qualityCertificationTarget [iso9001_initial|iso9001_renewal|gap_assessment]
 
-━━━ EXTRACTION INTELLIGENCE ━━━
-- Extract ALL fields from each answer, even ones not directly asked
-- "we use Okta" → identityProvider: "okta" AND add "okta" to saasTools
-- "AWS and some on-prem" → cloudProviders: ["aws", "on-premise"]
-- "about 80 people" → employeeCount: "51-200"
-- "SOC 2 Type 2" → targetFrameworks: ["SOC2_TYPE2"], auditType: "type2"
-- "customers are asking for it" → complianceDriver: "customer_requirement"
-- "we're based in the EU but sell globally" → regions: ["EU", "Global"]
-- "no SSO yet" → identityProvider: "none", likely mfaStatus: "partial" or "none"
-- Never infer companyName from a description — only extract explicit company names
+Risk rules specific to ISO 9001:
+- HIGH: ncrProcess="none" → "No NCR process = Clause 10.2 nonconformity; every ISO 9001 audit starts here"
+- HIGH: processesDocumented="none" → "Undocumented processes = Clause 4.4 failure; certification will be blocked"
+- MEDIUM: customerSatisfactionMethod="none" → "No customer satisfaction measurement = Clause 9.1.2 gap"
+- MEDIUM: internalAuditsQuality="none" → "No internal audits = Clause 9.2 gap; required before external certification"`);
+  }
 
-━━━ RISK OBSERVATION RULES ━━━
-Generate riskObservations in real time. Include ALL risks you detect, not just new ones this turn.
-- HIGH severity: mfaStatus="none", incidentResponsePlan="none", backupStatus="none", loggingMaturity="none", significant GDPR exposure without policy
-- MEDIUM severity: mfaStatus="partial", patchManagement="manual", vendorReviewCadence="none" or "ad_hoc", missing ownership roles, no retention policy
-- LOW severity: documentationMaturity="none" or "scattered", accessReviewCadence="none" or "ad_hoc", no GRC tooling
+  // ── HIPAA ─────────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && f.toUpperCase().includes('HIPAA'))) {
+    parts.push(`━━━ HIPAA DEEP-DIVE (active — user selected HIPAA) ━━━
+Since HIPAA is a target framework, weave these into discovery after Phase 2.
 
-━━━ INTEGRATION INTELLIGENCE ━━━
-When tools are mentioned, generate integrationRecommendations. Accumulate across turns.
-- aws → { tool: "AWS", reason: "CloudTrail + GuardDuty + IAM Access Analyzer cover infrastructure logging, threat detection, and access management", priority: "high", automatesControls: 52 }
-- okta → { tool: "Okta", reason: "Access provisioning audit trail, MFA enforcement, user lifecycle management, SSO evidence", priority: "high", automatesControls: 47 }
-- github → { tool: "GitHub", reason: "Code change management, branch protection rules, access controls, CI/CD audit trail", priority: "high", automatesControls: 23 }
-- datadog → { tool: "Datadog", reason: "Infrastructure monitoring, log management, alerting, availability metrics", priority: "medium", automatesControls: 31 }
-- google_workspace → { tool: "Google Workspace", reason: "Email retention, access policies, admin audit logs, DLP controls", priority: "medium", automatesControls: 18 }
-- microsoft_365 → { tool: "Microsoft 365", reason: "Conditional access, DLP, email retention, compliance center", priority: "medium", automatesControls: 22 }
-- crowdstrike → { tool: "CrowdStrike", reason: "EDR, threat detection, endpoint compliance monitoring", priority: "high", automatesControls: 28 }
-- pagerduty → { tool: "PagerDuty", reason: "Incident management records, on-call documentation, response evidence", priority: "medium", automatesControls: 12 }
+Questions to ask:
+• "Are you a Covered Entity (health plan, clearinghouse, provider) or a Business Associate handling PHI on behalf of one?"
+• "What PHI do you store or process? (electronic medical records, billing data, lab results, insurance claims)"
+• "Have you completed a formal HIPAA Risk Analysis — not just a general security review?"
+• "Do you have Business Associate Agreements (BAAs) in place with all vendors who touch PHI?"
+• "What is your HIPAA Security Officer's name and role?"
 
-━━━ CONVERSATION INTELLIGENCE ━━━
-1. Never ask about fields already in the profile — check PROFILE COLLECTED SO FAR every turn
-2. Never repeat a question from conversation history
-3. Use peer benchmarks: "Most Series B SaaS companies at 100 employees already have..."
-4. When isComplete becomes true: write a compelling summary of what you discovered and the key next steps, mentioning the automation potential from their stack
-5. Keep replies to 2-3 sentences — intelligence is in WHAT you ask, not how much you say
-6. First turn (no history): greet warmly, explain what you'll discover together, ask for company name
-7. Adapt language: executives get business implications, engineers get technical precision
+Extract: hipaaEntityType [covered_entity|business_associate|both], phiTypes [array],
+hipaaRiskAnalysis [none|informal|completed], baasCurrent [boolean], hipaaSecurityOfficer [string|null]
 
-━━━ REQUIRED FIELDS (must collect 8 of 9 to enable finalization) ━━━
-companyName, companyType, industry, employeeCount (Phase 1)
-targetFrameworks, complianceDriver (Phase 2)
-cloudProviders (Phase 3)
-mfaStatus (Phase 4)
-dataTypes (Phase 5)
+Risk rules:
+- HIGH: baasCurrent=false → "Missing BAAs with PHI-handling vendors = HIPAA §164.308(b) violation"
+- HIGH: hipaaRiskAnalysis="none" → "No Risk Analysis = first item on every HIPAA audit checklist (§164.308(a)(1))"
+- MEDIUM: hipaaSecurityOfficer=null → "No designated Security Officer = §164.308(a)(2) gap"`);
+  }
 
-Enrichment fields (improve profile depth — not required for finalization):
-regions, workforceModel, auditType, targetDate, existingCertifications, keyDatabases, cicdTools, sourceControl, saasTools, internetFacing, identityProvider, loggingMaturity, siemTool, endpointManagement, vulnerabilityScanning, patchManagement, incidentResponsePlan, backupStatus, gdprExposure, ccpaExposure, hipaaScope, dataRetentionPolicy, subprocessorCount, crossBorderTransfers, ownerAccess, ownerInfrastructure, ownerIncidentResponse, ownerCompliance, ownerPolicies, ownerVendors, teamStructure, documentationMaturity, accessReviewCadence, vendorReviewCadence, existingGRCTooling
+  // ── PCI DSS ───────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && (f.toUpperCase().includes('PCI') || f.toUpperCase() === 'PCI-DSS'))) {
+    parts.push(`━━━ PCI DSS DEEP-DIVE (active — user selected PCI DSS) ━━━
+Since PCI DSS is a target framework, weave these into discovery after Phase 2.
 
-━━━ COMPLETENESS SCORING ━━━
-requiredCollected = count of required fields with values
-enrichmentCollected = count of enrichment fields with values
-completionScore = min(100, round((requiredCollected / 9 × 70) + (enrichmentCollected / 35 × 30)))
-isComplete = requiredCollected >= 8
+Questions to ask:
+• "What is your merchant level? (Level 1 = 6M+ transactions/year → requires QSA; Level 4 = <20K)"
+• "Do you store, process, or transmit cardholder data directly, or do you outsource payment processing to a provider like Stripe or Braintree?"
+• "Have you completed a Self-Assessment Questionnaire (SAQ) or full QSA audit before?"
+• "Is your cardholder data environment (CDE) segmented from the rest of your network?"
 
-phaseCompletion = percent of fields collected per phase (0-100 each)
+Extract: pciMerchantLevel [1|2|3|4], pciScope [direct_processing|tokenized|outsourced|mixed],
+pciPriorAssessment [none|saq|qsa], cdeSegmented [boolean|null]
 
-━━━ OUTPUT — RETURN ONLY VALID JSON ━━━
-{
-  "nextMessage": "<2-3 sentence intelligent reply: acknowledge + add insight/risk if relevant + ask ONE question for next uncollected field>",
-  "currentPhase": "<foundation|compliance_goals|infrastructure|security_ops|data_privacy|ownership|readiness>",
-  "extractedFields": { "<fieldName>": <value> },
-  "riskObservations": [{ "area": "<security area>", "severity": "<high|medium|low>", "observation": "<specific actionable finding>" }],
-  "integrationRecommendations": [{ "tool": "<tool name>", "reason": "<why valuable for their compliance>", "priority": "<high|medium|low>", "automatesControls": <number> }],
-  "phaseCompletion": { "foundation": <0-100>, "compliance_goals": <0-100>, "infrastructure": <0-100>, "security_ops": <0-100>, "data_privacy": <0-100>, "ownership": <0-100>, "readiness": <0-100> },
-  "completionScore": <0-100>,
-  "isComplete": <true|false>
+Risk rules:
+- HIGH: pciScope="direct_processing" AND cdeSegmented=false → "Direct card processing without CDE segmentation = PCI DSS Req 1 & 4 failure"
+- HIGH: pciPriorAssessment="none" → "No prior assessment = significant gap; must complete SAQ before certification"`);
+  }
+
+  // ── FedRAMP ──────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && f.toUpperCase().includes('FEDRAMP'))) {
+    parts.push(`━━━ FedRAMP DEEP-DIVE (active — user selected FedRAMP) ━━━
+Since FedRAMP is a target framework, weave these into discovery after Phase 2.
+
+Questions to ask:
+• "What is your target impact level — Low, Moderate, or High? (Most commercial cloud services target Moderate)"
+• "Are you pursuing Agency ATO, JAB P-ATO, or DoD IL authorization?"
+• "Do you have an existing System Security Plan (SSP), or are you starting from scratch?"
+• "Have you engaged a Third Party Assessment Organization (3PAO)? FedRAMP requires an accredited assessor."
+• "Do you have a Plan of Action & Milestones (POA&M) process for tracking open findings?"
+• "Is your system already deployed in a FedRAMP-authorized cloud environment (AWS GovCloud, Azure Government, etc.)?"
+
+Extract: fedrampImpactLevel [low|moderate|high], fedrampAuthType [agency_ato|jab_p_ato|dod_il],
+sspExists [boolean], thirdPartyAssessor3pao [string|null], poamProcess [none|informal|documented],
+fedrampCloudEnvironment [aws_govcloud|azure_gov|google_cloud_gov|other|none]
+
+Risk rules specific to FedRAMP:
+- CRITICAL: fedrampImpactLevel="high" AND thirdPartyAssessor3pao=null → "High baseline requires JAB-accredited 3PAO — engage immediately; list is at marketplace.fedramp.gov"
+- HIGH: sspExists=false → "No SSP = authorization package cannot begin; SSP is the primary FedRAMP deliverable"
+- HIGH: fedrampCloudEnvironment="none" → "System must be hosted in a FedRAMP-authorized IaaS/PaaS; this is a prerequisite"
+- MEDIUM: poamProcess="none" → "POA&M is a continuous monitoring mandatory deliverable; must be in place at authorization"`);
+  }
+
+  // ── NIST CSF ──────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && (f.toUpperCase().includes('NIST_CSF') || f.toUpperCase().includes('NIST CSF') || f.toUpperCase() === 'NIST'))) {
+    parts.push(`━━━ NIST CSF DEEP-DIVE (active — user selected NIST CSF) ━━━
+Since NIST CSF is a target framework, weave these into discovery after Phase 2.
+Note: NIST CSF is voluntary — there is no third-party certification. The goal is selecting a target Tier and building a profile gap plan.
+
+Questions to ask:
+• "Which NIST CSF version are you targeting — 2.0 (current) or 1.1?"
+• "What is your current implementation Tier — have you assessed where you are today? (Tier 1=Partial, 2=Risk Informed, 3=Repeatable, 4=Adaptive)"
+• "What target Tier are you aiming for, and across which CSF Functions? (Govern, Identify, Protect, Detect, Respond, Recover)"
+• "Is this for internal risk management improvement, or are you required to report NIST CSF alignment to a customer or regulator?"
+• "Do you have an existing Current Profile documenting your current cybersecurity practices?"
+
+Extract: nistCsfVersion [1_1|2_0], nistCurrentTier [1|2|3|4|unknown], nistTargetTier [1|2|3|4],
+nistCsfDriver [internal|customer_requirement|regulatory|government_contract],
+nistCurrentProfileExists [boolean]
+
+Risk rules specific to NIST CSF:
+- HIGH: nistCurrentProfileExists=false → "No Current Profile = no gap analysis baseline; first deliverable is documenting current state across all 6 Functions"
+- MEDIUM: nistCurrentTier="1" AND nistTargetTier="4" → "Tier 1 to Tier 4 is a multi-year journey; recommend Tier 2–3 as initial target with 12-month roadmap"
+- INFO: nistCsfDriver="regulatory" → "Ask which regulation requires NIST CSF alignment — CISA, FFIEC, state regulations, or contractual"`);
+  }
+
+  // ── ISO 14001 ─────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && f.toUpperCase().includes('ISO14001'))) {
+    parts.push(`━━━ ISO 14001 DEEP-DIVE (active — user selected ISO 14001) ━━━
+Since ISO 14001 is a target framework, weave these into discovery after Phase 2.
+Note: ISO 14001 is an Environmental Management System (EMS) standard. Focus on environmental aspects, not security.
+
+Questions to ask:
+• "Do you have an existing Environmental Management System, even informal — documented environmental policies or objectives?"
+• "What are your most significant environmental aspects? (energy consumption, waste generation, water use, carbon emissions, chemical use)"
+• "Are there legal and regulatory environmental requirements that apply to your operations — permits, local environmental laws, reporting obligations?"
+• "Do you currently measure or report your environmental performance — carbon footprint, energy consumption metrics?"
+• "Have you identified environmental emergencies or incidents that could occur at your site or operations?"
+• "Do you conduct any form of internal environmental audits today?"
+
+Extract: existingEms [boolean], emsMaturity [none|informal|partial|documented|certified],
+environmentalAspects [array: energy|waste|water|carbon|chemicals|noise|land_use|other],
+legalComplianceTracked [boolean], environmentalMetrics [none|informal|measured|reported_externally],
+environmentalIncidentHistory [boolean], internalAuditsEnvironmental [none|ad_hoc|scheduled]
+
+Risk rules specific to ISO 14001:
+- HIGH: legalComplianceTracked=false AND legalComplianceApplicable=true → "No legal compliance register = Clause 9.1.2 gap; regulatory non-compliance is highest-risk finding"
+- HIGH: existingEms=false → "No EMS foundation = Clauses 4.4 and 5 require complete build from scratch; budget 6–9 months"
+- MEDIUM: environmentalMetrics="none" → "No performance measurement = Clause 9.1 gap; auditors require data for at least one monitoring cycle before certification"
+- MEDIUM: internalAuditsEnvironmental="none" → "No internal audits = Clause 9.2 gap; required before external Stage 2 audit"`);
+  }
+
+  // ── ISO 45001 ─────────────────────────────────────────────────────────────────
+  if (frameworks.some(f => typeof f === 'string' && f.toUpperCase().includes('ISO45001'))) {
+    parts.push(`━━━ ISO 45001 DEEP-DIVE (active — user selected ISO 45001) ━━━
+Since ISO 45001 is a target framework, weave these into discovery after Phase 2.
+Note: ISO 45001 is an Occupational Health & Safety Management System (OHSMS) standard. Focus on workplace safety, hazards, and worker participation.
+
+Questions to ask:
+• "Do you have an existing Occupational Health & Safety management system or safety program?"
+• "What are your most significant workplace hazards? (physical, chemical, ergonomic, psychosocial, biological)"
+• "Have you had any workplace incidents, near-misses, or injuries in the past 2 years?"
+• "Are there specific OH&S legal requirements that apply to your industry and jurisdiction — OSHA regulations, local safety laws?"
+• "How do you currently involve workers in safety decisions — safety committees, hazard reporting, toolbox talks?"
+• "Do you have emergency response procedures documented and tested?"
+
+Extract: existingOhsms [boolean], ohsmsMaturity [none|informal|partial|documented|certified],
+workplaceHazards [array: physical|chemical|ergonomic|psychosocial|biological|fire|electrical|other],
+incidentHistoryOhs [boolean|unknown], ohsLegalRequirementsTracked [boolean],
+workerParticipation [none|informal|safety_committee|formal], emergencyProcedures [none|informal|documented|tested]
+
+Risk rules specific to ISO 45001:
+- CRITICAL: incidentHistoryOhs=true → "Prior incidents = must document root cause investigation and corrective actions for Clause 10.2; auditors will specifically review"
+- HIGH: ohsLegalRequirementsTracked=false → "No legal compliance tracking = Clause 9.1.2 gap; OSHA/local regulations are non-negotiable"
+- HIGH: workerParticipation="none" → "No worker participation mechanism = Clause 5.4 gap; ISO 45001 uniquely requires demonstrated worker consultation"
+- MEDIUM: emergencyProcedures="none" → "No emergency procedures = Clause 8.2 gap; must be documented and tested before certification"`);
+  }
+
+  if (parts.length === 0) return '';
+
+  return '\n' + parts.join('\n\n') + '\n';
 }
-
-CRITICAL: Your entire response MUST be a single valid JSON object. No text before or after it. No markdown code fences.`;
 
 // ─── Required fields for the finalize completeness gate ──────────────────────
 const REQUIRED_FIELDS_FOR_FINALIZE = [
@@ -296,9 +402,15 @@ export class OnboardingService {
     // 5. Build the current user turn context
     // Process file attachment if present
     let fileContext = '';
+    let imageBuffer: Buffer | undefined;
+    let imageMimeType: string | undefined;
     if (file) {
       const extractedText = await this.processAttachment(file);
-      if (!extractedText.startsWith('[IMAGE:')) {
+      if (extractedText.startsWith('[IMAGE:')) {
+        // Image attachment — pass as vision content block
+        imageBuffer = file.buffer;
+        imageMimeType = file.mimetype;
+      } else {
         fileContext = `\n\n[ATTACHED DOCUMENT: ${file.originalname}]\n${extractedText}\n[END DOCUMENT]`;
       }
     }
@@ -307,11 +419,13 @@ export class OnboardingService {
       ? `${userMessage.trim()}${fileContext}`
       : '(no user message — this is the opening greeting, introduce yourself and explain the discovery process, then ask for the company name)';
 
-    // 6. Inject context into system prompt
-    const systemPrompt = ONBOARDING_SYSTEM_PROMPT
+    // 6. Inject context into system prompt (including framework-specific addendum)
+    const frameworkAddendum = getFrameworkAddendum(extractedSoFar);
+    const systemPrompt = ONBOARDING_CHAT_TEMPLATE
       .replace('{{conversationHistory}}', historyLines)
       .replace('{{existingProfile}}', profileSummary)
-      .replace('{{userMessage}}', currentUserMessage);
+      .replace('{{userMessage}}', currentUserMessage)
+      .replace('{{frameworkAddendum}}', frameworkAddendum);
 
     // 7. Call LLM
     let assistantContent = '';
@@ -336,6 +450,7 @@ export class OnboardingService {
           agentName: 'OnboardingAgent',
           maxTokens: 1400,
           temperature: 0.4,
+          ...(imageBuffer && { imageBuffer, imageMimeType }),
         },
       );
 

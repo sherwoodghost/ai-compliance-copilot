@@ -8,6 +8,23 @@ import type { Control } from '@/lib/api/frameworks';
 export { getCategoryColor } from './colors';
 import { getCategoryColor } from './colors';
 
+/** Derive the URL slug from a framework name or code prefix. */
+function frameworkSlugFromControl(control: Control): string {
+  const type = control.framework?.type?.toLowerCase() ?? '';
+  const code = control.code ?? '';
+  if (type === 'soc2'     || code.startsWith('CC') || code.startsWith('A1') || code.startsWith('C1') || code.startsWith('PI') || /^P\d/.test(code)) return 'soc2';
+  if (type === 'iso27001' || code.startsWith('A.'))         return 'iso27001';
+  if (type === 'gdpr'     || code.startsWith('GDPR-'))      return 'gdpr';
+  if (type === 'iso9001'  || code.startsWith('ISO9001-'))   return 'iso9001';
+  if (type === 'hipaa'    || code.startsWith('HIPAA-'))     return 'hipaa';
+  if (type === 'pci_dss'  || type === 'pcidss' || code.startsWith('PCI-'))    return 'pci-dss';
+  if (type === 'fedramp'  || /^(AC|AT|AU|CA|CM|CP|IA|IR|MA|MP|PE|PL|PM|PS|RA|SA|SC|SI|SR)-/.test(code)) return 'fedramp';
+  if (type === 'nist_csf' || type === 'nistcsf' || /^(GV|ID|PR|DE|RS|RC)\./.test(code)) return 'nist-csf';
+  if (type === 'iso14001' || code.startsWith('ISO14001-'))  return 'iso14001';
+  if (type === 'iso45001' || code.startsWith('ISO45001-'))  return 'iso45001';
+  return 'soc2';
+}
+
 interface Props {
   controls: Control[];
   groupedCategories: { category: string; controls: Control[] }[];
@@ -114,7 +131,7 @@ function ControlCard({ control }: { control: Control }) {
   const color = getCategoryColor(control.category);
   return (
     <Link
-      href={`/frameworks/soc2/controls/${encodeURIComponent(control.code)}`}
+      href={`/frameworks/${frameworkSlugFromControl(control)}/controls/${encodeURIComponent(control.code)}`}
       className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col gap-2 group"
     >
       <div className="flex items-center justify-between">

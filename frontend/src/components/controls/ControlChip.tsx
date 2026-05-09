@@ -9,6 +9,7 @@ import { useControlDetail } from '@/lib/hooks/useControlDetail';
 
 /** Derive chip color classes from the control code prefix */
 function getChipColors(code: string): string {
+  // SOC 2 TSC
   if (/^CC[12]/.test(code)) return 'bg-blue-100 text-blue-800 border-blue-200';
   if (/^CC[345]/.test(code)) return 'bg-purple-100 text-purple-800 border-purple-200';
   if (/^CC[67]/.test(code)) return 'bg-green-100 text-green-800 border-green-200';
@@ -16,18 +17,62 @@ function getChipColors(code: string): string {
   if (/^A1\./.test(code)) return 'bg-cyan-100 text-cyan-800 border-cyan-200';
   if (/^C\d/.test(code)) return 'bg-rose-100 text-rose-800 border-rose-200';
   if (/^PI\d/.test(code)) return 'bg-orange-100 text-orange-800 border-orange-200';
-  if (/^P\d/.test(code)) return 'bg-pink-100 text-pink-800 border-pink-200';
+  if (/^P\d/.test(code) && !/^PCI-/.test(code)) return 'bg-pink-100 text-pink-800 border-pink-200';
+  // ISO 27001 Annex A
   if (/^A\.5/.test(code)) return 'bg-red-100 text-red-800 border-red-200';
   if (/^A\.6/.test(code)) return 'bg-orange-100 text-orange-800 border-orange-200';
   if (/^A\.7/.test(code)) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
   if (/^A\.8/.test(code)) return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+  // GDPR
+  if (/^GDPR-/.test(code)) return 'bg-violet-100 text-violet-800 border-violet-200';
+  // ISO 9001
+  if (/^ISO9001-/.test(code)) return 'bg-teal-100 text-teal-800 border-teal-200';
+  // HIPAA
+  if (/^HIPAA-/.test(code)) return 'bg-rose-100 text-rose-800 border-rose-200';
+  // PCI-DSS
+  if (/^PCI-/.test(code)) return 'bg-amber-100 text-amber-800 border-amber-200';
+  // FedRAMP (NIST SP 800-53 control families: AC, AT, AU, CA, CM, CP, IA, IR, etc.)
+  if (/^(AC|AT|AU|CA|CM|CP|IA|IR|MA|MP|PE|PL|PM|PS|RA|SA|SC|SI|SR)-/.test(code))
+    return 'bg-sky-100 text-sky-800 border-sky-200';
+  // NIST CSF 2.0 (GV, ID, PR, DE, RS, RC functions)
+  if (/^(GV|ID|PR|DE|RS|RC)\./.test(code)) return 'bg-orange-100 text-orange-800 border-orange-200';
+  // ISO 14001
+  if (/^ISO14001-/.test(code)) return 'bg-green-100 text-green-800 border-green-200';
+  // ISO 45001
+  if (/^ISO45001-/.test(code)) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
   return 'bg-gray-100 text-gray-800 border-gray-200';
+}
+
+/** Derive the framework slug from the control code prefix */
+function getFrameworkSlug(code: string): string {
+  if (/^A\./.test(code))                           return 'iso27001';
+  if (/^GDPR-/.test(code))                         return 'gdpr';
+  if (/^ISO9001-/.test(code))                      return 'iso9001';
+  if (/^HIPAA-/.test(code))                        return 'hipaa';
+  if (/^PCI-/.test(code))                          return 'pci-dss';
+  if (/^(AC|AT|AU|CA|CM|CP|IA|IR|MA|MP|PE|PL|PM|PS|RA|SA|SC|SI|SR)-/.test(code)) return 'fedramp';
+  if (/^(GV|ID|PR|DE|RS|RC)\./.test(code))        return 'nist-csf';
+  if (/^ISO14001-/.test(code))                     return 'iso14001';
+  if (/^ISO45001-/.test(code))                     return 'iso45001';
+  return 'soc2';
 }
 
 /** Derive the framework from the code prefix */
 function getFramework(code: string): { name: string; slug: string } {
-  if (/^A\./.test(code)) return { name: 'ISO 27001', slug: 'iso27001' };
-  return { name: 'SOC 2', slug: 'soc2' };
+  const slug = getFrameworkSlug(code);
+  const NAMES: Record<string, string> = {
+    soc2:     'SOC 2',
+    iso27001: 'ISO 27001',
+    gdpr:     'GDPR',
+    iso9001:  'ISO 9001',
+    hipaa:    'HIPAA',
+    'pci-dss': 'PCI DSS',
+    fedramp:  'FedRAMP',
+    'nist-csf': 'NIST CSF',
+    iso14001: 'ISO 14001',
+    iso45001: 'ISO 45001',
+  };
+  return { name: NAMES[slug] ?? slug.toUpperCase(), slug };
 }
 
 /** Build the detail page URL for a control code */
@@ -91,18 +136,23 @@ function PopoverContent({ code, anchorRect, onClose }: PopoverContentProps) {
 
   const detailUrl = getDetailUrl(code);
 
-  // Collect related controls from both crosswalk directions
-  // Flat CrosswalkMapping shape: sources → related = targetCode/targetTitle
-  //                              targets → related = sourceCode/sourceTitle
+  // Collect related controls from both crosswalk directions.
+  // Handles two API response shapes:
+  //   1. Flat (transformed by controller): { targetCode, targetTitle, sourceCode, sourceTitle }
+  //   2. Raw Prisma (when transform not applied): { targetControl: { code, title }, sourceControl: { code, title } }
   const related: Array<{ code: string; title: string }> = [];
   if (data) {
-    for (const cs of data.crosswalkSources ?? []) {
+    for (const cs of (data.crosswalkSources ?? []) as any[]) {
       if (related.length >= 4) break;
-      if (cs.targetCode) related.push({ code: cs.targetCode, title: cs.targetTitle ?? '' });
+      const code = cs.targetCode ?? cs.targetControl?.code;
+      const title = cs.targetTitle ?? cs.targetControl?.title ?? '';
+      if (code) related.push({ code, title });
     }
-    for (const ct of data.crosswalkTargets ?? []) {
+    for (const ct of (data.crosswalkTargets ?? []) as any[]) {
       if (related.length >= 4) break;
-      if (ct.sourceCode) related.push({ code: ct.sourceCode, title: ct.sourceTitle ?? '' });
+      const code = ct.sourceCode ?? ct.sourceControl?.code;
+      const title = ct.sourceTitle ?? ct.sourceControl?.title ?? '';
+      if (code) related.push({ code, title });
     }
   }
 
@@ -163,9 +213,16 @@ function PopoverContent({ code, anchorRect, onClose }: PopoverContentProps) {
               </span>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                  frameworkSlug === 'iso27001'
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-violet-50 text-violet-700 border-violet-200'
+                  frameworkSlug === 'iso27001' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                  frameworkSlug === 'gdpr'     ? 'bg-violet-50 text-violet-700 border-violet-200' :
+                  frameworkSlug === 'iso9001'  ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                  frameworkSlug === 'hipaa'    ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                  frameworkSlug === 'pci-dss'  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  frameworkSlug === 'fedramp'  ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                  frameworkSlug === 'nist-csf' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                  frameworkSlug === 'iso14001' ? 'bg-green-50 text-green-700 border-green-200' :
+                  frameworkSlug === 'iso45001' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                                 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 }`}
               >
                 {frameworkName}
