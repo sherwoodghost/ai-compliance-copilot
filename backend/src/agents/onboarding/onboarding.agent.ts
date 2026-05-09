@@ -240,7 +240,7 @@ export class OnboardingAgent extends BaseAgent {
           hasExistingPolicies: data['currentPosture.hasExistingPolicies'] ?? false,
         },
         complianceGoals: {
-          frameworks: (data['complianceGoals.frameworks'] as string[]) ?? ['soc2'],
+          frameworks: (data['complianceGoals.frameworks'] as string[]) ?? [],
           soc2Type: data['complianceGoals.soc2Type'] ?? 'type_ii',
           targetDate: data['complianceGoals.targetDate'],
           driver: data['complianceGoals.driver'],

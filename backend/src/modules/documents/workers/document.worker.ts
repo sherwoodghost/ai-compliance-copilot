@@ -119,9 +119,9 @@ export class DocumentWorker {
     if (!effectiveFrameworks?.length) {
       try {
         const profile = await (this.documents as any).prisma?.businessProfile?.findUnique({ where: { orgId } });
-        effectiveFrameworks = (profile?.complianceGoals as any)?.frameworks ?? ['ISO27001', 'SOC2'];
+        effectiveFrameworks = (profile?.complianceGoals as any)?.frameworks ?? [];
       } catch {
-        effectiveFrameworks = ['ISO27001', 'SOC2'];
+        effectiveFrameworks = [];
       }
     }
     const gaps = await this.aiFeatures.detectGaps(orgId, content, effectiveFrameworks);
