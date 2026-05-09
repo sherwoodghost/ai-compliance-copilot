@@ -484,19 +484,28 @@ export default function ControlLibraryPage() {
     acc[type] = (acc[type] ?? 0) + 1;
     return acc;
   }, {});
-  const soc2Count  = frameworkCounts['SOC2']    ?? 0;
-  const isoCount   = frameworkCounts['ISO27001'] ?? 0;
 
-  // Derive available framework filter options from loaded controls
-  const FRAMEWORK_DISPLAY: Record<string, string> = {
-    SOC2: 'SOC 2', ISO27001: 'ISO 27001', GDPR: 'GDPR', ISO9001: 'ISO 9001',
-    HIPAA: 'HIPAA', PCI_DSS: 'PCI-DSS', FEDRAMP: 'FedRAMP', NIST_CSF: 'NIST CSF',
-    ISO14001: 'ISO 14001', ISO45001: 'ISO 45001',
+  // Stable display order + colors for all 10 frameworks
+  const FRAMEWORK_META: Record<string, { label: string; cls: string; order: number }> = {
+    SOC2:     { label: 'SOC 2',      cls: 'bg-blue-50 text-blue-700',      order: 0 },
+    ISO27001: { label: 'ISO 27001',  cls: 'bg-indigo-50 text-indigo-700',  order: 1 },
+    GDPR:     { label: 'GDPR',       cls: 'bg-violet-50 text-violet-700',  order: 2 },
+    HIPAA:    { label: 'HIPAA',      cls: 'bg-green-50 text-green-700',    order: 3 },
+    PCI_DSS:  { label: 'PCI-DSS',   cls: 'bg-orange-50 text-orange-700',  order: 4 },
+    FEDRAMP:  { label: 'FedRAMP',    cls: 'bg-sky-50 text-sky-700',        order: 5 },
+    NIST_CSF: { label: 'NIST CSF',   cls: 'bg-cyan-50 text-cyan-700',      order: 6 },
+    ISO9001:  { label: 'ISO 9001',   cls: 'bg-teal-50 text-teal-700',      order: 7 },
+    ISO14001: { label: 'ISO 14001',  cls: 'bg-emerald-50 text-emerald-700',order: 8 },
+    ISO45001: { label: 'ISO 45001',  cls: 'bg-yellow-50 text-yellow-700',  order: 9 },
   };
+
+  // Legacy FRAMEWORK_DISPLAY kept for filter dropdown (labels only)
+  const FRAMEWORK_DISPLAY: Record<string, string> = Object.fromEntries(
+    Object.entries(FRAMEWORK_META).map(([k, v]) => [k, v.label]),
+  );
+
   const availableFrameworks = Object.keys(frameworkCounts).sort((a, b) => {
-    // Stable order: SOC2 → ISO27001 → alphabetical for the rest
-    const ORDER: Record<string, number> = { SOC2: 0, ISO27001: 1, GDPR: 2, HIPAA: 3, PCI_DSS: 4, FEDRAMP: 5, NIST_CSF: 6, ISO9001: 7, ISO14001: 8, ISO45001: 9 };
-    return (ORDER[a] ?? 99) - (ORDER[b] ?? 99);
+    return ((FRAMEWORK_META[a]?.order) ?? 99) - ((FRAMEWORK_META[b]?.order) ?? 99);
   });
 
   function toggleExpanded(id: string) {
@@ -522,10 +531,19 @@ export default function ControlLibraryPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
-            {soc2Count  > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">SOC 2: {soc2Count}</span>}
-            {isoCount   > 0 && <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-medium">ISO 27001: {isoCount}</span>}
+            {availableFrameworks.map((k) => {
+              const count = frameworkCounts[k];
+              if (!count) return null;
+              const meta = FRAMEWORK_META[k];
+              return (
+                <span key={k} className={`${meta?.cls ?? 'bg-gray-100 text-gray-600'} px-2 py-0.5 rounded font-medium`}>
+                  {meta?.label ?? k}: {count}
+                </span>
+              );
+            })}
+            {/* Legacy: render any unlisted framework types */}
             {Object.entries(frameworkCounts)
-              .filter(([k]) => k !== 'SOC2' && k !== 'ISO27001')
+              .filter(([k]) => !FRAMEWORK_META[k])
               .map(([k, v]) => (
                 <span key={k} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">
                   {FRAMEWORK_DISPLAY[k] ?? k}: {v}

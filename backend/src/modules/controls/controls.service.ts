@@ -29,9 +29,13 @@ export class ControlsService {
       soc2: 'SOC2', SOC2: 'SOC2',
       iso27001: 'ISO27001', ISO27001: 'ISO27001',
       hipaa: 'HIPAA', HIPAA: 'HIPAA',
-      pci_dss: 'PCI_DSS', PCI_DSS: 'PCI_DSS',
+      'pci-dss': 'PCI_DSS', pci_dss: 'PCI_DSS', PCI_DSS: 'PCI_DSS', pci: 'PCI_DSS',
       gdpr: 'GDPR', GDPR: 'GDPR',
       fedramp: 'FEDRAMP', FEDRAMP: 'FEDRAMP',
+      'nist-csf': 'NIST_CSF', nist_csf: 'NIST_CSF', NIST_CSF: 'NIST_CSF', nist: 'NIST_CSF',
+      iso9001: 'ISO9001', ISO9001: 'ISO9001',
+      iso14001: 'ISO14001', ISO14001: 'ISO14001',
+      iso45001: 'ISO45001', ISO45001: 'ISO45001',
     };
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const resolvedIds = await Promise.all(

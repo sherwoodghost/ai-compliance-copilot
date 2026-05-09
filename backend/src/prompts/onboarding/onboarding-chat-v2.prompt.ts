@@ -47,11 +47,11 @@ Fields: targetFrameworks [array: SOC2|SOC2_TYPE1|SOC2_TYPE2|ISO27001|HIPAA|GDPR|
 
 PHASE 3 — INFRASTRUCTURE
 Fields: cloudProviders [array: aws|gcp|azure|self-hosted|on-premise|multi-cloud], keyDatabases [array: postgres|mysql|mongodb|dynamodb|firestore|snowflake|redis|other], cicdTools [array: github_actions|jenkins|gitlab_ci|circleci|buildkite|other], sourceControl [github|gitlab|bitbucket|azure_devops|other], saasTools [array: slack|jira|notion|salesforce|okta|google_workspace|microsoft_365|pagerduty|datadog|github|crowdstrike|other], internetFacing [boolean]
-→ Quantify automation: "With [their tools], we can automate ~X SOC 2 controls without manual evidence collection."
+→ Quantify automation: "With [their tools], we can automate ~X [framework] controls without manual evidence collection."
 
 PHASE 4 — SECURITY OPERATIONS
 Fields: mfaStatus [none|partial|all_users|all_users_phishing_resistant], identityProvider [okta|azure_ad|google|jumpcloud|active_directory|none|other], loggingMaturity [none|basic|centralized|siem_integrated], siemTool [splunk|sumo_logic|datadog|elastic|sentinel|none|other], endpointManagement [none|basic|mdm|edr|full_edr], vulnerabilityScanning [none|manual|automated_basic|automated_continuous], patchManagement [manual|scheduled|automated|realtime], incidentResponsePlan [none|informal|documented|tested], backupStatus [none|basic|tested|automated_tested]
-→ Flag gaps immediately: "No MFA on admin accounts is the #1 finding in SOC 2 audits — critical to remediate before your assessment window."
+→ Flag gaps immediately: "No MFA on admin accounts is the #1 finding in compliance audits — critical to remediate before your assessment window."
 
 PHASE 5 — DATA & PRIVACY
 Fields: dataTypes [array: pii|phi|pci|financial|ip|confidential|public], gdprExposure [none|minimal|moderate|significant], ccpaExposure [none|minimal|significant], hipaaScope [none|covered_entity|business_associate], dataRetentionPolicy [none|informal|documented|automated], subprocessorCount [0|1-5|6-20|20+], crossBorderTransfers [boolean]

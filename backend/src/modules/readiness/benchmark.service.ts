@@ -149,38 +149,51 @@ export class BenchmarkService {
   }
 
   private getCommonGaps(industry: string, framework: string) {
-    const gaps: Record<string, string[]> = {
-      SaaS: [
-        'CC6.1 — Logical access controls (MFA not enforced org-wide)',
-        'CC7.2 — Monitoring and logging gaps (incomplete audit trail)',
-        'CC8.1 — Change management (no formal review process)',
-        'CC6.6 — Remote access security',
-        'CC9.2 — Vendor risk assessments not formalized',
-      ],
-      FinTech: [
-        'CC6.1 — Privileged access review not quarterly',
-        'CC6.3 — RBAC not implemented consistently',
-        'A.18.1 — Regulatory compliance documentation gaps',
-        'CC7.1 — Vulnerability management cadence',
-        'CC9.1 — Business continuity plans not tested',
-      ],
-      HealthTech: [
-        'A.18.1 — HIPAA cross-mapping documentation',
-        'CC6.7 — Encryption in transit gaps',
-        'CC6.1 — Access control reviews not documented',
-        'A.12.3 — Backup and recovery not tested',
-        'CC9.2 — BAA agreements not tracked',
-      ],
-      default: [
-        'CC6.1 — Logical access and MFA enforcement',
-        'CC7.2 — Logging and monitoring completeness',
-        'CC6.3 — Role-based access controls',
-        'CC8.1 — Change management formalization',
-        'CC9.2 — Third-party risk management',
-      ],
+    // Framework-specific gap sets — use the primary framework (first token for MULTI)
+    const primaryFramework = framework === 'MULTI' ? 'SOC2' : framework;
+
+    const frameworkGaps: Record<string, Record<string, string[]>> = {
+      SOC2: {
+        SaaS:    ['CC6.1 — MFA not enforced org-wide', 'CC7.2 — Incomplete audit trail', 'CC8.1 — No formal change management', 'CC9.2 — Vendor risk not formalised'],
+        FinTech: ['CC6.1 — Privileged access review gaps', 'CC6.3 — RBAC inconsistency', 'CC7.1 — Vulnerability cadence', 'CC9.1 — BCP not tested'],
+        default: ['CC6.1 — Logical access & MFA', 'CC7.2 — Logging completeness', 'CC6.3 — Role-based access', 'CC8.1 — Change management'],
+      },
+      ISO27001: {
+        SaaS:    ['A.8.2 — Privileged access reviews not quarterly', 'A.8.8 — Vulnerability management gaps', 'A.5.19 — Supplier agreements not formalised', 'A.8.24 — Encryption policy gaps'],
+        FinTech: ['A.5.19 — Third-party security not assessed', 'A.8.2 — Access controls inconsistent', 'A.5.24 — Incident response gaps', 'A.8.8 — Patch cadence issues'],
+        default: ['A.8.2 — Access privilege reviews', 'A.5.24 — Incident management', 'A.5.19 — Supplier security', 'A.6.3 — Security awareness training'],
+      },
+      HIPAA: {
+        HealthTech: ['HIPAA-164.312-a1 — Access controls incomplete', 'HIPAA-164.312-e1 — Transmission encryption gaps', 'HIPAA-164.308-a3 — Workforce clearance gaps', 'HIPAA-164.308-b1 — BAA inventory not maintained'],
+        default:    ['HIPAA-164.312-a1 — Access controls', 'HIPAA-164.312-e1 — Encryption in transit', 'HIPAA-164.308-a3 — Workforce security', 'HIPAA-164.308-b1 — Business associate agreements'],
+      },
+      PCI_DSS: {
+        FinTech:   ['PCI-1.3 — Network segmentation gaps', 'PCI-6.3 — Patch management cadence', 'PCI-8.2 — Shared credentials in use', 'PCI-10.2 — Log review not automated'],
+        Ecommerce: ['PCI-4.1 — Cardholder data not encrypted end-to-end', 'PCI-6.3 — Vulnerability scanning gaps', 'PCI-8.2 — MFA not enforced', 'PCI-12.8 — Vendor assessments incomplete'],
+        default:   ['PCI-1.3 — Network segmentation', 'PCI-6.3 — Vulnerability management', 'PCI-8.2 — Strong access controls', 'PCI-10.2 — Audit log completeness'],
+      },
+      FEDRAMP: {
+        default: ['AC-2 — Account management gaps', 'AU-6 — Audit review not continuous', 'CM-6 — Configuration baselines not documented', 'IA-2 — Multi-factor authentication gaps'],
+      },
+      NIST_CSF: {
+        default: ['ID.AM — Asset inventory incomplete', 'PR.AC — Access control gaps', 'DE.CM — Continuous monitoring not implemented', 'RS.RP — Incident response plan gaps'],
+      },
+      GDPR: {
+        default: ['GDPR-Art-32 — Technical security measures gaps', 'GDPR-Art-30 — ROPA not maintained', 'GDPR-Art-28 — Processor DPAs incomplete', 'GDPR-Art-33 — Breach notification procedure gaps'],
+      },
+      ISO9001: {
+        default: ['ISO9001-8.5 — Process controls not documented', 'ISO9001-10.2 — NCR corrective action delays', 'ISO9001-9.1 — Customer satisfaction not measured', 'ISO9001-7.5 — Document control gaps'],
+      },
+      ISO14001: {
+        default: ['ISO14001-6.1 — Environmental aspects register incomplete', 'ISO14001-9.1 — Monitoring & measurement gaps', 'ISO14001-6.2 — Environmental objectives not tracked', 'ISO14001-8.1 — Operational controls not documented'],
+      },
+      ISO45001: {
+        default: ['ISO45001-6.1 — Hazard identification gaps', 'ISO45001-9.1 — OH&S performance not measured', 'ISO45001-8.1 — Operational planning incomplete', 'ISO45001-10.2 — Incident investigation delays'],
+      },
     };
 
-    const industryGaps = gaps[industry] ?? gaps.default;
+    const fwGaps = frameworkGaps[primaryFramework] ?? frameworkGaps.SOC2;
+    const industryGaps = fwGaps[industry] ?? fwGaps.default ?? frameworkGaps.SOC2.default;
     return industryGaps.slice(0, 4);
   }
 
