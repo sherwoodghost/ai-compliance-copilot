@@ -11,8 +11,19 @@ export interface ControlDetail {
     description: string;
     isMandatory: boolean;
   }>;
-  crosswalkSources: Array<{ targetControl: { code: string; title: string } }>;
-  crosswalkTargets: Array<{ sourceControl: { code: string; title: string } }>;
+  // Flat CrosswalkMapping shape returned by the backend controller
+  crosswalkSources: Array<{
+    sourceCode: string; sourceTitle: string;
+    targetCode: string; targetTitle: string;
+    mappingType: string; confidence: string;
+    sourceFramework: string; targetFramework: string;
+  }>;
+  crosswalkTargets: Array<{
+    sourceCode: string; sourceTitle: string;
+    targetCode: string; targetTitle: string;
+    mappingType: string; confidence: string;
+    sourceFramework: string; targetFramework: string;
+  }>;
 }
 
 // Module-level in-memory cache — persists across renders, cleared on page refresh

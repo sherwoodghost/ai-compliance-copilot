@@ -92,15 +92,17 @@ function PopoverContent({ code, anchorRect, onClose }: PopoverContentProps) {
   const detailUrl = getDetailUrl(code);
 
   // Collect related controls from both crosswalk directions
+  // Flat CrosswalkMapping shape: sources → related = targetCode/targetTitle
+  //                              targets → related = sourceCode/sourceTitle
   const related: Array<{ code: string; title: string }> = [];
   if (data) {
     for (const cs of data.crosswalkSources ?? []) {
       if (related.length >= 4) break;
-      related.push(cs.targetControl);
+      if (cs.targetCode) related.push({ code: cs.targetCode, title: cs.targetTitle ?? '' });
     }
     for (const ct of data.crosswalkTargets ?? []) {
       if (related.length >= 4) break;
-      related.push(ct.sourceControl);
+      if (ct.sourceCode) related.push({ code: ct.sourceCode, title: ct.sourceTitle ?? '' });
     }
   }
 

@@ -215,17 +215,22 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <button
-        className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 text-left transition-colors"
-        onClick={onToggle}
-      >
-        {expanded ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
-        <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded shrink-0">
-          {control.code}
-        </span>
-        <span className="text-sm font-medium text-gray-900 flex-1 truncate">{control.title}</span>
-        <span className="text-xs text-gray-400 shrink-0 mr-2">{control.framework.type}</span>
-        {/* AI Explain button */}
+      {/* Row header — use div to avoid button-in-button HTML violation */}
+      <div className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 transition-colors">
+        {/* Toggle area — covers everything except the AI Explain button */}
+        <button
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
+          {expanded ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+          <span className="font-mono text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded shrink-0">
+            {control.code}
+          </span>
+          <span className="text-sm font-medium text-gray-900 flex-1 truncate">{control.title}</span>
+          <span className="text-xs text-gray-400 shrink-0 mr-2">{control.framework.type}</span>
+        </button>
+        {/* AI Explain button — sibling, not nested inside the toggle button */}
         <button
           onClick={handleExplain}
           disabled={explaining}
@@ -243,7 +248,7 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
           )}
           {explaining ? 'Explaining…' : explainResult ? 'Hide' : 'Explain'}
         </button>
-      </button>
+      </div>
 
       {(expanded || explainResult) && (
         <div className="px-4 pb-4 pt-2 bg-gray-50 border-t border-gray-100 space-y-3">

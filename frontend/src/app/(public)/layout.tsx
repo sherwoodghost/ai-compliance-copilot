@@ -1,9 +1,4 @@
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <body className="bg-gray-50 text-gray-900 antialiased">
-        {children}
-      </body>
-    </html>
-  );
+  // Note: <html> and <body> are provided by the root layout.tsx — don't repeat them here.
+  return <>{children}</>;
 }
