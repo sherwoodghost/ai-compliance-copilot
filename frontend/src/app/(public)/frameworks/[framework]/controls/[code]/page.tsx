@@ -113,9 +113,12 @@ function CrosswalkChip({
   framework,
 }: {
   code: string;
-  framework: string;
+  framework?: string;
 }) {
-  const target = framework.toLowerCase().includes('iso') ? 'iso27001' : 'soc2';
+  // Derive target framework: prefer explicit prop, fall back to code-based detection
+  const target = framework
+    ? (framework.toLowerCase().includes('iso') ? 'iso27001' : 'soc2')
+    : (code.startsWith('A.') ? 'iso27001' : 'soc2');
   const color  = categoryColorClass(code);
   return (
     <Link
