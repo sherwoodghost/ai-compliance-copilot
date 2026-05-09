@@ -4,7 +4,7 @@ import { apiClient } from './client';
 
 export type ControlStatus     = 'not_started' | 'in_progress' | 'implemented' | 'not_applicable';
 export type ControlSeverity   = 'critical' | 'high' | 'medium' | 'low';
-export type ControlFramework  = 'ISO27001' | 'SOC2' | 'GDPR' | 'HIPAA' | 'PCI_DSS';
+export type ControlFramework  = 'ISO27001' | 'SOC2' | 'GDPR' | 'HIPAA' | 'PCI_DSS' | 'FEDRAMP' | 'NIST_CSF' | 'ISO9001' | 'ISO14001' | 'ISO45001';
 
 export interface ControlStats {
   total:          number;

@@ -428,7 +428,7 @@ function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwne
 export default function ControlLibraryPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [filterFramework, setFilterFramework] = useState<'all' | 'SOC2' | 'ISO27001'>('all');
+  const [filterFramework, setFilterFramework] = useState<string>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const { data: controls = [], isLoading } = useQuery<Control[]>({
@@ -478,8 +478,26 @@ export default function ControlLibraryPage() {
     return matchesFramework && matchesSearch;
   });
 
-  const soc2Count = controls.filter((c) => c.framework.type === 'SOC2').length;
-  const isoCount = controls.filter((c) => c.framework.type === 'ISO27001').length;
+  // Build per-framework control counts dynamically from actual loaded controls
+  const frameworkCounts = controls.reduce<Record<string, number>>((acc, c) => {
+    const type = c.framework.type ?? 'unknown';
+    acc[type] = (acc[type] ?? 0) + 1;
+    return acc;
+  }, {});
+  const soc2Count  = frameworkCounts['SOC2']    ?? 0;
+  const isoCount   = frameworkCounts['ISO27001'] ?? 0;
+
+  // Derive available framework filter options from loaded controls
+  const FRAMEWORK_DISPLAY: Record<string, string> = {
+    SOC2: 'SOC 2', ISO27001: 'ISO 27001', GDPR: 'GDPR', ISO9001: 'ISO 9001',
+    HIPAA: 'HIPAA', PCI_DSS: 'PCI-DSS', FEDRAMP: 'FedRAMP', NIST_CSF: 'NIST CSF',
+    ISO14001: 'ISO 14001', ISO45001: 'ISO 45001',
+  };
+  const availableFrameworks = Object.keys(frameworkCounts).sort((a, b) => {
+    // Stable order: SOC2 → ISO27001 → alphabetical for the rest
+    const ORDER: Record<string, number> = { SOC2: 0, ISO27001: 1, GDPR: 2, HIPAA: 3, PCI_DSS: 4, FEDRAMP: 5, NIST_CSF: 6, ISO9001: 7, ISO14001: 8, ISO45001: 9 };
+    return (ORDER[a] ?? 99) - (ORDER[b] ?? 99);
+  });
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -503,9 +521,17 @@ export default function ControlLibraryPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">SOC 2: {soc2Count}</span>
-            <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-medium">ISO 27001: {isoCount}</span>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+            {soc2Count  > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">SOC 2: {soc2Count}</span>}
+            {isoCount   > 0 && <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-medium">ISO 27001: {isoCount}</span>}
+            {Object.entries(frameworkCounts)
+              .filter(([k]) => k !== 'SOC2' && k !== 'ISO27001')
+              .map(([k, v]) => (
+                <span key={k} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">
+                  {FRAMEWORK_DISPLAY[k] ?? k}: {v}
+                </span>
+              ))
+            }
           </div>
           <div className="flex items-center gap-1.5 text-xs text-purple-600 bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-lg">
             <Lightbulb className="w-3.5 h-3.5" />
@@ -525,17 +551,17 @@ export default function ControlLibraryPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {(['all', 'SOC2', 'ISO27001'] as const).map((f) => (
+        <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg">
+          {(['all', ...availableFrameworks]).map((f) => (
             <button
               key={f}
               onClick={() => setFilterFramework(f)}
               className={cn(
-                'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                'px-3 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap',
                 filterFramework === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
               )}
             >
-              {f === 'all' ? 'All' : f}
+              {f === 'all' ? 'All' : (FRAMEWORK_DISPLAY[f] ?? f)}
             </button>
           ))}
         </div>

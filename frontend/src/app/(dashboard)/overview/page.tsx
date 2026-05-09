@@ -484,6 +484,7 @@ function FrameworkWidgetsSection() {
 export default function OverviewPage() {
   const qc = useQueryClient();
   const [triggered, setTriggered] = useState<string | null>(null);
+  const { data: frameworks = [] } = useActiveFrameworks();
   const [digest, setDigest] = useState<{ content: string; generatedAt: string } | null>(null);
 
   const generateDigest = useMutation({
@@ -694,14 +695,33 @@ export default function OverviewPage() {
           )}
         </div>
 
-        {/* Trigger assessments */}
+        {/* Trigger assessments — dynamically built from org's active frameworks */}
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Run Assessment</h2>
           <div className="space-y-3">
-            {[
-              { type: 'SOC2', description: 'Full AI-powered SOC 2 Type II readiness assessment', icon: Shield },
-              { type: 'ISO27001', description: 'ISO 27001:2022 ISMS gap analysis and Statement of Applicability', icon: FileText },
-            ].map(({ type, description, icon: Icon }) => (
+            {((): { type: string; description: string; icon: React.ElementType }[] => {
+              const FRAMEWORK_ASSESSMENTS: Record<string, { type: string; description: string; icon: React.ElementType }> = {
+                'soc2':      { type: 'SOC2',      description: 'Full AI-powered SOC 2 Type II readiness assessment',                      icon: Shield },
+                'iso27001':  { type: 'ISO27001',  description: 'ISO 27001:2022 ISMS gap analysis and Statement of Applicability',        icon: FileText },
+                'gdpr':      { type: 'GDPR',      description: 'GDPR Article-by-Article compliance gap analysis',                        icon: Shield },
+                'hipaa':     { type: 'HIPAA',     description: 'HIPAA Security Rule safeguard readiness assessment',                    icon: FileText },
+                'pci-dss':   { type: 'PCI_DSS',   description: 'PCI DSS v4.0 Requirements gap analysis',                               icon: Shield },
+                'fedramp':   { type: 'FEDRAMP',   description: 'FedRAMP control family coverage and ATO readiness',                     icon: FileText },
+                'iso9001':   { type: 'ISO9001',   description: 'ISO 9001:2015 QMS process audit readiness check',                       icon: FileText },
+                'nist-csf':  { type: 'NIST_CSF',  description: 'NIST CSF 2.0 function-level maturity assessment',                       icon: Shield },
+                'iso14001':  { type: 'ISO14001',  description: 'ISO 14001:2015 environmental aspects and legal obligations audit',       icon: FileText },
+                'iso45001':  { type: 'ISO45001',  description: 'ISO 45001:2018 hazard identification and OHS performance assessment',    icon: Shield },
+              };
+              const activeList = frameworks.length > 0 ? frameworks : ['soc2', 'iso27001'];
+              const entries = activeList
+                .map((f) => FRAMEWORK_ASSESSMENTS[f])
+                .filter((e): e is { type: string; description: string; icon: React.ElementType } => !!e);
+              // Always show at least SOC2 + ISO27001 as fallback
+              if (entries.length === 0) {
+                return [FRAMEWORK_ASSESSMENTS['soc2']!, FRAMEWORK_ASSESSMENTS['iso27001']!];
+              }
+              return entries;
+            })().map(({ type, description, icon: Icon }) => (
               <div key={type} className="flex items-start justify-between gap-4 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">

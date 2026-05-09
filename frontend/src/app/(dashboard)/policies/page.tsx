@@ -12,6 +12,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { PolicyEditor, markdownToSimpleHtml } from '@/components/editor/PolicyEditor';
+import { useActiveFrameworks } from '@/lib/hooks/useActiveFrameworks';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,9 +40,19 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Policy Card ──────────────────────────────────────────────────────────────
 
 function PolicyCard({ policy, onSelect }: { policy: Policy; onSelect: () => void }) {
-  const frameworkColor = policy.framework === 'SOC2' ? 'bg-blue-50 text-blue-700' :
-                         policy.framework === 'ISO27001' ? 'bg-purple-50 text-purple-700' :
-                         'bg-gray-100 text-gray-600';
+  const FRAMEWORK_COLORS: Record<string, string> = {
+    SOC2:     'bg-blue-50 text-blue-700',
+    ISO27001: 'bg-purple-50 text-purple-700',
+    GDPR:     'bg-violet-50 text-violet-700',
+    HIPAA:    'bg-rose-50 text-rose-700',
+    PCI_DSS:  'bg-amber-50 text-amber-700',
+    FEDRAMP:  'bg-sky-50 text-sky-700',
+    ISO9001:  'bg-teal-50 text-teal-700',
+    NIST_CSF: 'bg-orange-50 text-orange-700',
+    ISO14001: 'bg-green-50 text-green-700',
+    ISO45001: 'bg-lime-50 text-lime-700',
+  };
+  const frameworkColor = FRAMEWORK_COLORS[policy.framework ?? ''] ?? 'bg-gray-100 text-gray-600';
 
   return (
     <button
@@ -482,12 +493,22 @@ function EmptyState({ onGenerate, isPending }: { onGenerate: () => void; isPendi
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Map canonical slug → FrameworkType enum value for assessment trigger
+const SLUG_TO_ASSESSMENT: Record<string, string> = {
+  'soc2': 'SOC2', 'iso27001': 'ISO27001', 'gdpr': 'GDPR', 'hipaa': 'HIPAA',
+  'pci-dss': 'PCI_DSS', 'fedramp': 'FEDRAMP', 'iso9001': 'ISO9001',
+  'nist-csf': 'NIST_CSF', 'iso14001': 'ISO14001', 'iso45001': 'ISO45001',
+};
+
 export default function PoliciesPage() {
   const [selected, setSelected] = useState<Policy | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [coverageResult, setCoverageResult] = useState<CoverageResult | null>(null);
   const qc = useQueryClient();
+  const { data: activeFrameworks = [] } = useActiveFrameworks();
+  // Use the org's primary active framework for policy generation
+  const primaryFramework = SLUG_TO_ASSESSMENT[activeFrameworks[0] ?? 'soc2'] ?? 'SOC2';
 
   const { data, isLoading } = useQuery({
     queryKey: ['policies'],
@@ -495,7 +516,7 @@ export default function PoliciesPage() {
   });
 
   const generate = useMutation({
-    mutationFn: () => auditApi.triggerAssessment('SOC2'),
+    mutationFn: () => auditApi.triggerAssessment(primaryFramework),
     onSuccess: () => {
       setTimeout(() => qc.invalidateQueries({ queryKey: ['policies'] }), 5000);
     },

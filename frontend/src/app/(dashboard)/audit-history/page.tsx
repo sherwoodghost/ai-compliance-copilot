@@ -58,7 +58,12 @@ function NewCycleModal({ onClose, onSave }: { onClose: () => void; onSave: (data
               <option value="ISO27001">ISO 27001</option>
               <option value="HIPAA">HIPAA</option>
               <option value="GDPR">GDPR</option>
-              <option value="PCI_DSS">PCI DSS</option>
+              <option value="PCI_DSS">PCI DSS v4.0</option>
+              <option value="FEDRAMP">FedRAMP</option>
+              <option value="NIST_CSF">NIST CSF 2.0</option>
+              <option value="ISO9001">ISO 9001</option>
+              <option value="ISO14001">ISO 14001</option>
+              <option value="ISO45001">ISO 45001</option>
             </select>
           </div>
           <div>
