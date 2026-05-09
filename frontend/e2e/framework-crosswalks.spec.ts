@@ -1,9 +1,9 @@
 /**
  * E2E tests — Cross-Framework Control Mappings page
  *
- * Tests the public crosswalks page (/frameworks/crosswalks) which shows
- * SOC 2 ↔ ISO 27001, GDPR ↔ ISO 27001, GDPR ↔ SOC 2, and HIPAA ↔ ISO 27001
- * mappings in a tabbed interface.
+ * Tests the public crosswalks page (/frameworks/crosswalks) which shows 7 pairs:
+ * SOC 2 ↔ ISO 27001, GDPR ↔ ISO 27001, GDPR ↔ SOC 2, HIPAA ↔ ISO 27001,
+ * HIPAA ↔ SOC 2, PCI-DSS ↔ ISO 27001, FedRAMP ↔ NIST CSF.
  */
 import { test, expect } from '@playwright/test';
 
@@ -28,11 +28,14 @@ test.describe('Cross-Framework Crosswalks page', () => {
     await expect(breadcrumb).toHaveAttribute('href', '/frameworks');
   });
 
-  test('shows the 4 framework pair tabs', async ({ page }) => {
+  test('shows all 7 framework pair tabs', async ({ page }) => {
     await expect(page.getByRole('button', { name: /SOC 2.*ISO 27001/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /GDPR.*ISO 27001/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /GDPR.*SOC 2/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /HIPAA.*ISO 27001/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /HIPAA.*SOC 2/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /PCI.DSS.*ISO 27001/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /FedRAMP.*NIST/i })).toBeVisible({ timeout: 15_000 });
   });
 
   test('first tab (SOC 2 ↔ ISO 27001) is active by default', async ({ page }) => {
@@ -82,6 +85,24 @@ test.describe('Cross-Framework Crosswalks page', () => {
     const hipaaTab = page.getByRole('button', { name: /HIPAA.*ISO 27001/i });
     await hipaaTab.click();
     await expect(page.getByText(/HIPAA Safeguard|HIPAA/i).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('clicking HIPAA ↔ SOC 2 tab switches to that pair', async ({ page }) => {
+    const tab = page.getByRole('button', { name: /HIPAA.*SOC 2/i });
+    await tab.click();
+    await expect(page.getByText(/HIPAA Safeguard|SOC 2 Control/i).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('clicking PCI-DSS ↔ ISO 27001 tab switches to that pair', async ({ page }) => {
+    const tab = page.getByRole('button', { name: /PCI.DSS.*ISO 27001/i });
+    await tab.click();
+    await expect(page.getByText(/PCI.DSS Requirement|ISO 27001/i).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('clicking FedRAMP ↔ NIST CSF tab switches to that pair', async ({ page }) => {
+    const tab = page.getByRole('button', { name: /FedRAMP.*NIST/i });
+    await tab.click();
+    await expect(page.getByText(/FedRAMP Control|NIST CSF/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('shows the explainer section at the bottom', async ({ page }) => {
