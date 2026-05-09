@@ -273,15 +273,28 @@ export class ContextPackerService {
 
   private async getScopeSummary(orgId: string): Promise<string> {
     try {
+      const parts: string[] = [];
+
+      // SOC 2 scope
       const soc2Scope = await this.prisma.soc2Scope.findFirst({
         where: { orgId, status: { not: 'superseded' } },
         orderBy: { version: 'desc' },
       });
+      if (soc2Scope) {
+        const tscs = soc2Scope.trustServiceCategories as string[];
+        parts.push(`SOC 2 scope: ${tscs?.join(', ') ?? 'not defined'} | Type: ${soc2Scope.auditType ?? 'not set'} | Status: ${soc2Scope.status}`);
+      }
 
-      if (!soc2Scope) return 'No scope defined yet';
+      // ISO 27001 / generic ISMS scope
+      const isoScope = await this.prisma.iso27001Scope.findFirst({
+        where: { orgId },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (isoScope) {
+        parts.push(`ISMS scope: ${(isoScope as any).ismsScope ?? 'not defined'}`);
+      }
 
-      const tscs = soc2Scope.trustServiceCategories as string[];
-      return `SOC 2 scope: ${tscs?.join(', ') ?? 'not defined'} | Type: ${soc2Scope.auditType ?? 'not set'} | Status: ${soc2Scope.status}`;
+      return parts.length > 0 ? parts.join(' | ') : 'No scope defined yet';
     } catch {
       return 'Scope unavailable';
     }
