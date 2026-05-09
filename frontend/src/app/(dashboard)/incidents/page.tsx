@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamApi } from '@/lib/api/team';
 import {
@@ -625,9 +625,13 @@ function IncidentDetail({
 // ─── Metrics Panel ────────────────────────────────────────────────────────────
 
 function MetricsPanel({ metrics }: { metrics: any }) {
-  // Always render a stable grid so server/client HTML matches (prevents hydration mismatch).
-  // Show skeleton placeholders while data is loading.
-  if (!metrics) {
+  // Use isMounted to defer data rendering until after hydration, preventing
+  // hydration mismatches when React Query has cached data on the client.
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
+
+  // Always render skeleton on server and before client mounts to match SSR HTML.
+  if (!metrics || !isMounted) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[...Array(4)].map((_, i) => (

@@ -6,7 +6,8 @@ import { AiFeaturesService } from '../ai-features.service';
 import { NotificationService } from '../../../notifications/notification.service';
 import { StorageService } from '../../../storage/storage.service';
 
-export const DOCUMENT_QUEUE = 'documents';
+import { DOCUMENT_QUEUE } from '../document-queue.constants';
+export { DOCUMENT_QUEUE };
 
 // ─── Job payload types ────────────────────────────────────────────────────────
 

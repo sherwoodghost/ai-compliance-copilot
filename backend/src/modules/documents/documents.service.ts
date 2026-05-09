@@ -32,7 +32,7 @@ import { EmbeddingService } from '../../embeddings/embedding.service';
 import { FeatureFlagService } from '../feature-flags/feature-flag.service';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { DOCUMENT_QUEUE } from './workers/document.worker';
+import { DOCUMENT_QUEUE } from './document-queue.constants';
 
 @Injectable()
 export class DocumentsService {

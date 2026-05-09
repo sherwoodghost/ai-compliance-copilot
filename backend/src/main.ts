@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { PrismaService } from './database/prisma.service';
 import { PinoNestLogger } from './telemetry/logger';
 import { startCollaborationServer } from './collaboration/collaboration.server';
 
@@ -157,7 +158,7 @@ async function bootstrap() {
   // Optional: Hocuspocus collaborative editing server (enabled via COLLABORATION_ENABLED=true)
   const collabPort = parseInt(process.env['COLLABORATION_PORT'] ?? '1234', 10);
   const jwtSecret  = configService.get<string>('jwt.secret') ?? process.env['JWT_SECRET'] ?? 'dev-secret';
-  const prismaClient = app.get('PrismaService');
+  const prismaClient = app.get(PrismaService);
   await startCollaborationServer({ port: collabPort, jwtSecret, prisma: prismaClient }).catch((err) =>
     logger.warn('Collaboration server failed to start: ' + (err?.message ?? err))
   );
