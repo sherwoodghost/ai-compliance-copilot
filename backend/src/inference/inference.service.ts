@@ -145,7 +145,7 @@ export class InferenceService {
       },
 
       goals: {
-        target_frameworks: (goals.frameworks ?? ['soc2']).map((f: string) => {
+        target_frameworks: (goals.frameworks ?? []).map((f: string) => {
           const SLUG_TO_FRAMEWORK: Record<string, string> = {
             soc2:      'SOC2',
             iso27001:  'ISO27001',

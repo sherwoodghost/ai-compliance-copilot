@@ -20,16 +20,17 @@ export class PlannerAgent extends BaseAgent {
 
     // ── Step 1: Load org controls ──────────────────────────────────────────
     const controls = await this.recordStep(runId, 'load_controls', 0, { orgId }, async () => {
-      const frameworkNames = businessProfile.complianceGoals.frameworks ?? ['soc2'];
+      const frameworkNames = businessProfile.complianceGoals.frameworks ?? [];
+
+      // Build where clause — if no frameworks specified, fetch all org controls
+      const frameworkFilter = frameworkNames.length > 0
+        ? { framework: { type: { in: frameworkNames.map((f) => f.toUpperCase() as any) } } }
+        : {};
 
       const orgControls = await this.prisma.organizationControl.findMany({
         where: {
           orgId,
-          control: {
-            framework: {
-              type: { in: frameworkNames.map((f) => f.toUpperCase() as any) },
-            },
-          },
+          control: frameworkFilter,
         },
         include: {
           control: {

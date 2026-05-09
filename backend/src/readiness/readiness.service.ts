@@ -26,7 +26,7 @@ export class ReadinessService {
     // Determine which frameworks to score
     const profile = await this.prisma.businessProfile.findUnique({ where: { orgId } });
     const targetFrameworks = frameworks ??
-      ((profile?.complianceGoals as any)?.frameworks ?? ['soc2']);
+      ((profile?.complianceGoals as any)?.frameworks ?? []);
 
     const result: ReadinessScoreOutput = {
       overall: 0,
