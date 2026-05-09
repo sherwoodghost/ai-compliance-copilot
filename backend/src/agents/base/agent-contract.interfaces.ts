@@ -40,17 +40,22 @@ export type ApproverRole = 'admin' | 'security_lead' | 'executive' | 'legal';
 
 // ─── Framework reference ─────────────────────────────────────────────────────
 
+export type SupportedFramework =
+  | 'SOC2' | 'ISO27001' | 'HIPAA' | 'GDPR'
+  | 'PCI_DSS' | 'FEDRAMP' | 'NIST_CSF'
+  | 'ISO9001' | 'ISO14001' | 'ISO45001';
+
 export interface FrameworkVersionRef {
-  frameworkType: 'SOC2' | 'ISO27001';
-  version: string; // e.g. 'SOC2:2017', 'ISO27001:2022'
+  frameworkType: SupportedFramework;
+  version: string; // e.g. 'SOC2:2017', 'ISO27001:2022', 'HIPAA:2013'
 }
 
 // ─── Control reference ───────────────────────────────────────────────────────
 
 export interface ControlRef {
   controlId: string; // UUID in the DB
-  code: string;      // e.g. 'CC6.1', 'A.8.24'
-  framework: 'SOC2' | 'ISO27001';
+  code: string;      // e.g. 'CC6.1', 'A.8.24', 'HIPAA-164.312-a1'
+  framework: SupportedFramework;
 }
 
 // ─── Agent execution context ─────────────────────────────────────────────────

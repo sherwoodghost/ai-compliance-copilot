@@ -7,9 +7,12 @@ const AUDIT_DISCLAIMER = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DISCLAIMER
 This report reflects an internal readiness assessment only.
-It does NOT constitute an official SOC 2 audit opinion, ISO 27001
-certification, or any other form of external attestation.
-Certification requires engagement with an accredited third-party auditor.
+It does NOT constitute an official audit opinion, certification,
+or any other form of external attestation for any framework
+(including but not limited to SOC 2, ISO 27001, HIPAA, PCI DSS,
+FedRAMP, GDPR, NIST CSF, ISO 9001, ISO 14001, or ISO 45001).
+Certification or attestation requires engagement with an accredited
+third-party auditor or certifying body.
 This document has not been reviewed or approved by any auditing body.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
@@ -168,22 +171,34 @@ export class AuditExportService {
   }
 
   /**
-   * Generate a control matrix export (both frameworks).
+   * Generate a control matrix export (all active frameworks for the org).
    */
   async generateControlMatrix(orgId: string, generatedBy?: string) {
-    const controls = await this.prisma.organizationControl.findMany({
-      where: { orgId },
-      include: {
-        control: { include: { framework: true } },
-      },
-      orderBy: [{ control: { framework: { type: 'asc' } } }, { control: { code: 'asc' } }],
-    });
+    const [controls, profile] = await Promise.all([
+      this.prisma.organizationControl.findMany({
+        where: { orgId },
+        include: {
+          control: { include: { framework: true } },
+        },
+        orderBy: [{ control: { framework: { type: 'asc' } } }, { control: { code: 'asc' } }],
+      }),
+      this.prisma.businessProfile.findUnique({ where: { orgId } }),
+    ]);
+
+    // Derive a human-readable framework label from the org's active frameworks
+    const targetFrameworks: string[] = (profile as any)?.complianceGoals?.targetFrameworks ?? [];
+    const frameworkLabel = targetFrameworks.length === 0
+      ? 'ALL'
+      : targetFrameworks.length === 1
+        ? targetFrameworks[0].toUpperCase().replace(/-/g, '_')
+        : 'MULTI';
 
     const content = {
       disclaimer: AUDIT_DISCLAIMER.trim(),
       generatedAt: new Date().toISOString(),
+      frameworks: targetFrameworks,
       controls: controls.map((oc) => ({
-        framework: oc.control.framework.type,
+        framework: (oc.control as any).framework?.type ?? 'unknown',
         code: oc.control.code,
         title: oc.control.title,
         status: oc.status,
@@ -198,7 +213,7 @@ export class AuditExportService {
       data: {
         orgId,
         exportType: 'control_matrix',
-        framework: 'BOTH',
+        framework: frameworkLabel,
         status: 'draft',
         content: content as any,
         disclaimerIncluded: true,
@@ -264,7 +279,7 @@ export class AuditExportService {
 
     const pd = (profile as any) ?? {};
     const companyName = pd.companyName ?? 'Your Organization';
-    const frameworks  = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2']).join(', ');
+    const frameworks  = (pd.complianceGoals?.targetFrameworks ?? ['SOC 2', 'ISO 27001']).join(', ');
     const score       = (readinessScore as any)?.overallScore ?? 0;
     const generatedAt = new Date().toISOString();
 

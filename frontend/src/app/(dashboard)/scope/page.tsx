@@ -657,7 +657,7 @@ export default function ScopePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Scope Definition</h1>
           <p className="text-sm text-gray-500 mt-1">
-            SOC 2 system scope · ISO 27001 ISMS scope · Statement of Applicability
+            SOC 2 system scope · Framework scope · Statement of Applicability
           </p>
         </div>
         {activeTab === 'soc2' && (
@@ -687,7 +687,7 @@ export default function ScopePage() {
               activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700',
             )}
           >
-            {tab === 'soc2' ? 'SOC 2 Scope' : 'ISO 27001 / SoA'}
+            {tab === 'soc2' ? 'SOC 2 Scope' : 'Framework Scope / SoA'}
           </button>
         ))}
       </div>
