@@ -61,6 +61,20 @@ export interface ReadinessScoreOutput {
 
 export const FORMULA_VERSION = '1.0.0';
 
+/** Slug-to-label map for all 10 supported frameworks */
+export const FRAMEWORK_SLUG_LABELS: Record<string, string> = {
+  soc2:     'SOC2',
+  iso27001: 'ISO27001',
+  hipaa:    'HIPAA',
+  'pci-dss': 'PCI_DSS',
+  fedramp:  'FEDRAMP',
+  'nist-csf': 'NIST_CSF',
+  iso9001:  'ISO9001',
+  iso14001: 'ISO14001',
+  iso45001: 'ISO45001',
+  gdpr:     'GDPR',
+};
+
 /**
  * Calculate control design score.
  * Partial credit (0.5) for in-progress controls.
@@ -161,6 +175,9 @@ export function computeSoc2Score(inputs: ScoreInputs): FrameworkScore {
 
 /**
  * Compute full ISO 27001 readiness score.
+ * Also used as the generic risk-based scoring formula for HIPAA, PCI-DSS,
+ * FedRAMP, NIST CSF, ISO 9001, ISO 14001, ISO 45001, and GDPR — all of
+ * which include risk management as a core compliance domain.
  */
 export function computeIso27001Score(inputs: ScoreInputs): FrameworkScore {
   const cd = controlDesignScore(inputs);
@@ -188,6 +205,12 @@ export function computeIso27001Score(inputs: ScoreInputs): FrameworkScore {
     readinessLabel: toLabel(overall),
   };
 }
+
+/**
+ * Generic risk-based scoring formula — alias for computeIso27001Score.
+ * Used for HIPAA, PCI-DSS, FedRAMP, NIST CSF, ISO 9001, ISO 14001, ISO 45001, GDPR.
+ */
+export const computeGenericScore = computeIso27001Score;
 
 function toGrade(score: number): 'A' | 'B' | 'C' | 'D' | 'F' {
   if (score >= 90) return 'A';

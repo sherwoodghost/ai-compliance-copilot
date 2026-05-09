@@ -36,10 +36,22 @@ export class ControlLibraryController {
   @Public()
   @Get(':framework')
   async getByFramework(@Param('framework') framework: string) {
-    const type = framework.toUpperCase();
-    // Guard: only pass valid FrameworkType values to Prisma
-    if (type !== 'SOC2' && type !== 'ISO27001') return [];
-    return this.library.getControlsByFramework(type as 'SOC2' | 'ISO27001');
+    // Map URL slugs (e.g. pci-dss, nist-csf) to Prisma FrameworkType enum values
+    const SLUG_TO_TYPE: Record<string, string> = {
+      'soc2':      'SOC2',
+      'iso27001':  'ISO27001',
+      'hipaa':     'HIPAA',
+      'pci-dss':   'PCI_DSS',
+      'gdpr':      'GDPR',
+      'fedramp':   'FEDRAMP',
+      'iso9001':   'ISO9001',
+      'nist-csf':  'NIST_CSF',
+      'iso14001':  'ISO14001',
+      'iso45001':  'ISO45001',
+    };
+    const type = SLUG_TO_TYPE[framework.toLowerCase()];
+    if (!type) return [];
+    return this.library.getControlsByFramework(type as any);
   }
 
   /** Public — used by external control detail pages and ControlChip popover */

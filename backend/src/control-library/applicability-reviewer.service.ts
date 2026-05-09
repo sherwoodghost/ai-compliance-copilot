@@ -9,6 +9,7 @@ interface ApplicabilityBatchItem {
   title: string;
   description: string | null;
   category: string | null;
+  frameworkName: string | null;
   currentStatus: string;
   rationale: string | null;
 }
@@ -86,11 +87,14 @@ export class ApplicabilityReviewerService {
           title: r.control.title,
           description: r.control.description,
           category: r.control.category,
+          frameworkName: r.control.framework?.name ?? null,
           currentStatus: r.applicabilityStatus,
           rationale: r.rationale,
         }));
 
-        const results = await this.callLlmBatch(profileSummary, items);
+        // Derive unique framework names present in this batch
+        const batchFrameworks = [...new Set(items.map((i) => i.frameworkName).filter(Boolean))];
+        const results = await this.callLlmBatch(profileSummary, items, batchFrameworks as string[]);
         await this.persistResults(orgId, items, results);
         enriched += results.length;
       } catch (err: any) {
@@ -118,12 +122,14 @@ export class ApplicabilityReviewerService {
   private async callLlmBatch(
     profileSummary: string,
     items: ApplicabilityBatchItem[],
+    frameworks: string[] = [],
   ): Promise<AiApplicabilityResult[]> {
     const controlsList = items
       .map((i) => `${i.code}: ${i.title}${i.description ? ` — ${i.description.slice(0, 150)}` : ''}`)
       .join('\n');
 
-    const systemPrompt = `You are a compliance expert assessing whether ISO 27001 and SOC 2 controls apply to a specific company. Be concise and specific to the company's actual situation. Return ONLY valid JSON.`;
+    const frameworkList = frameworks.length > 0 ? frameworks.join(', ') : 'compliance';
+    const systemPrompt = `You are a compliance expert assessing whether ${frameworkList} controls apply to a specific company. Be concise and specific to the company's actual situation. Return ONLY valid JSON.`;
 
     const userPrompt = `Company profile:
 ${profileSummary}

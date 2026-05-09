@@ -591,7 +591,7 @@ export default function ReadinessPage() {
               sub={`${breakdown.scoreInputs?.overdueTasks ?? 0} overdue tasks · weight 10%`} />
             {breakdown.framework !== 'SOC2' && (
               <ScoreBar label="Risk Management" score={breakdown.riskManagementScore} icon={AlertTriangle}
-                sub={`${breakdown.scoreInputs?.openHighRisks ?? 0} open high risks · weight 15% (ISO)`} />
+                sub={`${breakdown.scoreInputs?.openHighRisks ?? 0} open high risks · weight 15%`} />
             )}
           </div>
 

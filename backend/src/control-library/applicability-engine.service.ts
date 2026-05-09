@@ -73,6 +73,26 @@ export class ControlApplicabilityEngine {
       } else if (framework === 'iso27001') {
         const isoResults = await this.runIso27001(profile);
         results.push(...isoResults);
+      } else {
+        // Generic handler for HIPAA, PCI-DSS, FedRAMP, NIST CSF, ISO 9001, ISO 14001, ISO 45001, GDPR.
+        // Map framework slug to FrameworkType enum value used in the control library.
+        const SLUG_TO_FRAMEWORK_TYPE: Record<string, string> = {
+          hipaa:     'HIPAA',
+          'pci-dss': 'PCI_DSS',
+          fedramp:   'FEDRAMP',
+          'nist-csf':'NIST_CSF',
+          iso9001:   'ISO9001',
+          iso14001:  'ISO14001',
+          iso45001:  'ISO45001',
+          gdpr:      'GDPR',
+        };
+        const frameworkType = SLUG_TO_FRAMEWORK_TYPE[framework.toLowerCase()];
+        if (frameworkType) {
+          const genericResults = await this.runGenericFramework(frameworkType, profile);
+          results.push(...genericResults);
+        } else {
+          this.logger.warn(`Unknown framework slug '${framework}' — skipping applicability mapping`);
+        }
       }
     }
 
@@ -219,6 +239,30 @@ export class ControlApplicabilityEngine {
       requiresHumanReview: true,
       confidence: 'low',
     };
+  }
+
+  // ── Generic Framework Applicability (HIPAA / PCI-DSS / FedRAMP / NIST / ISO-family) ─────
+
+  /**
+   * Generic applicability runner for frameworks without bespoke heuristics.
+   * All controls from the library are marked applicable by default, with a note
+   * that organization-specific tailoring should be reviewed via the
+   * ApplicabilityReviewerAgent (AI enrichment pass) after onboarding completes.
+   */
+  private async runGenericFramework(
+    frameworkType: string,
+    _profile: BusinessProfileSnapshot,
+  ): Promise<ApplicabilityResult[]> {
+    const controls = await this.library.getControlsByFramework(frameworkType);
+    return controls.map((control: any) => ({
+      controlId: control.id,
+      controlCode: control.code,
+      applicable: true,
+      applicabilityStatus: 'applicable' as const,
+      rationale: `${frameworkType} controls are applicable by default. Review and tailor via Statement of Applicability.`,
+      requiresHumanReview: false,
+      confidence: 'high' as const,
+    }));
   }
 
   // ── ISO 27001 Applicability Rules ─────────────────────────────────────────

@@ -5,7 +5,9 @@ import {
   ReadinessScoreOutput,
   computeSoc2Score,
   computeIso27001Score,
+  computeGenericScore,
   FORMULA_VERSION,
+  FRAMEWORK_SLUG_LABELS,
 } from './scoring-formulas';
 
 @Injectable()
@@ -46,6 +48,16 @@ export class ReadinessService {
       scores.push(result.iso27001.overall);
     }
 
+    // All other frameworks use the generic risk-based formula (same weights as ISO 27001).
+    // This covers HIPAA, PCI-DSS, FedRAMP, NIST CSF, ISO 9001, ISO 14001, ISO 45001, GDPR.
+    const GENERIC_FRAMEWORKS = ['hipaa', 'pci-dss', 'fedramp', 'nist-csf', 'iso9001', 'iso14001', 'iso45001', 'gdpr'];
+    const hasGeneric = targetFrameworks.some((f: string) => GENERIC_FRAMEWORKS.includes(f.toLowerCase()));
+    if (hasGeneric && !targetFrameworks.includes('iso27001')) {
+      // Store in iso27001 slot for DB compatibility (persist() reads from there)
+      result.iso27001 = computeGenericScore(inputs);
+      scores.push(result.iso27001.overall);
+    }
+
     result.overall = scores.length > 0
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
       : 0;
@@ -56,7 +68,7 @@ export class ReadinessService {
     await this.persist(orgId, result, targetFrameworks);
 
     this.logger.log(
-      `Readiness scores for org ${orgId}: overall=${result.overall}% | SOC2=${result.soc2?.overall ?? 'N/A'} | ISO=${result.iso27001?.overall ?? 'N/A'}`,
+      `Readiness scores for org ${orgId}: overall=${result.overall}% | frameworks=${targetFrameworks.join(',')} | soc2=${result.soc2?.overall ?? 'N/A'} | iso/generic=${result.iso27001?.overall ?? 'N/A'}`,
     );
 
     return result;
@@ -203,8 +215,9 @@ export class ReadinessService {
   }
 
   private async persist(orgId: string, result: ReadinessScoreOutput, frameworks: string[]) {
-    const frameworkLabel = frameworks.length > 1 ? 'BOTH' :
-      frameworks[0] === 'soc2' ? 'SOC2' : 'ISO27001';
+    const frameworkLabel = frameworks.length > 1
+      ? 'MULTI'
+      : (FRAMEWORK_SLUG_LABELS[frameworks[0]?.toLowerCase() ?? ''] ?? 'UNKNOWN');
 
     await this.prisma.readinessScore.create({
       data: {

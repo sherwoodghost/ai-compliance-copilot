@@ -42,10 +42,16 @@ const STATUS_BG: Record<FileStatus, string> = {
 };
 
 const FRAMEWORK_COLORS: Record<string, string> = {
-  SOC2: 'bg-blue-100 text-blue-700',
-  ISO27001: 'bg-red-100 text-red-700',
-  GDPR: 'bg-violet-100 text-violet-700',
-  ISO9001: 'bg-teal-100 text-teal-700',
+  SOC2:     'bg-blue-100 text-blue-700',
+  ISO27001: 'bg-indigo-100 text-indigo-700',
+  GDPR:     'bg-violet-100 text-violet-700',
+  ISO9001:  'bg-teal-100 text-teal-700',
+  HIPAA:    'bg-green-100 text-green-700',
+  PCI_DSS:  'bg-orange-100 text-orange-700',
+  FEDRAMP:  'bg-sky-100 text-sky-700',
+  NIST_CSF: 'bg-cyan-100 text-cyan-700',
+  ISO14001: 'bg-emerald-100 text-emerald-700',
+  ISO45001: 'bg-yellow-100 text-yellow-700',
 };
 
 function formatBytes(bytes: number): string {
