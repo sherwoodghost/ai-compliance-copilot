@@ -125,6 +125,12 @@ function makeService(prisma: ReturnType<typeof makeMockPrisma>) {
 
   const embeddings = { embed: jest.fn().mockResolvedValue(null), embedBatch: jest.fn() };
   const featureFlags = { isEnabled: jest.fn().mockResolvedValue(false) };
+  const approvalWorkflow = {
+    startWorkflow:      jest.fn().mockResolvedValue({ instanceId: 'wf-1' }),
+    getActiveInstance:  jest.fn().mockResolvedValue(null),
+    advanceStep:        jest.fn().mockResolvedValue({ status: 'completed', complete: true }),
+    cancelWorkflow:     jest.fn().mockResolvedValue(undefined),
+  };
   const queue = { add: jest.fn() };
   return new DocumentsService(
     prisma as any,
@@ -134,6 +140,7 @@ function makeService(prisma: ReturnType<typeof makeMockPrisma>) {
     emitter as any,
     embeddings as any,
     featureFlags as any,
+    approvalWorkflow as any,
     queue as any,
   );
 }

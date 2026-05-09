@@ -126,8 +126,14 @@ function makeMocks() {
 
   const embeddings = { embed: jest.fn().mockResolvedValue(null), embedBatch: jest.fn() } as any;
   const featureFlags = { isEnabled: jest.fn().mockResolvedValue(false) } as any;
+  const approvalWorkflow = {
+    startWorkflow:      jest.fn().mockResolvedValue({ instanceId: 'wf-1' }),
+    getActiveInstance:  jest.fn().mockResolvedValue(null),
+    advanceStep:        jest.fn().mockResolvedValue({ status: 'completed', complete: true }),
+    cancelWorkflow:     jest.fn().mockResolvedValue(undefined),
+  } as any;
   const queue = { add: jest.fn() } as any;
-  const service = new DocumentsService(prisma, sanitizer, retention, aiFeatures, events, embeddings, featureFlags, queue);
+  const service = new DocumentsService(prisma, sanitizer, retention, aiFeatures, events, embeddings, featureFlags, approvalWorkflow, queue);
 
   return { service, prisma, events, retention, docState: () => docState };
 }

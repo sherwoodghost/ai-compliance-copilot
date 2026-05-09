@@ -13,6 +13,7 @@ import { StorageModule } from '../../storage/storage.module';
 import { EmbeddingModule } from '../../embeddings/embedding.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
+import { ApprovalWorkflowModule } from '../approval-workflow/approval-workflow.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { NotificationsModule } from '../../notifications/notifications.module';
     NotificationsModule,
     EmbeddingModule,
     FeatureFlagsModule,
+    ApprovalWorkflowModule,
     BullModule.registerQueue({ name: DOCUMENT_QUEUE }),
   ],
   controllers: [DocumentsController],

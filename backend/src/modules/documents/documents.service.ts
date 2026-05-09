@@ -30,6 +30,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { EmbeddingService } from '../../embeddings/embedding.service';
 import { FeatureFlagService } from '../feature-flags/feature-flag.service';
+import { ApprovalWorkflowService } from '../approval-workflow/approval-workflow.service';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { DOCUMENT_QUEUE } from './document-queue.constants';
@@ -39,13 +40,14 @@ export class DocumentsService {
   private readonly logger = new Logger(DocumentsService.name);
 
   constructor(
-    private readonly prisma:        PrismaService,
-    private readonly sanitizer:     SanitizerService,
-    private readonly retention:     RetentionService,
-    private readonly aiFeatures:    AiFeaturesService,
-    private readonly events:        EventEmitter2,
-    private readonly embeddings:    EmbeddingService,
-    private readonly featureFlags:  FeatureFlagService,
+    private readonly prisma:          PrismaService,
+    private readonly sanitizer:       SanitizerService,
+    private readonly retention:       RetentionService,
+    private readonly aiFeatures:      AiFeaturesService,
+    private readonly events:          EventEmitter2,
+    private readonly embeddings:      EmbeddingService,
+    private readonly featureFlags:    FeatureFlagService,
+    private readonly approvalWorkflow: ApprovalWorkflowService,
     @InjectQueue(DOCUMENT_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -295,13 +297,22 @@ export class DocumentsService {
     return updated;
   }
 
-  // ── Request approval (locks document) ───────────────────────────────────────
+  // ── Request approval (starts workflow + locks document) ─────────────────────
 
   async requestApproval(orgId: string, id: string, actorId: string) {
     const doc = await this.findOrThrow(orgId, id);
     if (doc.lockedAt) throw new ConflictException('Document is already locked');
     if (doc.status === 'approved') throw new ConflictException('Document is already approved');
 
+    // Start approval workflow — engine handles step notifications + SLA tracking
+    const { instanceId } = await this.approvalWorkflow.startWorkflow(
+      orgId,
+      'Document',
+      id,
+      actorId,
+    );
+
+    // Lock the document so edits are blocked while under review
     const updated = await this.prisma.document.update({
       where: { id },
       data: {
@@ -309,6 +320,7 @@ export class DocumentsService {
         lockedBy:     actorId,
         lockedReason: 'pending_approval',
         status:       'review',
+        metadata:     { ...(doc.metadata as object ?? {}), workflowInstanceId: instanceId },
       },
     });
 
@@ -324,7 +336,7 @@ export class DocumentsService {
   async approve(orgId: string, id: string, actorId: string) {
     const doc = await this.findOrThrow(orgId, id);
 
-    // SoD: approver must not be the document owner/author
+    // SoD: approver must not be the document owner/author (also enforced in workflow engine)
     if (doc.ownerId === actorId) {
       throw new ForbiddenException('Approver cannot be the document owner (SoD violation)');
     }
@@ -332,6 +344,27 @@ export class DocumentsService {
       throw new ConflictException(`Cannot approve document in status: ${doc.status}`);
     }
 
+    // Advance the active workflow instance if one exists
+    const instance = await this.approvalWorkflow.getActiveInstance('Document', id);
+    let workflowComplete = true;
+
+    if (instance) {
+      const result = await this.approvalWorkflow.advanceStep(
+        orgId,
+        instance.id,
+        actorId,
+        'approved',
+      );
+      // Multi-step workflow: only mark document as approved when ALL steps are done
+      workflowComplete = result.complete;
+    }
+
+    if (!workflowComplete) {
+      // More steps remain — document stays locked, next approver has been notified
+      return doc;
+    }
+
+    // All workflow steps done (or no workflow) → mark document as approved
     const updated = await this.prisma.document.update({
       where: { id },
       data: {
@@ -359,6 +392,22 @@ export class DocumentsService {
     const doc = await this.findOrThrow(orgId, id);
     if (doc.status !== 'review') throw new ConflictException(`Cannot reject document in status: ${doc.status}`);
 
+    // Advance workflow instance with rejection (terminates workflow regardless of step)
+    const instance = await this.approvalWorkflow.getActiveInstance('Document', id);
+    if (instance) {
+      await this.approvalWorkflow.advanceStep(
+        orgId,
+        instance.id,
+        actorId,
+        'rejected',
+        reason,
+      ).catch(() => {
+        // Non-blocking — rejection still proceeds even if workflow advance fails
+        this.logger.warn(`Workflow advance on rejection failed for document ${id}`);
+      });
+    }
+
+    // Release lock and return document to draft regardless of workflow state
     const updated = await this.prisma.document.update({
       where: { id },
       data: {

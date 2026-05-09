@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../database/prisma.service';
+import { ApprovalWorkflowService } from '../modules/approval-workflow/approval-workflow.service';
 
 /**
  * DocumentSchedulerService
  *
  * Handles time-based lifecycle operations for documents:
  *
- *  • Daily   01:00 UTC  — Soft-delete documents past retainUntil (no legal hold)
+ *  • Hourly               — Check for workflow SLA breaches + escalate
+ *  • Daily   01:00 UTC    — Soft-delete documents past retainUntil (no legal hold)
  *  • Monthly  1st 00:30 UTC — Physical purge of soft-deleted docs >30 days old
  *  • Monthly  1st 00:00 UTC — Reset per-org AI token usage counters
  */
@@ -15,7 +17,24 @@ import { PrismaService } from '../database/prisma.service';
 export class DocumentSchedulerService {
   private readonly logger = new Logger(DocumentSchedulerService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma:          PrismaService,
+    private readonly approvalWorkflow: ApprovalWorkflowService,
+  ) {}
+
+  // ─── Hourly: workflow SLA breach escalation ───────────────────────────────────
+
+  @Cron('0 * * * *', { name: 'hourly-workflow-sla-check', timeZone: 'UTC' })
+  async checkWorkflowSla(): Promise<void> {
+    try {
+      const escalated = await this.approvalWorkflow.checkSlaBreaches();
+      if (escalated > 0) {
+        this.logger.warn(`[WorkflowSLA] Escalated ${escalated} overdue workflow step(s)`);
+      }
+    } catch (err) {
+      this.logger.error(`[WorkflowSLA] SLA check failed: ${(err as Error).message}`);
+    }
+  }
 
   // ─── Daily: archive expired documents ────────────────────────────────────────
 
