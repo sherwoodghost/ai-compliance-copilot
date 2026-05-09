@@ -92,7 +92,7 @@ export interface InferredFramework {
 }
 
 export interface RequiredControl {
-  framework: 'SOC2' | 'ISO27001';
+  framework: Framework;
   control_id: string;
   control_category: string;
   reason: string;
