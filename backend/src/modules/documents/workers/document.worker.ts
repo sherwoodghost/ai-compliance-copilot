@@ -113,7 +113,18 @@ export class DocumentWorker {
     const doc     = await this.documents.findOne(orgId, documentId);
     const content = (doc as any).contentText ?? (doc as any).title ?? '';
 
-    const gaps = await this.aiFeatures.detectGaps(orgId, content, frameworks ?? ['ISO27001', 'SOC2']);
+    // Use explicitly-passed frameworks; fall back to the org's active frameworks from their profile,
+    // then default to the two most common frameworks if no profile exists.
+    let effectiveFrameworks = frameworks;
+    if (!effectiveFrameworks?.length) {
+      try {
+        const profile = await (this.documents as any).prisma?.businessProfile?.findUnique({ where: { orgId } });
+        effectiveFrameworks = (profile?.complianceGoals as any)?.frameworks ?? ['ISO27001', 'SOC2'];
+      } catch {
+        effectiveFrameworks = ['ISO27001', 'SOC2'];
+      }
+    }
+    const gaps = await this.aiFeatures.detectGaps(orgId, content, effectiveFrameworks);
     await job.progress(90);
 
     this.logger.log(`[ai-gaps] found ${gaps.length} gap(s) for doc=${documentId}`);

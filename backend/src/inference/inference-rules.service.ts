@@ -9,6 +9,7 @@ import {
   SystemFlags,
   DataClassification,
   RiskLevel,
+  Framework,
   INFERENCE_ENGINE_VERSION,
   RISK_THRESHOLDS,
 } from './inference.types';
@@ -87,21 +88,28 @@ export class InferenceRulesService {
 
     // Goals-based frameworks always win — override any inferred applicability
     // User selection REQUIRED > any rule-inferred RECOMMENDED/OPTIONAL
-    if (profile.goals.target_frameworks.includes('SOC2')) {
-      frameworks.set('SOC2', {
-        framework: 'SOC2',
-        applicability: 'REQUIRED',
-        reason: 'Explicitly selected by organization as a target framework',
-        triggered_by_rule_id: 'R-005',
-      });
-    }
-    if (profile.goals.target_frameworks.includes('ISO27001')) {
-      frameworks.set('ISO27001', {
-        framework: 'ISO27001',
-        applicability: 'REQUIRED',
-        reason: 'Explicitly selected by organization as a target framework',
-        triggered_by_rule_id: 'R-006',
-      });
+    // Explicit selection always marks a framework REQUIRED (overrides any inferred RECOMMENDED/OPTIONAL)
+    const EXPLICIT_FRAMEWORKS: Array<{ id: Framework; ruleId: string }> = [
+      { id: 'SOC2',     ruleId: 'R-005' },
+      { id: 'ISO27001', ruleId: 'R-006' },
+      { id: 'HIPAA',    ruleId: 'R-013' },
+      { id: 'GDPR',     ruleId: 'R-014' },
+      { id: 'PCI_DSS',  ruleId: 'R-015' },
+      { id: 'FEDRAMP',  ruleId: 'R-016' },
+      { id: 'NIST_CSF', ruleId: 'R-017' },
+      { id: 'ISO9001',  ruleId: 'R-018' },
+      { id: 'ISO14001', ruleId: 'R-019' },
+      { id: 'ISO45001', ruleId: 'R-020' },
+    ];
+    for (const { id, ruleId } of EXPLICIT_FRAMEWORKS) {
+      if (profile.goals.target_frameworks.includes(id)) {
+        frameworks.set(id, {
+          framework: id,
+          applicability: 'REQUIRED',
+          reason: 'Explicitly selected by organization as a target framework',
+          triggered_by_rule_id: ruleId,
+        });
+      }
     }
 
     return {
@@ -233,7 +241,7 @@ export class InferenceRulesService {
             {
               type: 'framework',
               payload: {
-                framework: 'PCI',
+                framework: 'PCI_DSS',
                 applicability: 'RECOMMENDED',
                 reason: 'Financial data handling may require PCI DSS compliance if card data is processed',
                 triggered_by_rule_id: 'R-003',

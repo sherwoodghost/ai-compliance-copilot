@@ -58,12 +58,12 @@ export interface OnboardingProfileInput {
   };
 
   goals: {
-    target_frameworks: Array<'SOC2' | 'ISO27001' | 'HIPAA' | 'GDPR' | 'PCI'>;
+    target_frameworks: Array<'SOC2' | 'ISO27001' | 'HIPAA' | 'GDPR' | 'PCI_DSS' | 'FEDRAMP' | 'NIST_CSF' | 'ISO9001' | 'ISO14001' | 'ISO45001'>;
     audit_timeline: '0-3m' | '3-6m' | '6-12m' | '12m+' | null;
   };
 }
 
-export type Framework = 'SOC2' | 'ISO27001' | 'HIPAA' | 'GDPR' | 'PCI';
+export type Framework = 'SOC2' | 'ISO27001' | 'HIPAA' | 'GDPR' | 'PCI_DSS' | 'FEDRAMP' | 'NIST_CSF' | 'ISO9001' | 'ISO14001' | 'ISO45001';
 export type FrameworkApplicability = 'REQUIRED' | 'RECOMMENDED' | 'OPTIONAL';
 export type DataClassification = 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'SENSITIVE';
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';

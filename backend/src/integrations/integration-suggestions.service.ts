@@ -91,22 +91,47 @@ export class IntegrationSuggestionsService {
     }
 
     // ── 3. Framework-specific additions ──────────────────────────────────────
-    const hasSOC2 = inference.inferred_frameworks.some((f) => f.framework === 'SOC2');
-    const hasISO = inference.inferred_frameworks.some((f) => f.framework === 'ISO27001');
+    const hasSOC2    = inference.inferred_frameworks.some((f) => f.framework === 'SOC2');
+    const hasISO     = inference.inferred_frameworks.some((f) => f.framework === 'ISO27001');
+    const hasHIPAA   = inference.inferred_frameworks.some((f) => f.framework === 'HIPAA');
+    const hasPCI     = inference.inferred_frameworks.some((f) => f.framework === 'PCI_DSS');
+    const hasFedRAMP = inference.inferred_frameworks.some((f) => f.framework === 'FEDRAMP');
+    const hasGDPR    = inference.inferred_frameworks.some((f) => f.framework === 'GDPR');
+    const hasNIST    = inference.inferred_frameworks.some((f) => f.framework === 'NIST_CSF');
 
-    if (hasSOC2 || hasISO) {
-      // Cloud evidence is essential for any framework
+    if (hasSOC2 || hasISO || hasHIPAA || hasPCI || hasFedRAMP || hasNIST) {
+      // Cloud infrastructure evidence is essential for any security-focused framework
       this.addIfMissing(suggestions, 'aws', 80, 'Cloud infrastructure evidence automates CC6.6, CC7.1, A.12.1', inference);
     }
 
-    if (hasSOC2) {
-      // SOC2 requires code change management evidence
-      this.addIfMissing(suggestions, 'github', 75, 'Change management evidence for CC8.1 (code review + PR approvals)', inference);
+    if (hasSOC2 || hasPCI) {
+      // Change management evidence required for SOC2 CC8.1 and PCI DSS Req 6
+      this.addIfMissing(suggestions, 'github', 75, 'Change management evidence for CC8.1, PCI DSS Req 6 (code review + PR approvals)', inference);
     }
 
-    if (hasISO) {
-      // ISO 27001 requires HR lifecycle evidence
-      this.addIfMissing(suggestions, 'bamboohr', 70, 'HR onboarding/offboarding lifecycle evidence for A.7.1, A.7.2', inference);
+    if (hasISO || hasHIPAA || hasFedRAMP) {
+      // HR lifecycle evidence required for ISO A.7, HIPAA workforce security, FedRAMP AC-2
+      this.addIfMissing(suggestions, 'bamboohr', 70, 'HR onboarding/offboarding lifecycle evidence for A.7.1, HIPAA workforce security', inference);
+    }
+
+    if (hasHIPAA) {
+      // HIPAA requires EHR/healthcare system audit logs for the Security Rule
+      this.addIfMissing(suggestions, 'slack', 65, 'Workforce communication audit logs for HIPAA security awareness evidence', inference);
+    }
+
+    if (hasPCI) {
+      // PCI DSS requires network scoping and cardholder data environment evidence
+      this.addIfMissing(suggestions, 'aws', 85, 'CDE network segmentation and CloudTrail logs for PCI DSS Req 1, 10', inference);
+    }
+
+    if (hasGDPR) {
+      // GDPR requires processor management and DPA tracking
+      this.addIfMissing(suggestions, 'jira', 65, 'DSAR workflow tickets and breach response tracking for GDPR Art. 15, 33', inference);
+    }
+
+    if (hasFedRAMP) {
+      // FedRAMP requires continuous monitoring and SIEM integration
+      this.addIfMissing(suggestions, 'aws', 85, 'AWS GovCloud evidence and CloudTrail for FedRAMP SI, AU, IA control families', inference);
     }
 
     // ── 4. Sort by relevance score descending ─────────────────────────────────

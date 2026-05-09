@@ -145,10 +145,25 @@ export class InferenceService {
       },
 
       goals: {
-        target_frameworks: (goals.frameworks ?? ['soc2']).map((f: string) =>
-          f.toLowerCase() === 'soc2' ? 'SOC2' :
-          f.toLowerCase() === 'iso27001' ? 'ISO27001' : f.toUpperCase()
-        ) as any,
+        target_frameworks: (goals.frameworks ?? ['soc2']).map((f: string) => {
+          const SLUG_TO_FRAMEWORK: Record<string, string> = {
+            soc2:      'SOC2',
+            iso27001:  'ISO27001',
+            hipaa:     'HIPAA',
+            gdpr:      'GDPR',
+            'pci-dss': 'PCI_DSS',
+            pci_dss:   'PCI_DSS',
+            pci:       'PCI_DSS',
+            fedramp:   'FEDRAMP',
+            'nist-csf':'NIST_CSF',
+            nist_csf:  'NIST_CSF',
+            nist:      'NIST_CSF',
+            iso9001:   'ISO9001',
+            iso14001:  'ISO14001',
+            iso45001:  'ISO45001',
+          };
+          return SLUG_TO_FRAMEWORK[f.toLowerCase()] ?? f.toUpperCase().replace(/-/g, '_');
+        }) as any,
         audit_timeline: goals.targetDate ? '6-12m' : null,
       },
     };
