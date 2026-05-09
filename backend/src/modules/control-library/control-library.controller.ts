@@ -38,7 +38,35 @@ export class ControlLibraryController {
   @Public()
   @Get('control/:code')
   async getByCode(@Param('code') code: string) {
-    return this.library.getControlByCode(code);
+    const control = await this.library.getControlByCode(code);
+    if (!control) return null;
+
+    // Transform raw Prisma crosswalk records → flat CrosswalkMapping shape expected by frontend
+    const transformCrosswalks = (items: any[], currentCode: string) =>
+      (items ?? []).map((m: any) => {
+        // crosswalkSources: current control is the source, targetControl is the related one
+        // crosswalkTargets: current control is the target, sourceControl is the related one
+        const srcCode  = m.sourceControl?.code  ?? currentCode;
+        const srcTitle = m.sourceControl?.title ?? '';
+        const tgtCode  = m.targetControl?.code  ?? currentCode;
+        const tgtTitle = m.targetControl?.title ?? '';
+        return {
+          sourceCode:      srcCode,
+          sourceTitle:     srcTitle,
+          targetCode:      tgtCode,
+          targetTitle:     tgtTitle,
+          mappingType:     m.mappingType,
+          confidence:      m.confidence,
+          sourceFramework: m.sourceControl?.framework?.name ?? '',
+          targetFramework: m.targetControl?.framework?.name ?? '',
+        };
+      });
+
+    return {
+      ...control,
+      crosswalkSources: transformCrosswalks(control.crosswalkSources ?? [], code),
+      crosswalkTargets: transformCrosswalks(control.crosswalkTargets ?? [], code),
+    };
   }
 
   /** Public — used by ControlChip popover to show related controls */

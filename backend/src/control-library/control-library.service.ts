@@ -229,8 +229,8 @@ export class ControlLibraryService implements OnModuleInit {
         libraryMeta: { include: { domain: true } },
         evidenceRequirements: true,
         policyRequirements: true,
-        crosswalkSources: { include: { targetControl: true } },
-        crosswalkTargets: { include: { sourceControl: true } },
+        crosswalkSources: { include: { targetControl: { include: { framework: true } } } },
+        crosswalkTargets: { include: { sourceControl: { include: { framework: true } } } },
       },
     });
   }

@@ -156,10 +156,52 @@ export default async function ControlDetailPage({
   const fwColor  = frameworkColor(framework);
   const catColor = categoryColorClass(control.category);
 
-  // Combine crosswalk sources + targets for display
-  const allCrosswalks = [
-    ...(control.crosswalkSources ?? []),
-    ...(control.crosswalkTargets ?? []),
+  // Normalise crosswalk items into a consistent flat shape.
+  // The API may return either the transformed flat CrosswalkMapping shape
+  // (sourceCode/targetCode as strings) OR the raw Prisma shape
+  // (sourceControl / targetControl as nested objects).  Handle both.
+  interface NormCrosswalk {
+    relCode:     string;
+    relTitle:    string;
+    relFw:       string;
+    mappingType: string;
+    confidence:  string;
+  }
+
+  function normalizeCrosswalks(
+    items: any[],
+    kind: 'source' | 'target',
+    currentCode: string,
+  ): NormCrosswalk[] {
+    return (items ?? []).flatMap((cw: any): NormCrosswalk[] => {
+      // ── Flat shape (transformed by backend controller) ───────────────
+      if (typeof cw.sourceCode === 'string' || typeof cw.targetCode === 'string') {
+        const isSource = cw.sourceCode === currentCode;
+        const relCode  = (isSource ? cw.targetCode  : cw.sourceCode)  ?? '';
+        const relTitle = (isSource ? cw.targetTitle : cw.sourceTitle) ?? '';
+        const relFw    = (isSource ? cw.targetFramework : cw.sourceFramework) ?? '';
+        if (!relCode) return [];
+        return [{ relCode, relTitle, relFw, mappingType: cw.mappingType, confidence: cw.confidence }];
+      }
+
+      // ── Raw Prisma shape ─────────────────────────────────────────────
+      // crosswalkSources items: current control is the source → targetControl is the related one
+      // crosswalkTargets items: current control is the target → sourceControl is the related one
+      const related = kind === 'source' ? cw.targetControl : cw.sourceControl;
+      if (!related?.code) return [];
+      return [{
+        relCode:     related.code  ?? '',
+        relTitle:    related.title ?? '',
+        relFw:       related.framework?.name ?? '',
+        mappingType: cw.mappingType  ?? '',
+        confidence:  cw.confidence   ?? 'low',
+      }];
+    });
+  }
+
+  const allCrosswalks: NormCrosswalk[] = [
+    ...normalizeCrosswalks(control.crosswalkSources ?? [], 'source', control.code),
+    ...normalizeCrosswalks(control.crosswalkTargets ?? [], 'target', control.code),
   ];
 
   return (
@@ -310,11 +352,6 @@ export default async function ControlDetailPage({
             </p>
             <div className="space-y-3">
               {allCrosswalks.map((cw, i) => {
-                const isSource = cw.sourceCode === control.code;
-                const relCode  = isSource ? cw.targetCode  : cw.sourceCode;
-                const relTitle = isSource ? cw.targetTitle : cw.sourceTitle;
-                const relFw    = isSource ? cw.targetFramework : cw.sourceFramework;
-
                 const confidenceColors: Record<string, string> = {
                   high:   'bg-emerald-100 text-emerald-700',
                   medium: 'bg-amber-100 text-amber-700',
@@ -328,10 +365,10 @@ export default async function ControlDetailPage({
                     className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50"
                   >
                     <div className="shrink-0 pt-0.5">
-                      <CrosswalkChip code={relCode} framework={relFw} />
+                      <CrosswalkChip code={cw.relCode} framework={cw.relFw} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-700 leading-snug">{relTitle}</p>
+                      <p className="text-xs text-gray-700 leading-snug">{cw.relTitle}</p>
                       <div className="flex items-center gap-2 mt-1.5">
                         <span className="text-xs text-gray-400">
                           {cw.mappingType}
