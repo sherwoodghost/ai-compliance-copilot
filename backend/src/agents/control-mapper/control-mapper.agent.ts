@@ -90,7 +90,7 @@ export class ControlMapperAgent extends BaseAgent {
     const scope = goals.soc2Scope ?? {};
 
     return {
-      frameworks: goals.frameworks ?? ['soc2'],
+      frameworks: goals.frameworks ?? goals.targetFrameworks ?? [],
       soc2TrustServiceCategories: scope.trustServiceCategories ?? ['security'],
       industry: profile.industry ?? 'saas',
       dataTypes: data.dataTypes ?? [],

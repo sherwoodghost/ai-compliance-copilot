@@ -154,8 +154,13 @@ export class WorkflowEngine {
       businessProfile,
       inputPayload: {
         frameworkIds: options.frameworkIds ?? [],
-        // default framework for scoping; planner uses frameworkIds for multi-framework runs
-        framework: options.frameworkIds?.includes('iso27001') ? 'iso27001' : 'soc2',
+        // Pick the primary scoping framework: SOC2 first (has dedicated scope model),
+        // then ISO27001 (has generic SoA model), then first listed framework.
+        framework: options.frameworkIds?.includes('soc2') || options.frameworkIds?.includes('SOC2')
+          ? 'soc2'
+          : options.frameworkIds?.includes('iso27001') || options.frameworkIds?.includes('ISO27001')
+            ? 'iso27001'
+            : options.frameworkIds?.[0]?.toLowerCase().replace(/_/g, '-') ?? 'soc2',
       },
     };
 
