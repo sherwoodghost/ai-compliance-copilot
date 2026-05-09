@@ -361,14 +361,48 @@ export class ControlApplicabilityEngine {
 
   /**
    * Get current applicability matrix for an org.
+   * Includes OrganizationControl.assignedTo so the frontend can show the current owner.
    */
   async getApplicabilityMatrix(orgId: string) {
-    return this.prisma.controlApplicability.findMany({
-      where: { orgId },
-      include: {
-        control: { include: { framework: true } },
-      },
-      orderBy: { control: { code: 'asc' } },
+    const [records, orgControls] = await Promise.all([
+      this.prisma.controlApplicability.findMany({
+        where: { orgId },
+        include: {
+          control: { include: { framework: true } },
+          overriddenByUser: { select: { id: true, fullName: true, email: true } },
+        },
+        orderBy: { control: { code: 'asc' } },
+      }),
+      this.prisma.organizationControl.findMany({
+        where: { orgId },
+        select: {
+          controlId: true,
+          assignedTo: true,
+          assignee: { select: { id: true, fullName: true, email: true } },
+        },
+      }),
+    ]);
+
+    // Build a lookup: controlId → { assignedTo, assignee }
+    const ownerMap = new Map(
+      (orgControls as any[]).map((oc) => [oc.controlId, { assignedTo: oc.assignedTo, assignee: oc.assignee }]),
+    );
+
+    return records.map((r) => ({
+      ...r,
+      assignedTo: ownerMap.get(r.controlId)?.assignedTo ?? null,
+      assignee: ownerMap.get(r.controlId)?.assignee ?? null,
+    }));
+  }
+
+  /**
+   * Assign an owner to a control via OrganizationControl.assignedTo.
+   */
+  async assignOwner(orgId: string, controlId: string, ownerId: string | null) {
+    await this.prisma.organizationControl.upsert({
+      where: { orgId_controlId: { orgId, controlId } },
+      create: { orgId, controlId, status: 'not_started', score: 0, assignedTo: ownerId },
+      update: { assignedTo: ownerId },
     });
   }
 

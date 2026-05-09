@@ -7,7 +7,7 @@ import { apiClient } from '@/lib/api/client';
 import {
   Target, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronRight,
   Calendar, Badge, RefreshCw, Sparkles, X, ShieldAlert, HelpCircle,
-  Star, AlertTriangle, Building2, Bot, UserCheck,
+  Star, AlertTriangle, Building2, Bot, UserCheck, Wand2,
 } from 'lucide-react';
 import { RadialBarChart, RadialBar, Tooltip as RechartsTip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -320,6 +320,113 @@ const AI_PRIORITY_CFG: Record<string, { cls: string; label: string }> = {
   low:      { cls: 'bg-gray-100 text-gray-500 border border-gray-200',   label: 'Low' },
 };
 
+// ─── Auto-Map Modal ───────────────────────────────────────────────────────────
+
+function AutoMapModal({
+  unenrichedControls,
+  onClose,
+  onConfirm,
+  isPending,
+  result,
+}: {
+  unenrichedControls: AiApplicability[];
+  onClose: () => void;
+  onConfirm: () => void;
+  isPending: boolean;
+  result?: { enriched: number; errors: number } | null;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center">
+              <Wand2 className="w-4 h-4 text-brand-600" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900">Auto-Map Controls with AI</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {result ? (
+          /* Success state */
+          <div className="space-y-3">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-green-800">AI enrichment complete</p>
+                <p className="text-sm text-green-700 mt-0.5">
+                  {result.enriched} controls enriched with company-specific notes, priority ratings, and implementation context.
+                  {result.errors > 0 && ` (${result.errors} failed)`}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Refresh the page or switch tabs to see the updated applicability details.</p>
+            <button onClick={onClose} className="w-full btn-primary text-sm">Done</button>
+          </div>
+        ) : (
+          /* Confirmation state */
+          <>
+            <p className="text-sm text-gray-600">
+              AI will analyze your company profile and generate{' '}
+              <span className="font-semibold text-gray-900">{unenrichedControls.length} controls</span>{' '}
+              with org-specific notes, priority ratings, and implementation context using Claude Haiku.
+            </p>
+
+            {/* Preview list */}
+            <div className="max-h-48 overflow-y-auto space-y-1 border border-gray-100 rounded-lg p-2 bg-gray-50">
+              {unenrichedControls.slice(0, 20).map((ca) => (
+                <div key={ca.controlId} className="flex items-center gap-2 px-2 py-1 bg-white rounded text-xs border border-gray-100">
+                  <span className="font-mono font-bold text-brand-700 shrink-0 w-14">{ca.control.code}</span>
+                  <span className="text-gray-500 truncate flex-1">Needs AI assessment</span>
+                  <span className="text-gray-300 shrink-0">→</span>
+                  <span className="text-brand-600 shrink-0 font-medium">Priority + notes</span>
+                </div>
+              ))}
+              {unenrichedControls.length > 20 && (
+                <p className="text-center text-xs text-gray-400 py-1">
+                  +{unenrichedControls.length - 20} more controls
+                </p>
+              )}
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              Uses Claude Haiku · ~$0.005 · Runs in background (30–60s)
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={onClose} className="flex-1 btn-secondary text-sm" disabled={isPending}>
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                className="flex-1 btn-primary text-sm flex items-center justify-center gap-2"
+                disabled={isPending}
+              >
+                {isPending ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Running AI…
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-3.5 h-3.5" />
+                    Map {unenrichedControls.length} controls
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── SoA Row ──────────────────────────────────────────────────────────────────
 
 function SoaRow({ entry, expanded, onToggle, aiData }: {
@@ -457,10 +564,20 @@ export default function ScopePage() {
   const [soaFilter, setSoaFilter] = useState<SoaFilter>('all');
   const [expandedSoa, setExpandedSoa] = useState<Set<string>>(new Set());
   const [scopeReview, setScopeReview] = useState<ScopeReviewResult | null>(null);
+  const [showAutoMapModal, setShowAutoMapModal] = useState(false);
+  const [autoMapResult, setAutoMapResult] = useState<{ enriched: number; errors: number } | null>(null);
 
   const scopeReviewMutation = useMutation({
     mutationFn: () => scopeApi.aiScopeReview(),
     onSuccess: (res) => setScopeReview(res as unknown as ScopeReviewResult),
+  });
+
+  const autoMapMutation = useMutation({
+    mutationFn: () => apiClient.post('/controls/library/applicability/re-evaluate').then((r) => r.data),
+    onSuccess: (res: any) => {
+      setAutoMapResult(res);
+      qc.invalidateQueries({ queryKey: ['applicability-matrix'] });
+    },
   });
 
   const { data: soc2Scope } = useQuery<Soc2Scope>({
@@ -519,8 +636,22 @@ export default function ScopePage() {
     needs_review: soaList.filter((e) => !e.applicabilityRationale).length,
   };
 
+  // Controls that haven't been AI-enriched yet (aiPriority is null)
+  const unenrichedControls = (applicabilityMatrix ?? []).filter((a) => !a.aiPriority);
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Auto-Map Modal */}
+      {showAutoMapModal && (
+        <AutoMapModal
+          unenrichedControls={unenrichedControls}
+          onClose={() => setShowAutoMapModal(false)}
+          onConfirm={() => autoMapMutation.mutate()}
+          isPending={autoMapMutation.isPending}
+          result={autoMapResult}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -680,7 +811,7 @@ export default function ScopePage() {
           {soaList.length > 0 && <SoaCoverageChart soa={soaList} />}
 
           {/* Filter tabs + regenerate */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
               {(['all', 'applicable', 'not_applicable', 'needs_review'] as const).map((f) => (
                 <button
@@ -696,14 +827,26 @@ export default function ScopePage() {
                 </button>
               ))}
             </div>
-            <button
-              className="btn-secondary text-sm flex items-center gap-1.5"
-              onClick={() => generateSoa.mutate()}
-              disabled={generateSoa.isPending}
-            >
-              <RefreshCw className={cn('w-3.5 h-3.5', generateSoa.isPending && 'animate-spin')} />
-              {generateSoa.isPending ? 'Generating…' : 'Regenerate SoA'}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Auto-map button — only show when there are unenriched controls */}
+              {unenrichedControls.length > 0 && (
+                <button
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 rounded-lg hover:bg-brand-100 transition-colors"
+                  onClick={() => { setAutoMapResult(null); setShowAutoMapModal(true); }}
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Auto-map ({unenrichedControls.length})
+                </button>
+              )}
+              <button
+                className="btn-secondary text-sm flex items-center gap-1.5"
+                onClick={() => generateSoa.mutate()}
+                disabled={generateSoa.isPending}
+              >
+                <RefreshCw className={cn('w-3.5 h-3.5', generateSoa.isPending && 'animate-spin')} />
+                {generateSoa.isPending ? 'Generating…' : 'Regenerate SoA'}
+              </button>
+            </div>
           </div>
 
           {/* SoA list */}

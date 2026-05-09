@@ -153,4 +153,15 @@ Return ONLY a JSON object (no markdown):
   async reEvaluateApplicability(@Req() req: any) {
     return this.applicabilityReviewer.reEvaluate(req.user.orgId);
   }
+
+  @Patch('applicability/:controlId/owner')
+  @ApiOperation({ summary: 'Assign or unassign an owner to a control (updates OrganizationControl.assignedTo)' })
+  async assignOwner(
+    @Param('controlId') controlId: string,
+    @Body() body: { ownerId: string | null },
+    @Req() req: any,
+  ) {
+    await this.applicability.assignOwner(req.user.orgId, controlId, body.ownerId ?? null);
+    return { success: true };
+  }
 }

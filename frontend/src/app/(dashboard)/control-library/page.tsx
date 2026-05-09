@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { controlsApi } from '@/lib/api/controls';
 import { apiClient } from '@/lib/api/client';
@@ -8,7 +8,7 @@ import {
   Library, Search, Shield, CheckCircle, AlertCircle,
   ChevronDown, ChevronRight, Sparkles, X, Clock,
   Zap, AlertTriangle, Wrench, Lightbulb, BookOpen,
-  Building2, Bot, UserCheck,
+  Building2, Bot, UserCheck, UserCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -53,7 +53,11 @@ type AiApplicability = {
   aiConfidence?: number | null;
   requiresHumanReview?: boolean | null;
   overriddenBy?: string | null;
+  assignedTo?: string | null;
+  assignee?: { id: string; fullName: string; email: string } | null;
 };
+
+type Member = { id: string; fullName: string; email: string };
 
 const AI_PRIORITY_CFG: Record<string, { cls: string; label: string }> = {
   critical: { cls: 'bg-red-100 text-red-700',    label: 'Critical for you' },
@@ -185,14 +189,17 @@ function ExplainPanel({ result, onClose }: { result: ExplainResult; onClose: () 
   );
 }
 
-function ControlRow({ control, expanded, onToggle, aiData }: {
+function ControlRow({ control, expanded, onToggle, aiData, members, onAssignOwner }: {
   control: Control;
   expanded: boolean;
   onToggle: () => void;
   aiData?: AiApplicability;
+  members?: Member[];
+  onAssignOwner?: (controlId: string, ownerId: string | null) => void;
 }) {
   const [explaining, setExplaining] = useState(false);
   const [explainResult, setExplainResult] = useState<ExplainResult | null>(null);
+  const [ownerOpen, setOwnerOpen] = useState(false);
 
   async function handleExplain(e: React.MouseEvent) {
     e.stopPropagation();
@@ -201,7 +208,6 @@ function ControlRow({ control, expanded, onToggle, aiData }: {
     try {
       const res = await controlsApi.aiExplainControl(control.code);
       setExplainResult(res as unknown as ExplainResult);
-      // Ensure the row is expanded so explanation is visible
     } finally {
       setExplaining(false);
     }
@@ -296,6 +302,55 @@ function ControlRow({ control, expanded, onToggle, aiData }: {
                 </div>
               )}
 
+              {/* Inline owner assignment */}
+              {onAssignOwner && (
+                <div className="relative">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Control Owner</p>
+                  <button
+                    onClick={() => setOwnerOpen((v) => !v)}
+                    className="flex items-center gap-2 text-sm bg-white border border-gray-200 rounded-lg px-3 py-1.5 hover:border-brand-300 transition-colors min-w-[180px]"
+                  >
+                    <UserCircle2 className="w-4 h-4 text-gray-400 shrink-0" />
+                    <span className={cn('flex-1 text-left truncate', aiData?.assignee ? 'text-gray-900' : 'text-gray-400')}>
+                      {aiData?.assignee?.fullName ?? 'Unassigned'}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                  </button>
+
+                  {ownerOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                      <div className="py-1 max-h-52 overflow-y-auto">
+                        <button
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 text-gray-500"
+                          onClick={() => { onAssignOwner(control.id, null); setOwnerOpen(false); }}
+                        >
+                          <UserCircle2 className="w-4 h-4 shrink-0" />
+                          Unassigned
+                        </button>
+                        {(members ?? []).map((m) => (
+                          <button
+                            key={m.id}
+                            className={cn(
+                              'w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50',
+                              aiData?.assignedTo === m.id ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700',
+                            )}
+                            onClick={() => { onAssignOwner(control.id, m.id); setOwnerOpen(false); }}
+                          >
+                            <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                              <span className="text-[10px] font-bold text-brand-600">{m.fullName?.[0] ?? '?'}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="block truncate">{m.fullName}</span>
+                            </div>
+                            {aiData?.assignedTo === m.id && <CheckCircle className="w-3.5 h-3.5 shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {control.evidenceRequirements.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Evidence Required</p>
@@ -334,6 +389,7 @@ function ControlRow({ control, expanded, onToggle, aiData }: {
 }
 
 export default function ControlLibraryPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterFramework, setFilterFramework] = useState<'all' | 'SOC2' | 'ISO27001'>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -343,15 +399,37 @@ export default function ControlLibraryPage() {
     queryFn: () => controlsApi.getLibrary() as unknown as Promise<Control[]>,
   });
 
-  // AI enrichment: company-specific applicability notes
+  // AI enrichment: company-specific applicability notes + owner data
   const { data: applicabilityMatrix } = useQuery<AiApplicability[]>({
     queryKey: ['applicability-matrix'],
     queryFn: () => apiClient.get<AiApplicability[]>('/controls/library/applicability').then((r) => r.data),
-    staleTime: 5 * 60 * 1000, // cache 5 min — enrichment runs rarely
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Team members for owner assignment dropdown
+  const { data: membersData } = useQuery({
+    queryKey: ['org-members-brief'],
+    queryFn: () => apiClient.get<{ id: string; fullName: string; email: string }[]>('/organizations/me/members').then((r) => r.data),
+    staleTime: 10 * 60 * 1000,
+  });
+  const members: Member[] = (membersData as any[] ?? []).map((m: any) => ({
+    id: m.id,
+    fullName: m.fullName ?? m.full_name ?? m.name ?? 'Unknown',
+    email: m.email ?? '',
+  }));
+
+  const assignOwnerMutation = useMutation({
+    mutationFn: ({ controlId, ownerId }: { controlId: string; ownerId: string | null }) =>
+      apiClient.patch(`/controls/library/applicability/${controlId}/owner`, { ownerId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['applicability-matrix'] }),
   });
 
   const aiLookup = new Map<string, AiApplicability>(
     (applicabilityMatrix ?? []).map((a) => [a.control.code, a]),
+  );
+  // Build controlId → AiApplicability map for owner assignment (keyed by controlId)
+  const aiByControlId = new Map<string, AiApplicability>(
+    (applicabilityMatrix ?? []).map((a) => [a.controlId, a]),
   );
 
   const filtered = controls.filter((c) => {
@@ -447,6 +525,8 @@ export default function ControlLibraryPage() {
               expanded={expanded.has(control.id)}
               onToggle={() => toggleExpanded(control.id)}
               aiData={aiLookup.get(control.code)}
+              members={members}
+              onAssignOwner={(controlId, ownerId) => assignOwnerMutation.mutate({ controlId, ownerId })}
             />
           ))}
           {filtered.length === 0 && (
