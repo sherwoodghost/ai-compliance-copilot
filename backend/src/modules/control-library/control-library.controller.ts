@@ -2,9 +2,11 @@ import { Controller, Get, Param, Patch, Post, Body, UseGuards, Req } from '@nest
 import { ApiOperation } from '@nestjs/swagger';
 import { ControlLibraryService } from '../../control-library/control-library.service';
 import { ControlApplicabilityEngine } from '../../control-library/applicability-engine.service';
+import { ApplicabilityReviewerService } from '../../control-library/applicability-reviewer.service';
 import { CrosswalkService } from '../../control-library/crosswalk.service';
 import { LlmService } from '../../llm/llm.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('controls/library')
 @UseGuards(JwtAuthGuard)
@@ -12,26 +14,35 @@ export class ControlLibraryController {
   constructor(
     private readonly library: ControlLibraryService,
     private readonly applicability: ControlApplicabilityEngine,
+    private readonly applicabilityReviewer: ApplicabilityReviewerService,
     private readonly crosswalk: CrosswalkService,
     private readonly llm: LlmService,
   ) {}
 
+  /** Public — used by external framework reference pages (/frameworks) */
+  @Public()
   @Get()
   async getFullLibrary() {
     return this.library.getFullLibrary();
   }
 
+  /** Public — used by external framework reference pages */
+  @Public()
   @Get(':framework')
   async getByFramework(@Param('framework') framework: string) {
     const type = framework.toUpperCase() as 'SOC2' | 'ISO27001';
     return this.library.getControlsByFramework(type);
   }
 
+  /** Public — used by external control detail pages and ControlChip popover */
+  @Public()
   @Get('control/:code')
   async getByCode(@Param('code') code: string) {
     return this.library.getControlByCode(code);
   }
 
+  /** Public — used by ControlChip popover to show related controls */
+  @Public()
   @Get('control/:code/crosswalks')
   async getCrosswalks(@Param('code') code: string) {
     return this.crosswalk.getMappingsForCode(code);
@@ -135,5 +146,11 @@ Return ONLY a JSON object (no markdown):
       body.rationale,
       req.user.id,
     );
+  }
+
+  @Post('applicability/re-evaluate')
+  @ApiOperation({ summary: 'Re-run AI enrichment for all control applicability records (company-specific notes, priority, context)' })
+  async reEvaluateApplicability(@Req() req: any) {
+    return this.applicabilityReviewer.reEvaluate(req.user.orgId);
   }
 }

@@ -14,8 +14,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# openssl is required by Prisma on Alpine Linux
-RUN apk add --no-cache openssl
+# openssl: required by Prisma on Alpine Linux
+# postgresql-client: provides psql for running setup.sql after schema migration
+RUN apk add --no-cache openssl postgresql-client
 
 COPY package*.json ./
 RUN npm ci --omit=dev
@@ -26,6 +27,14 @@ COPY prisma ./prisma
 
 EXPOSE 3001
 
-# db push syncs schema without requiring migration files (safe for first deploy on a fresh DB)
-# Seed is run manually once: railway run npm run prisma:seed
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss || true && node dist/main"]
+# Startup sequence:
+# 1. prisma db push — creates/syncs all tables from schema.prisma (idempotent)
+# 2. psql setup.sql — applies pgvector index, FTS column, SSO table, retention columns (idempotent)
+#    setup.sql is volume-mounted at /app/setup.sql by docker-compose (see docker-compose.yml)
+# 3. node dist/main — starts the NestJS application
+#
+# Seed is run manually once: npx prisma db seed
+CMD ["sh", "-c", \
+  "npx prisma db push --accept-data-loss || true && \
+   (test -f /app/setup.sql && psql $DATABASE_URL -f /app/setup.sql || echo 'setup.sql not found — skipping supplemental setup') && \
+   node dist/main"]

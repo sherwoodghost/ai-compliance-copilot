@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi } from '@/lib/api/settings';
+import { settingsApi, SsoConfigInput } from '@/lib/api/settings';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/lib/api/auth';
-import { User, Building, Lock, LogOut, Bot, Key, CheckCircle2, XCircle, Loader2, Bell, Webhook, RotateCcw, AlertTriangle } from 'lucide-react';
+import { User, Building, Lock, LogOut, Bot, Key, CheckCircle2, XCircle, Loader2, Bell, Webhook, RotateCcw, AlertTriangle, ShieldCheck, ExternalLink, Copy, Eye, EyeOff, ToggleLeft, ToggleRight } from 'lucide-react';
 
 function Section({ title, icon: Icon, children }: {
   title: string;
@@ -455,6 +455,313 @@ function RetentionSection() {
   );
 }
 
+function SsoSection() {
+  const qc = useQueryClient();
+
+  const { data: ssoConfig, isLoading, isError } = useQuery({
+    queryKey: ['sso-config'],
+    queryFn:  () => settingsApi.getSsoConfig(),
+    retry:    false,  // 404 = not configured yet, that's fine
+  });
+
+  const isConfigured = !isError && !!ssoConfig;
+  const isEnabled    = ssoConfig?.organization?.ssoEnabled ?? false;
+  const isVerified   = ssoConfig?.isVerified ?? false;
+
+  const [form, setForm] = useState<SsoConfigInput>({
+    provider:           'saml',
+    idpEntityId:        '',
+    idpSsoUrl:          '',
+    idpCertificate:     '',
+    emailAttribute:     'email',
+    firstNameAttribute: 'firstName',
+    lastNameAttribute:  'lastName',
+  });
+  const [showCert,     setShowCert]     = useState(false);
+  const [testResult,   setTestResult]   = useState<{ ok: boolean; error?: string } | null>(null);
+  const [testing,      setTesting]      = useState(false);
+  const [savedMsg,     setSavedMsg]     = useState('');
+
+  // Pre-fill form when config loads
+  useEffect(() => {
+    if (ssoConfig) {
+      setForm(f => ({
+        ...f,
+        provider:           ssoConfig.provider           ?? 'saml',
+        idpEntityId:        ssoConfig.idpEntityId        ?? '',
+        idpSsoUrl:          ssoConfig.idpSsoUrl          ?? '',
+        idpCertificate:     '',     // never pre-fill cert (backend returns '[configured]')
+        emailAttribute:     ssoConfig.emailAttribute     ?? 'email',
+        firstNameAttribute: ssoConfig.firstNameAttribute ?? 'firstName',
+        lastNameAttribute:  ssoConfig.lastNameAttribute  ?? 'lastName',
+      }));
+    }
+  }, [ssoConfig]);
+
+  const save = useMutation({
+    mutationFn: () => {
+      const dto: SsoConfigInput = { ...form };
+      // Don't send empty cert (would overwrite stored value with nothing)
+      if (!dto.idpCertificate?.trim()) delete dto.idpCertificate;
+      return settingsApi.upsertSsoConfig(dto);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sso-config'] });
+      setSavedMsg('Configuration saved!');
+      setTestResult(null);
+      setTimeout(() => setSavedMsg(''), 3000);
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: (enabled: boolean) => settingsApi.toggleSso(enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sso-config'] }),
+  });
+
+  async function testConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await settingsApi.testSsoConfig();
+      setTestResult(r);
+      if (r.ok) qc.invalidateQueries({ queryKey: ['sso-config'] });
+    } catch (e: any) {
+      setTestResult({ ok: false, error: e.response?.data?.message ?? 'Connection failed' });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+
+  const acsUrl    = ssoConfig?.acsUrl    ?? '';
+  const entityId  = ssoConfig?.spEntityId ?? '';
+
+  return (
+    <Section title="SAML Single Sign-On (SSO)" icon={ShieldCheck}>
+      <div className="space-y-6">
+        {/* Info banner */}
+        <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-3">
+          <p className="text-sm font-semibold text-indigo-900 mb-1">Enterprise SSO via SAML 2.0</p>
+          <p className="text-xs text-indigo-700">
+            Connect your Identity Provider (Okta, Azure AD, Google Workspace, etc.) to allow your
+            team to sign in with company credentials. Users are provisioned automatically on first login.
+          </p>
+        </div>
+
+        {/* Status row */}
+        <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="flex items-center gap-2">
+            {isConfigured && isVerified ? (
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+            ) : isConfigured ? (
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+            ) : (
+              <XCircle className="w-4 h-4 text-gray-400" />
+            )}
+            <span className="text-sm font-medium text-gray-700">
+              {isConfigured && isVerified ? 'Verified & ready' : isConfigured ? 'Configured — not yet verified' : 'Not configured'}
+            </span>
+            {isConfigured && ssoConfig?.lastTestedAt && (
+              <span className="text-xs text-gray-400">
+                · Last tested {new Date(ssoConfig.lastTestedAt).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+
+          {isConfigured && isVerified && (
+            <button
+              onClick={() => toggle.mutate(!isEnabled)}
+              disabled={toggle.isPending}
+              className="flex items-center gap-1.5 text-sm font-medium transition-colors"
+            >
+              {isEnabled ? (
+                <>
+                  <ToggleRight className="w-5 h-5 text-green-500" />
+                  <span className="text-green-700">Enabled</span>
+                </>
+              ) : (
+                <>
+                  <ToggleLeft className="w-5 h-5 text-gray-400" />
+                  <span className="text-gray-500">Disabled</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* SP metadata (read-only, show after config exists) */}
+        {isConfigured && (acsUrl || entityId) && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Service Provider Details (copy into your IdP)
+            </p>
+            {[
+              { label: 'ACS URL (Callback)',  value: acsUrl },
+              { label: 'Entity ID / Issuer',  value: entityId },
+            ].map(({ label, value }) => (
+              value ? (
+                <div key={label}>
+                  <p className="text-xs text-gray-500 mb-1">{label}</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 truncate font-mono text-gray-700">
+                      {value}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(value)}
+                      title="Copy"
+                      className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+              ) : null
+            ))}
+            {ssoConfig?.organization?.slug && (
+              <a
+                href={`/api/v1/auth/sso/${ssoConfig.organization.slug}/metadata`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:underline"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Download SP metadata XML
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Config form */}
+        <div className="space-y-4 max-w-lg">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Identity Provider Configuration
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">IdP SSO URL</label>
+            <input
+              type="url"
+              className="input text-sm font-mono"
+              placeholder="https://your-idp.example.com/sso/saml"
+              value={form.idpSsoUrl ?? ''}
+              onChange={e => setForm(f => ({ ...f, idpSsoUrl: e.target.value }))}
+            />
+            <p className="text-xs text-gray-400 mt-1">The SSO endpoint from your IdP (Okta, Azure AD, etc.)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">IdP Entity ID</label>
+            <input
+              type="text"
+              className="input text-sm font-mono"
+              placeholder="https://your-idp.example.com/issuer"
+              value={form.idpEntityId ?? ''}
+              onChange={e => setForm(f => ({ ...f, idpEntityId: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              IdP Certificate (X.509)
+              {ssoConfig?.idpCertificate === '[configured]' && (
+                <span className="ml-2 text-xs text-green-600 font-normal">✓ Certificate on file</span>
+              )}
+            </label>
+            <div className="relative">
+              <textarea
+                className="input text-xs font-mono resize-none"
+                rows={showCert ? 6 : 2}
+                placeholder={ssoConfig?.idpCertificate === '[configured]' ? 'Leave blank to keep existing certificate' : 'Paste PEM-encoded certificate (-----BEGIN CERTIFICATE----- ...)'}
+                value={form.idpCertificate ?? ''}
+                onChange={e => setForm(f => ({ ...f, idpCertificate: e.target.value }))}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCert(v => !v)}
+                className="absolute right-2 top-2 p-1 rounded text-gray-400 hover:text-gray-600"
+              >
+                {showCert ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Attribute mapping */}
+          <details className="border border-gray-200 rounded-xl overflow-hidden">
+            <summary className="px-4 py-3 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50 select-none">
+              Attribute Mapping (advanced)
+            </summary>
+            <div className="px-4 pb-4 pt-2 space-y-3 bg-gray-50">
+              <p className="text-xs text-gray-500">
+                Map SAML attributes to user fields. Defaults work for most IdPs.
+              </p>
+              {([
+                { key: 'emailAttribute',     label: 'Email attribute',      placeholder: 'email' },
+                { key: 'firstNameAttribute', label: 'First name attribute', placeholder: 'firstName' },
+                { key: 'lastNameAttribute',  label: 'Last name attribute',  placeholder: 'lastName' },
+              ] as { key: keyof SsoConfigInput; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <label className="text-xs text-gray-600 w-36 shrink-0">{label}</label>
+                  <input
+                    type="text"
+                    className="input text-xs font-mono flex-1"
+                    placeholder={placeholder}
+                    value={(form[key] as string) ?? ''}
+                    onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+
+        {/* Feedback */}
+        {savedMsg && (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            {savedMsg}
+          </div>
+        )}
+        {save.isError && (
+          <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+            <XCircle className="w-4 h-4 shrink-0" />
+            {(save.error as any)?.response?.data?.message ?? 'Failed to save configuration'}
+          </div>
+        )}
+        {testResult && (
+          <div className={`flex items-center gap-2 text-sm rounded-lg px-4 py-2.5 ${testResult.ok ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+            {testResult.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <XCircle className="w-4 h-4 shrink-0" />}
+            {testResult.ok ? 'IdP is reachable — configuration verified!' : (testResult.error ?? 'Connection failed')}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            className="btn-primary text-sm"
+            onClick={() => save.mutate()}
+            disabled={save.isPending || (!form.idpSsoUrl?.trim() && !form.idpEntityId?.trim())}
+          >
+            {save.isPending ? 'Saving…' : isConfigured ? 'Update configuration' : 'Save configuration'}
+          </button>
+          {isConfigured && (
+            <button
+              className="btn-secondary text-sm flex items-center gap-1.5"
+              onClick={testConnection}
+              disabled={testing}
+            >
+              {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+              {testing ? 'Testing…' : 'Test connection'}
+            </button>
+          )}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 function DangerZoneSection() {
   const [confirm, setConfirm] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -556,9 +863,41 @@ function DangerZoneSection() {
   );
 }
 
+// ── Tab definitions ───────────────────────────────────────────────────────────
+
+type SettingsTab = 'account' | 'organization' | 'ai' | 'security' | 'advanced';
+
+const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
+  { id: 'account',      label: 'Account',      icon: User },
+  { id: 'organization', label: 'Organization',  icon: Building },
+  { id: 'ai',          label: 'AI & Integrations', icon: Bot },
+  { id: 'security',    label: 'Security',      icon: ShieldCheck },
+  { id: 'advanced',    label: 'Advanced',      icon: Lock },
+];
+
+// ── Sessions sub-section ──────────────────────────────────────────────────────
+
+function SessionsSection({ onSignOutAll }: { onSignOutAll: () => void }) {
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-2.5 mb-4">
+        <LogOut className="w-4 h-4 text-gray-400" />
+        <h2 className="text-sm font-semibold text-gray-900">Sessions</h2>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">Sign out of all devices and sessions.</p>
+      <button className="btn-secondary text-danger-700 border-danger-200 hover:bg-danger-50" onClick={onSignOutAll}>
+        Sign out everywhere
+      </button>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
   const router = useRouter();
   const { clearUser } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
   async function signOutAll() {
     try { await settingsApi.logoutAllSessions(); } catch {}
@@ -567,31 +906,66 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl space-y-6">
-      <div className="mb-2">
+    <div className="p-8 max-w-3xl">
+      <div className="mb-6">
         <h1>Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Manage your account and organization</p>
       </div>
 
-      <ProfileSection />
-      <PasswordSection />
-      <OrgSection />
-      <AIConfigSection />
-      <NotificationsSection />
-      <RetentionSection />
-
-      <div className="card p-6">
-        <div className="flex items-center gap-2.5 mb-4">
-          <LogOut className="w-4 h-4 text-gray-400" />
-          <h2 className="text-sm font-semibold text-gray-900">Sessions</h2>
-        </div>
-        <p className="text-sm text-gray-500 mb-4">Sign out of all devices and sessions.</p>
-        <button className="btn-secondary text-danger-700 border-danger-200 hover:bg-danger-50" onClick={signOutAll}>
-          Sign out everywhere
-        </button>
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
+              activeTab === id
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <DangerZoneSection />
+      {/* Tab panels */}
+      <div className="space-y-6">
+        {activeTab === 'account' && (
+          <>
+            <ProfileSection />
+            <PasswordSection />
+            <SessionsSection onSignOutAll={signOutAll} />
+          </>
+        )}
+
+        {activeTab === 'organization' && (
+          <>
+            <OrgSection />
+            <NotificationsSection />
+          </>
+        )}
+
+        {activeTab === 'ai' && (
+          <>
+            <AIConfigSection />
+          </>
+        )}
+
+        {activeTab === 'security' && (
+          <>
+            <SsoSection />
+            <RetentionSection />
+          </>
+        )}
+
+        {activeTab === 'advanced' && (
+          <>
+            <DangerZoneSection />
+          </>
+        )}
+      </div>
     </div>
   );
 }

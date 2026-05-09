@@ -63,8 +63,17 @@ export const onboardingApi = {
     apiClient.post<{ queued: boolean }>('/onboarding/message', { message }).then((r) => r.data),
 
   /** Synchronous chat — sends a message (or null for greeting) and gets an AI response directly */
-  chat: (message?: string | null) =>
-    apiClient.post<ChatResponse>('/onboarding/chat', { message: message ?? undefined }).then((r) => r.data),
+  chat: (message?: string | null, file?: File) => {
+    if (file) {
+      const fd = new FormData();
+      if (message) fd.append('message', message);
+      fd.append('file', file);
+      return apiClient.post<ChatResponse>('/onboarding/chat', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then((r) => r.data);
+    }
+    return apiClient.post<ChatResponse>('/onboarding/chat', { message: message ?? undefined }).then((r) => r.data);
+  },
 
   getProfile: () =>
     apiClient.get('/onboarding/profile').then((r) => r.data),

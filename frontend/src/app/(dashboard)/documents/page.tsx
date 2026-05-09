@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import Cookies from 'js-cookie';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Search, ChevronLeft, FileText,
@@ -103,9 +104,8 @@ export default function DocumentsPage() {
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Collaboration (Yjs/Hocuspocus) ────────────────────────────────────────
-  const authToken = typeof window !== 'undefined'
-    ? localStorage.getItem('auth_token') ?? ''
-    : '';
+  // Tokens are stored in cookies by the auth client (access_token key)
+  const authToken = Cookies.get('access_token') ?? '';
   const collab = useCollaboration({
     documentId: editing?.id ?? '',
     userToken:  authToken,

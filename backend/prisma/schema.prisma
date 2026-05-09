@@ -481,8 +481,38 @@ model Organization {
   aiTokensResetAt          DateTime?                  @map("ai_tokens_reset_at")
   documentRetentionDays    Int       @default(2555)   @map("document_retention_days")
   evidenceRetentionDays    Int       @default(2555)   @map("evidence_retention_days")
+  // SSO/SAML configuration (P23)
+  ssoEnabled               Boolean   @default(false)  @map("sso_enabled")
+  ssoConfig                SsoConfig?
 
   @@map("organizations")
+}
+
+// ─── SSO / SAML Configuration ─────────────────────────────────────────────────
+
+model SsoConfig {
+  id                  String   @id @default(uuid())
+  orgId               String   @unique @map("org_id")
+  provider            String   @default("saml")
+  // SAML SP (Service Provider) settings
+  spEntityId          String?  @map("sp_entity_id")
+  acsUrl              String?  @map("acs_url")
+  // SAML IdP (Identity Provider) settings
+  idpEntityId         String?  @map("idp_entity_id")
+  idpSsoUrl           String?  @map("idp_sso_url")
+  idpCertificate      String?  @db.Text @map("idp_certificate")
+  // Attribute mapping
+  emailAttribute      String   @default("email") @map("email_attribute")
+  firstNameAttribute  String   @default("firstName") @map("first_name_attribute")
+  lastNameAttribute   String   @default("lastName") @map("last_name_attribute")
+  // State
+  isVerified          Boolean  @default(false) @map("is_verified")
+  lastTestedAt        DateTime? @map("last_tested_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  @@map("sso_configs")
 }
 
 model User {
@@ -1206,8 +1236,16 @@ model ControlApplicability {
   confidence          String   @default("high")
   requiresHumanReview Boolean  @default(false) @map("requires_human_review")
   profileVersionUsed  Int?     @map("profile_version_used")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  // AI-enriched applicability fields (populated by ApplicabilityReviewerAgent)
+  companySpecificNotes  String?  @db.Text @map("company_specific_notes")  // "For your AWS fintech with PCI data..."
+  aiGeneratedRationale  String?  @db.Text @map("ai_generated_rationale")  // AI rationale (vs human-set rationale)
+  implementationContext String?  @db.Text @map("implementation_context")   // "For your stack this means..."
+  aiPriority            String?  @map("ai_priority")                       // critical|high|medium|low
+  aiConfidence          Int?     @map("ai_confidence")                     // 0-100
+  aiAssessedAt          DateTime? @map("ai_assessed_at")                   // when AI last ran
+  aiModelUsed           String?  @map("ai_model_used")                     // "claude-haiku-3-5"
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)

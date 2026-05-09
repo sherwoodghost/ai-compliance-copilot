@@ -37,6 +37,7 @@ import {
   Cpu,
   Menu,
   X,
+  Map,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/evidence',        label: 'Evidence',        icon: FolderOpen },
       { href: '/risks',           label: 'Risks',           icon: AlertTriangle },
       { href: '/incidents',       label: 'Incidents',       icon: Siren,  badge: 'incidents' },
+      { href: '/frameworks',      label: 'Frameworks',      icon: Map },
     ],
   },
   {

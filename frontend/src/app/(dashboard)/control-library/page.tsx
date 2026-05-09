@@ -3,10 +3,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { controlsApi } from '@/lib/api/controls';
+import { apiClient } from '@/lib/api/client';
 import {
   Library, Search, Shield, CheckCircle, AlertCircle,
   ChevronDown, ChevronRight, Sparkles, X, Clock,
   Zap, AlertTriangle, Wrench, Lightbulb, BookOpen,
+  Building2, Bot, UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +42,24 @@ const DIFFICULTY_CFG = {
   easy:   { label: 'Easy',   cls: 'bg-green-100 text-green-700' },
   medium: { label: 'Medium', cls: 'bg-amber-100 text-amber-700' },
   hard:   { label: 'Hard',   cls: 'bg-red-100 text-red-700' },
+};
+
+type AiApplicability = {
+  controlId: string;
+  control: { code: string };
+  companySpecificNotes?: string | null;
+  implementationContext?: string | null;
+  aiPriority?: string | null;
+  aiConfidence?: number | null;
+  requiresHumanReview?: boolean | null;
+  overriddenBy?: string | null;
+};
+
+const AI_PRIORITY_CFG: Record<string, { cls: string; label: string }> = {
+  critical: { cls: 'bg-red-100 text-red-700',    label: 'Critical for you' },
+  high:     { cls: 'bg-orange-100 text-orange-700', label: 'High priority' },
+  medium:   { cls: 'bg-amber-100 text-amber-700',  label: 'Medium priority' },
+  low:      { cls: 'bg-gray-100 text-gray-500',   label: 'Lower priority' },
 };
 
 function ExplainPanel({ result, onClose }: { result: ExplainResult; onClose: () => void }) {
@@ -165,10 +185,11 @@ function ExplainPanel({ result, onClose }: { result: ExplainResult; onClose: () 
   );
 }
 
-function ControlRow({ control, expanded, onToggle }: {
+function ControlRow({ control, expanded, onToggle, aiData }: {
   control: Control;
   expanded: boolean;
   onToggle: () => void;
+  aiData?: AiApplicability;
 }) {
   const [explaining, setExplaining] = useState(false);
   const [explainResult, setExplainResult] = useState<ExplainResult | null>(null);
@@ -229,6 +250,52 @@ function ControlRow({ control, expanded, onToggle }: {
             <>
               <p className="text-sm text-gray-700">{control.description}</p>
 
+              {/* "How this applies to you" panel — shown when AI enrichment data is available */}
+              {aiData?.companySpecificNotes && (
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">How this applies to your company</p>
+                    </div>
+                    <span className={cn(
+                      'inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium shrink-0',
+                      aiData.overriddenBy
+                        ? 'bg-green-100 text-green-700 border border-green-200'
+                        : 'bg-blue-100 text-blue-600 border border-blue-200',
+                    )}>
+                      {aiData.overriddenBy
+                        ? <><UserCheck className="w-3 h-3" /> Human-Reviewed</>
+                        : <><Bot className="w-3 h-3" /> AI-Assessed</>}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700">{aiData.companySpecificNotes}</p>
+
+                  {aiData.implementationContext && (
+                    <div className="mt-2 pt-2 border-t border-blue-100">
+                      <p className="text-xs font-medium text-blue-600 mb-0.5">Implementation for your stack:</p>
+                      <p className="text-xs text-gray-600">{aiData.implementationContext}</p>
+                    </div>
+                  )}
+
+                  <div className="mt-2 flex items-center gap-3 flex-wrap">
+                    {aiData.aiPriority && AI_PRIORITY_CFG[aiData.aiPriority] && (
+                      <span className={cn('text-xs px-2 py-0.5 rounded font-medium', AI_PRIORITY_CFG[aiData.aiPriority].cls)}>
+                        {AI_PRIORITY_CFG[aiData.aiPriority].label}
+                      </span>
+                    )}
+                    {typeof aiData.aiConfidence === 'number' && (
+                      <span className="text-xs text-gray-400">AI Confidence: {aiData.aiConfidence}%</span>
+                    )}
+                    {aiData.requiresHumanReview && (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                        <AlertTriangle className="w-3 h-3" /> Needs your review
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {control.evidenceRequirements.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Evidence Required</p>
@@ -275,6 +342,17 @@ export default function ControlLibraryPage() {
     queryKey: ['control-library'],
     queryFn: () => controlsApi.getLibrary() as unknown as Promise<Control[]>,
   });
+
+  // AI enrichment: company-specific applicability notes
+  const { data: applicabilityMatrix } = useQuery<AiApplicability[]>({
+    queryKey: ['applicability-matrix'],
+    queryFn: () => apiClient.get<AiApplicability[]>('/controls/library/applicability').then((r) => r.data),
+    staleTime: 5 * 60 * 1000, // cache 5 min — enrichment runs rarely
+  });
+
+  const aiLookup = new Map<string, AiApplicability>(
+    (applicabilityMatrix ?? []).map((a) => [a.control.code, a]),
+  );
 
   const filtered = controls.filter((c) => {
     const matchesFramework = filterFramework === 'all' || c.framework.type === filterFramework;
@@ -368,6 +446,7 @@ export default function ControlLibraryPage() {
               control={control}
               expanded={expanded.has(control.id)}
               onToggle={() => toggleExpanded(control.id)}
+              aiData={aiLookup.get(control.code)}
             />
           ))}
           {filtered.length === 0 && (

@@ -6,6 +6,9 @@ import { QUEUE_NAMES, DEFAULT_JOB_OPTIONS } from '../../orchestrator/queue.confi
 import { DialogueManagerService } from '../../agents/onboarding/dialogue-manager.service';
 import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 import { TasksService } from '../tasks/tasks.service';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse') as (data: Buffer) => Promise<{ text: string }>;
+import mammoth = require('mammoth');
 
 /** Minimum completeness fraction (0–1) required to allow finalize */
 const FINALIZE_COMPLETENESS_THRESHOLD = 0.85;
@@ -238,7 +241,7 @@ export class OnboardingService {
   // Called by POST /onboarding/chat. Processes the message inline and returns
   // the AI response directly in the HTTP response.
   // Pass userMessage=null for the initial greeting.
-  async chatSync(orgId: string, userId: string, userMessage: string | null) {
+  async chatSync(orgId: string, userId: string, userMessage: string | null, file?: Express.Multer.File) {
     // 1. Ensure session exists (ignore abandoned sessions — they belong to a previous run)
     let session = await this.prisma.onboardingSession.findFirst({
       where: { orgId, status: { not: 'abandoned' as any } },
@@ -291,8 +294,18 @@ export class OnboardingService {
       : '(nothing collected yet)';
 
     // 5. Build the current user turn context
+    // Process file attachment if present
+    let fileContext = '';
+    if (file) {
+      const extractedText = await this.processAttachment(file);
+      if (!extractedText.startsWith('[IMAGE:')) {
+        fileContext = `\n\n[ATTACHED DOCUMENT: ${file.originalname}]\n${extractedText}\n[END DOCUMENT]`;
+      }
+    }
+
     const currentUserMessage = userMessage?.trim()
-      || '(no user message — this is the opening greeting, introduce yourself and explain the discovery process, then ask for the company name)';
+      ? `${userMessage.trim()}${fileContext}`
+      : '(no user message — this is the opening greeting, introduce yourself and explain the discovery process, then ask for the company name)';
 
     // 6. Inject context into system prompt
     const systemPrompt = ONBOARDING_SYSTEM_PROMPT
@@ -912,6 +925,34 @@ export class OnboardingService {
     }, 30_000); // 30s delay — controls should be seeded by then
 
     return { workflowId, journeyId };
+  }
+
+  private async processAttachment(file: Express.Multer.File): Promise<string> {
+    const maxChars = 8000;
+    const mimeType = file.mimetype;
+    const filename = file.originalname.toLowerCase();
+
+    try {
+      if (mimeType === 'text/plain' || filename.endsWith('.txt') || filename.endsWith('.csv')) {
+        return file.buffer.toString('utf-8').slice(0, maxChars);
+      }
+      if (filename.endsWith('.docx') || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        return result.value.slice(0, maxChars);
+      }
+      if (filename.endsWith('.pdf') || mimeType === 'application/pdf') {
+        const data = await pdfParse(file.buffer);
+        return data.text.slice(0, maxChars);
+      }
+      if (mimeType.startsWith('image/')) {
+        // Return a marker so the calling code can handle vision separately
+        return `[IMAGE: ${file.originalname}]`;
+      }
+      return file.buffer.toString('utf-8').slice(0, maxChars);
+    } catch (err: any) {
+      this.logger.warn(`processAttachment failed for ${file.originalname}: ${err.message}`);
+      return `[Could not process attachment: ${file.originalname}]`;
+    }
   }
 
   private async enqueueMessage(sessionId: string, orgId: string, userMessage: string | null, userId: string) {

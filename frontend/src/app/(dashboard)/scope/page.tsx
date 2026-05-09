@@ -3,10 +3,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { scopeApi } from '@/lib/api/scope';
+import { apiClient } from '@/lib/api/client';
 import {
   Target, CheckCircle, Clock, AlertCircle, ChevronDown, ChevronRight,
   Calendar, Badge, RefreshCw, Sparkles, X, ShieldAlert, HelpCircle,
-  Star, AlertTriangle,
+  Star, AlertTriangle, Building2, Bot, UserCheck,
 } from 'lucide-react';
 import { RadialBarChart, RadialBar, Tooltip as RechartsTip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
@@ -181,6 +182,19 @@ type SoaEntry = {
   control: { code: string; title: string; framework: { type: string } };
 };
 
+// AI enrichment record (from ControlApplicability via /controls/library/applicability)
+type AiApplicability = {
+  controlId: string;
+  control: { code: string };
+  companySpecificNotes?: string | null;
+  implementationContext?: string | null;
+  aiPriority?: string | null;
+  aiConfidence?: number | null;
+  requiresHumanReview?: boolean | null;
+  overriddenBy?: string | null;
+  aiAssessedAt?: string | null;
+};
+
 type SoaFilter = 'all' | 'applicable' | 'not_applicable' | 'needs_review';
 
 // ─── TSC config ───────────────────────────────────────────────────────────────
@@ -297,13 +311,26 @@ function SoaCoverageChart({ soa }: { soa: SoaEntry[] }) {
   );
 }
 
+// ─── AI Priority badge ────────────────────────────────────────────────────────
+
+const AI_PRIORITY_CFG: Record<string, { cls: string; label: string }> = {
+  critical: { cls: 'bg-red-100 text-red-700 border border-red-200',    label: 'Critical' },
+  high:     { cls: 'bg-orange-100 text-orange-700 border border-orange-200', label: 'High' },
+  medium:   { cls: 'bg-amber-100 text-amber-700 border border-amber-200',  label: 'Medium' },
+  low:      { cls: 'bg-gray-100 text-gray-500 border border-gray-200',   label: 'Low' },
+};
+
 // ─── SoA Row ──────────────────────────────────────────────────────────────────
 
-function SoaRow({ entry, expanded, onToggle }: {
+function SoaRow({ entry, expanded, onToggle, aiData }: {
   entry: SoaEntry;
   expanded: boolean;
   onToggle: () => void;
+  aiData?: AiApplicability;
 }) {
+  const priority = aiData?.aiPriority ? AI_PRIORITY_CFG[aiData.aiPriority] : null;
+  const isHumanOverride = !!aiData?.overriddenBy;
+
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <button
@@ -316,6 +343,21 @@ function SoaRow({ entry, expanded, onToggle }: {
         <span className={cn('w-2 h-2 rounded-full shrink-0', entry.applicable ? 'bg-green-500' : 'bg-gray-300')} />
         <span className="font-mono text-xs font-bold text-gray-600 shrink-0 w-16">{entry.control.code}</span>
         <span className="text-sm text-gray-800 flex-1 truncate">{entry.control.title}</span>
+
+        {/* AI priority badge */}
+        {priority && (
+          <span className={cn('text-xs px-1.5 py-0.5 rounded shrink-0 font-medium', priority.cls)}>
+            {priority.label}
+          </span>
+        )}
+
+        {/* Human review flag */}
+        {aiData?.requiresHumanReview && (
+          <span title="Human review recommended">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          </span>
+        )}
+
         <span className={cn(
           'text-xs px-2 py-0.5 rounded-full shrink-0 font-medium',
           entry.applicable ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500',
@@ -334,10 +376,62 @@ function SoaRow({ entry, expanded, onToggle }: {
 
       {expanded && (
         <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 space-y-3">
+          {/* Rationale */}
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Rationale</p>
             <p className="text-sm text-gray-700">{entry.applicabilityRationale || 'No rationale provided.'}</p>
           </div>
+
+          {/* AI-generated company-specific context */}
+          {aiData?.companySpecificNotes && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">How this applies to your company</p>
+                </div>
+                {/* Source badge */}
+                <span className={cn(
+                  'inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium shrink-0',
+                  isHumanOverride
+                    ? 'bg-green-100 text-green-700 border border-green-200'
+                    : 'bg-blue-100 text-blue-600 border border-blue-200',
+                )}>
+                  {isHumanOverride
+                    ? <><UserCheck className="w-3 h-3" /> Human-Reviewed</>
+                    : <><Bot className="w-3 h-3" /> AI-Assessed</>}
+                </span>
+              </div>
+              <p className="text-sm text-gray-700">{aiData.companySpecificNotes}</p>
+
+              {/* Implementation context */}
+              {aiData.implementationContext && (
+                <div className="mt-2 pt-2 border-t border-blue-100">
+                  <p className="text-xs font-medium text-blue-600 mb-0.5">Implementation for your stack:</p>
+                  <p className="text-xs text-gray-600">{aiData.implementationContext}</p>
+                </div>
+              )}
+
+              {/* Confidence + priority row */}
+              <div className="mt-2 flex items-center gap-3 flex-wrap">
+                {priority && (
+                  <span className={cn('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium', priority.cls)}>
+                    Priority: {priority.label}
+                  </span>
+                )}
+                {typeof aiData.aiConfidence === 'number' && (
+                  <span className="text-xs text-gray-400">AI Confidence: {aiData.aiConfidence}%</span>
+                )}
+                {aiData?.requiresHumanReview && (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                    <AlertTriangle className="w-3 h-3" /> Human review recommended
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Implementation status */}
           {entry.implementationStatus && (
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Implementation</p>
@@ -379,6 +473,18 @@ export default function ScopePage() {
     queryFn: () => scopeApi.getIsoSoa() as unknown as Promise<SoaEntry[]>,
     enabled: activeTab === 'iso',
   });
+
+  // AI enrichment: company-specific notes + priority for each control
+  const { data: applicabilityMatrix } = useQuery<AiApplicability[]>({
+    queryKey: ['applicability-matrix'],
+    queryFn: () => apiClient.get<AiApplicability[]>('/controls/library/applicability').then((r) => r.data),
+    enabled: activeTab === 'iso',
+  });
+
+  // Build lookup: controlCode → AiApplicability
+  const aiLookup = new Map<string, AiApplicability>(
+    (applicabilityMatrix ?? []).map((a) => [a.control.code, a]),
+  );
 
   const approveSoc2 = useMutation({
     mutationFn: (id: string) => scopeApi.approveSoc2Item(id),
@@ -609,6 +715,7 @@ export default function ScopePage() {
                   entry={entry}
                   expanded={expandedSoa.has(entry.id)}
                   onToggle={() => toggleSoa(entry.id)}
+                  aiData={aiLookup.get(entry.control.code)}
                 />
               ))}
             </div>

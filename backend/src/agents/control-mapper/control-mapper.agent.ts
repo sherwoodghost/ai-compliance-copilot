@@ -4,12 +4,14 @@ import { LlmService } from '../../llm/llm.service';
 import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
 import { ComplianceJourneyService } from '../../compliance-journey/compliance-journey.service';
 import { ControlApplicabilityEngine, BusinessProfileSnapshot } from '../../control-library/applicability-engine.service';
+import { ApplicabilityReviewerService } from '../../control-library/applicability-reviewer.service';
 import { BaseAgent } from '../base/base.agent';
 import { AgentJobData, AgentOutput } from '../base/agent.interfaces';
 
 /**
- * ControlMapperAgent — deterministic, no LLM calls.
- * Runs the ControlApplicabilityEngine for an org based on their BusinessProfile.
+ * ControlMapperAgent — deterministic engine + AI enrichment.
+ * Step 1: ControlApplicabilityEngine (pure deterministic — no LLM).
+ * Step 2: ApplicabilityReviewerService (AI enrichment — adds company-specific notes, priority, context).
  */
 @Injectable()
 export class ControlMapperAgent extends BaseAgent {
@@ -21,6 +23,7 @@ export class ControlMapperAgent extends BaseAgent {
     journeyService: ComplianceJourneyService,
     gateway: LlmGatewayService,
     private readonly applicabilityEngine: ControlApplicabilityEngine,
+    private readonly applicabilityReviewer: ApplicabilityReviewerService,
   ) {
     super(prisma, llm, journeyService, gateway);
   }
@@ -52,6 +55,16 @@ export class ControlMapperAgent extends BaseAgent {
       `ControlMapper: ${applicable.length}/${results.length} controls applicable, ${needsReview.length} need human review`,
     );
 
+    // ── Step 4: AI enrichment — company-specific notes + priority (non-blocking) ──
+    // Runs asynchronously so it does NOT delay the pipeline. Errors are swallowed.
+    this.applicabilityReviewer.enrichForOrg(orgId).then((enrichResult) => {
+      this.logger.log(
+        `ApplicabilityReviewer: enriched ${enrichResult.enriched} controls (${enrichResult.errors} errors) for org ${orgId}`,
+      );
+    }).catch((err) => {
+      this.logger.warn(`ApplicabilityReviewer background enrichment failed: ${err.message}`);
+    });
+
     return {
       success: true,
       data: {
@@ -61,6 +74,7 @@ export class ControlMapperAgent extends BaseAgent {
         needsHumanReview: needsReview.length,
         results: results.slice(0, 100), // cap output payload size
         summary: `Mapped ${applicable.length} applicable controls across ${snapshot.frameworks.join(', ').toUpperCase()}`,
+        aiEnrichmentQueued: true,
       },
       warnings: needsReview.length > 0
         ? [`${needsReview.length} controls require human review for applicability determination`]

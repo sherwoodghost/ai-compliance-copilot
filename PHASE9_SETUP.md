@@ -24,22 +24,24 @@ This creates all Phase 9 tables:
 - `readiness_scores`, `dashboard_configs`, `audit_exports`
 - `vector_embeddings`, `risk_treatments`
 
-## 3. Enable pgvector (run once after migration)
+## 3. Apply supplemental SQL (run once after migration)
 
 ```bash
-# Connect to your postgres container and run:
-docker exec -it $(docker ps -q --filter name=postgres) \
-  psql -U compliance -d compliance_db \
-  -f /dev/stdin << 'EOF'
-CREATE EXTENSION IF NOT EXISTS vector;
-ALTER TABLE vector_embeddings ADD COLUMN IF NOT EXISTS embedding VECTOR(1536);
-CREATE INDEX IF NOT EXISTS vec_emb_ivfflat_idx
-  ON vector_embeddings USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 100);
-EOF
+# From the project root:
+psql $DATABASE_URL -f setup.sql
 ```
 
-Or run the file: `backend/prisma/migrations/pgvector_setup.sql`
+`setup.sql` (project root) is an idempotent script that applies:
+- pgvector extension + HNSW index (replaces the old IVFFlat setup)
+- Full-text search on documents (tsvector generated column)
+- Yjs state column for collaborative editing (P22)
+- SSO configuration table (P23)
+- AI token budget columns
+- Document retention + legal hold columns
+
+> When using Docker Compose, the pgvector extension is enabled automatically at
+> container creation via `init-extensions.sql`, and `setup.sql` runs at backend
+> startup. No manual steps needed for Docker users.
 
 > **If pgvector is not available**, the RAG system automatically falls back to in-memory cosine similarity. The app fully works without it — you'll just see a warning in the logs.
 

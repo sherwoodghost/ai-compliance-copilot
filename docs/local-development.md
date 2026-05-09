@@ -32,16 +32,17 @@ npm install
 
 # Copy environment file
 cp .env.example .env
-# Edit .env — set ANTHROPIC_API_KEY and other secrets
+# Edit .env — set ANTHROPIC_API_KEY, OPENROUTER_API_KEY, and other secrets
 
 # Generate Prisma client
 npx prisma generate
 
-# Run migrations (creates all tables including pgvector setup)
+# Run Prisma migrations (creates all tables)
 npx prisma migrate dev
 
-# Enable pgvector extension (run once after first migration)
-docker exec -it $(docker compose ps -q postgres) psql -U compliance -d compliance_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+# Apply supplemental SQL (pgvector extension, FTS index, SSO table, retention columns)
+# This is safe to re-run — all statements use IF NOT EXISTS
+psql "$DATABASE_URL" -f ../setup.sql
 
 # Seed the database (frameworks, controls, demo org, demo users)
 npm run prisma:seed

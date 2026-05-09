@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, ParseIntPipe, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { IsString, IsNotEmpty, IsObject, IsOptional } from 'class-validator';
 import { OnboardingService } from './onboarding.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -44,8 +45,14 @@ export class OnboardingController {
 
   @Post('chat')
   @ApiOperation({ summary: 'Synchronous onboarding chat — bypasses queue, returns AI response directly in the HTTP response' })
-  async chat(@CurrentUser() user: JwtPayload, @Body() dto: ChatDto) {
-    return this.onboardingService.chatSync(user.orgId, user.sub, dto.message ?? null);
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async chat(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ChatDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.onboardingService.chatSync(user.orgId, user.sub, dto.message ?? null, file);
   }
 
   @Get('profile')

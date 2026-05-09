@@ -48,6 +48,38 @@ export interface ChangePasswordDto {
   newPassword:     string;
 }
 
+export interface SsoConfig {
+  id?:                  string;
+  orgId?:               string;
+  provider?:            string;
+  idpEntityId?:         string | null;
+  idpSsoUrl?:           string | null;
+  idpCertificate?:      string | null;   // '[configured]' when set, null otherwise
+  emailAttribute?:      string;
+  firstNameAttribute?:  string;
+  lastNameAttribute?:   string;
+  spEntityId?:          string | null;
+  acsUrl?:              string | null;
+  isVerified?:          boolean;
+  lastTestedAt?:        string | null;
+  organization?: {
+    id:        string;
+    slug:      string;
+    name:      string;
+    ssoEnabled: boolean;
+  };
+}
+
+export interface SsoConfigInput {
+  provider?:            string;
+  idpEntityId?:         string;
+  idpSsoUrl?:           string;
+  idpCertificate?:      string;
+  emailAttribute?:      string;
+  firstNameAttribute?:  string;
+  lastNameAttribute?:   string;
+}
+
 // ─── API Client ───────────────────────────────────────────────────────────────
 
 export const settingsApi = {
@@ -103,5 +135,23 @@ export const settingsApi = {
 
   logoutAllSessions(): Promise<void> {
     return apiClient.post('/auth/logout-all').then(() => undefined);
+  },
+
+  // ── SSO / SAML ────────────────────────────────────────────────────────────
+
+  getSsoConfig(): Promise<SsoConfig> {
+    return apiClient.get('/auth/sso/config').then((r) => r.data);
+  },
+
+  upsertSsoConfig(dto: SsoConfigInput): Promise<SsoConfig> {
+    return apiClient.post('/auth/sso/config', dto).then((r) => r.data);
+  },
+
+  testSsoConfig(): Promise<{ ok: boolean; error?: string }> {
+    return apiClient.post('/auth/sso/test').then((r) => r.data);
+  },
+
+  toggleSso(enabled: boolean): Promise<{ id: string; ssoEnabled: boolean }> {
+    return apiClient.patch('/auth/sso/toggle', { enabled }).then((r) => r.data);
   },
 };

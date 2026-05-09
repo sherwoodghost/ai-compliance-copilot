@@ -6,12 +6,13 @@ import {
   Shield, Send, CheckCircle, ChevronRight, Sparkles, Loader2, RotateCcw, Check,
   AlertTriangle, Zap, ChevronDown, ChevronUp, Activity, Lock, Database,
   Target, Users, FileText, Globe, Building2, ShieldAlert, Rocket, UserPlus,
-  Grid3X3, CheckCircle2, X,
+  Grid3X3, CheckCircle2, X, Paperclip,
 } from 'lucide-react';
 import {
   onboardingApi, OnboardingMessage, ChatResponse, OnboardingStatus,
   RiskObservation, IntegrationRecommendation,
 } from '@/lib/api/onboarding';
+import { MarkdownWithControls, ControlLinkifiedText } from '@/components/controls';
 import { teamApi, ComplianceRole, PlatformRole } from '@/lib/api/team';
 import { cn } from '@/lib/utils';
 
@@ -139,9 +140,10 @@ function detectChipGroup(message: string): ChipGroup | null {
 // ─── Severity config ──────────────────────────────────────────────────────────
 
 const SEVERITY_CONFIG = {
-  high:   { color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-200',    dot: 'bg-red-500',    label: 'High' },
-  medium: { color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500',  label: 'Med'  },
-  low:    { color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-400',   label: 'Low'  },
+  critical: { color: 'text-red-800',    bg: 'bg-red-50',    border: 'border-red-200',    dot: 'bg-red-600',    label: 'Critical', order: 0 },
+  high:     { color: 'text-red-700',    bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-red-500',    label: 'High',     order: 1 },
+  medium:   { color: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500',  label: 'Medium',   order: 2 },
+  low:      { color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-400',   label: 'Low',      order: 3 },
 } as const;
 
 // ─── Profile Sidebar ──────────────────────────────────────────────────────────
@@ -315,27 +317,60 @@ function ProfileSidebar({
                 : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
               }
             </button>
-            {risksExpanded && (
-              <div className="divide-y divide-gray-100">
-                {riskObservations.map((risk, i) => {
-                  const cfg = SEVERITY_CONFIG[risk.severity] ?? SEVERITY_CONFIG.low;
-                  return (
-                    <div key={i} className="px-3 py-2">
-                      <div className="flex items-start gap-2">
-                        <div className={cn('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0', cfg.dot)} />
-                        <div>
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className={cn('text-xs font-semibold', cfg.color)}>{cfg.label}</span>
-                            <span className="text-xs text-gray-500 font-medium">{risk.area}</span>
-                          </div>
-                          <p className="text-xs text-gray-600 leading-relaxed">{risk.observation}</p>
+            {risksExpanded && (() => {
+              // Group by severity order: critical → high → medium → low
+              const severityOrder = ['critical', 'high', 'medium', 'low'];
+              const grouped = severityOrder
+                .map((sev) => ({
+                  severity: sev,
+                  risks: riskObservations.filter((r) => r.severity === sev),
+                }))
+                .filter((g) => g.risks.length > 0);
+
+              return (
+                <div className="divide-y divide-gray-100">
+                  {grouped.map(({ severity, risks }) => {
+                    const cfg = SEVERITY_CONFIG[severity as keyof typeof SEVERITY_CONFIG] ?? SEVERITY_CONFIG.low;
+                    return (
+                      <div key={severity}>
+                        {/* Severity group header */}
+                        <div className={cn('flex items-center gap-1.5 px-3 py-1.5', cfg.bg)}>
+                          <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', cfg.dot)} />
+                          <span className={cn('text-xs font-bold uppercase tracking-wide', cfg.color)}>
+                            {cfg.label} ({risks.length})
+                          </span>
                         </div>
+                        {/* Risks in this group */}
+                        {risks.map((risk, i) => (
+                          <div key={i} className="px-3 py-2 bg-white">
+                            <div className="flex items-start gap-2">
+                              <div>
+                                <span className="text-xs text-gray-600 font-medium">{risk.area}</span>
+                                <p className="text-xs text-gray-600 leading-relaxed mt-0.5">
+                                  <ControlLinkifiedText text={risk.observation} />
+                                </p>
+                                {/* Investigate CTA if observation mentions a control code */}
+                                {/\b(CC[1-9]\.\d+|A\.\d+\.\d+|PI\d+\.\d+)\b/.test(risk.observation) && (
+                                  <a
+                                    href="/frameworks"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 mt-1 text-xs text-brand-600 hover:text-brand-700 font-medium"
+                                  >
+                                    <ChevronRight className="w-3 h-3" />
+                                    Investigate controls
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -428,13 +463,16 @@ function ChatBubble({ msg }: { msg: OnboardingMessage }) {
       )}
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+          'max-w-[85%] rounded-2xl px-4 py-2.5',
           isUser
-            ? 'bg-brand-600 text-white rounded-tr-sm'
+            ? 'bg-brand-600 text-white rounded-tr-sm text-sm leading-relaxed'
             : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm',
         )}
       >
-        {msg.content}
+        {isUser
+          ? msg.content
+          : <MarkdownWithControls content={msg.content} className="text-sm leading-relaxed" />
+        }
       </div>
     </div>
   );
@@ -971,8 +1009,11 @@ export default function OnboardingPage() {
   const [phaseCompletion, setPhaseCompletion]     = useState<Record<string, number>>({});
   const [currentPhase, setCurrentPhase]           = useState<string>('foundation');
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLInputElement>(null);
+  const bottomRef   = useRef<HTMLDivElement>(null);
+  const inputRef    = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
 
   // ── Compute pct from fields in profile ──────────────────────────────────────
   const filledCount = useMemo(() => {
@@ -1073,7 +1114,9 @@ export default function OnboardingPage() {
     }]);
 
     try {
-      const res: ChatResponse = await onboardingApi.chat(msg);
+      const response = await onboardingApi.chat(msg, attachedFile ?? undefined);
+      setAttachedFile(null);
+      const res: ChatResponse = response;
 
       setMessages((prev) => [...prev, {
         id: crypto.randomUUID(),
@@ -1105,7 +1148,7 @@ export default function OnboardingPage() {
       setSending(false);
       inputRef.current?.focus();
     }
-  }, [input, sending]);
+  }, [input, sending, attachedFile]);
 
   // ── Finalize onboarding ──────────────────────────────────────────────────────
   async function handleFinalize() {
@@ -1170,6 +1213,19 @@ export default function OnboardingPage() {
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Limit to 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File too large. Maximum size is 10MB.');
+      return;
+    }
+    setAttachedFile(file);
+    // Reset input so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -1282,6 +1338,15 @@ export default function OnboardingPage() {
 
         {/* Input / finalize area */}
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4">
+          {/* Hidden file input (shared by both input areas) */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.doc,.docx,.txt,.csv,.png,.jpg,.jpeg"
+            onChange={handleFileSelect}
+          />
+
           {isComplete ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-green-700 font-medium">
@@ -1300,6 +1365,16 @@ export default function OnboardingPage() {
             </div>
           ) : canFinalize ? (
             <div className="space-y-3">
+              {attachedFile && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="font-medium truncate max-w-[200px]">{attachedFile.name}</span>
+                  <span className="text-blue-500">({(attachedFile.size / 1024).toFixed(0)}KB)</span>
+                  <button type="button" onClick={() => setAttachedFile(null)} className="ml-auto text-blue-400 hover:text-blue-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
               <div className="flex gap-3">
                 <input
                   ref={inputRef}
@@ -1311,6 +1386,15 @@ export default function OnboardingPage() {
                   onKeyDown={handleKey}
                   disabled={sending || loading}
                 />
+                <button
+                  type="button"
+                  className="px-3 py-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending || loading}
+                  title="Attach file"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
                 <button
                   className="btn-primary px-4"
                   onClick={() => send()}
@@ -1330,25 +1414,46 @@ export default function OnboardingPage() {
               </button>
             </div>
           ) : (
-            <div className="flex gap-3">
-              <input
-                ref={inputRef}
-                type="text"
-                className="input flex-1"
-                placeholder="Type your answer…"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKey}
-                disabled={sending || loading}
-                autoFocus
-              />
-              <button
-                className="btn-primary px-4"
-                onClick={() => send()}
-                disabled={sending || loading || !input.trim()}
-              >
-                <Send className="w-4 h-4" />
-              </button>
+            <div className="space-y-2">
+              {attachedFile && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span className="font-medium truncate max-w-[200px]">{attachedFile.name}</span>
+                  <span className="text-blue-500">({(attachedFile.size / 1024).toFixed(0)}KB)</span>
+                  <button type="button" onClick={() => setAttachedFile(null)} className="ml-auto text-blue-400 hover:text-blue-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="input flex-1"
+                  placeholder="Type your answer…"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKey}
+                  disabled={sending || loading}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="px-3 py-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending || loading}
+                  title="Attach file"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+                <button
+                  className="btn-primary px-4"
+                  onClick={() => send()}
+                  disabled={sending || loading || !input.trim()}
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
