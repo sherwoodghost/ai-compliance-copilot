@@ -131,7 +131,7 @@ export class IngestionService {
     });
   }
 
-  async reviewFile(orgId: string, fileId: string, dto: ReviewIngestionFileDto): Promise<any> {
+  async reviewFile(orgId: string, fileId: string, dto: ReviewIngestionFileDto, skipRecalc = false): Promise<any> {
     const file = await this.prisma.ingestionFile.findFirst({
       where: { id: fileId, orgId },
     });
@@ -146,6 +146,13 @@ export class IngestionService {
 
     // Create Document from the file
     let documentId = dto.documentId;
+    if (documentId) {
+      // Verify the target document belongs to the same organization
+      const targetDoc = await this.prisma.document.findFirst({
+        where: { id: documentId, orgId },
+      });
+      if (!targetDoc) throw new NotFoundException('Target document not found in this organization');
+    }
     if (!documentId) {
       const doc = await this.prisma.document.create({
         data: {
@@ -172,8 +179,10 @@ export class IngestionService {
       },
     });
 
-    // Update batch counters
-    await this.recalcBatchCounters(file.batchId);
+    // Update batch counters (skipped during bulk operations)
+    if (!skipRecalc) {
+      await this.recalcBatchCounters(file.batchId);
+    }
 
     return { fileId, documentId, status: 'mapped' };
   }
@@ -184,9 +193,12 @@ export class IngestionService {
         this.reviewFile(orgId, fid, {
           documentType: dto.documentType,
           controlIds: dto.controlIds,
-        }),
+        }, true),
       ),
     );
+
+    // Single batch recalc at the end instead of one per file
+    await this.recalcBatchCounters(batchId);
 
     const succeeded = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
@@ -202,7 +214,8 @@ export class IngestionService {
     });
   }
 
-  private async recalcBatchCounters(batchId: string) {
+  // TODO: DRY - also duplicated in ingestion.worker.ts
+  async recalcBatchCounters(batchId: string) {
     const counts = await this.prisma.ingestionFile.groupBy({
       by: ['status'],
       where: { batchId },

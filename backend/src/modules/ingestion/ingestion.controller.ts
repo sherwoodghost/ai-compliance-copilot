@@ -1,12 +1,28 @@
 import {
   Controller, Post, Get, Patch, Body, Param, Query,
-  UseGuards, UseInterceptors, UploadedFiles,
+  UseGuards, UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { IngestionService } from './ingestion.service';
 import { ReviewIngestionFileDto, BulkReviewDto } from './dto/ingestion.dto';
+
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'text/plain',
+  'text/markdown',
+  'text/x-markdown',
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
 
 @Controller('ingestion')
 @UseGuards(JwtAuthGuard)
@@ -17,6 +33,13 @@ export class IngestionController {
   @Post('batches')
   @UseInterceptors(FilesInterceptor('files', 500, {
     limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file
+    fileFilter: (_req, file, cb) => {
+      if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException(`Unsupported file type: ${file.mimetype}`), false);
+      }
+    },
   }))
   async createBatch(
     @CurrentUser() user: JwtPayload,

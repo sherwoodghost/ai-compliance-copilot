@@ -222,7 +222,11 @@ export class IngestionWorker {
             );
 
             if (t3 && t3.confidence >= 60) {
-              await this.markNeedsReview(item.fileId, t3, orgId, batchId);
+              // Auto-place: Tier 3 high-confidence result
+              await this.autoPlace(
+                item.fileId, orgId, item.originalName, item.storageKey, item.mimeType,
+                { ...t3, tier: 3 }, batchId,
+              );
             } else {
               await this.markNeedsReview(item.fileId, t3, orgId, batchId);
             }
@@ -336,6 +340,7 @@ export class IngestionWorker {
     }).catch(() => {});
   }
 
+  // TODO: DRY - also duplicated in ingestion.service.ts
   private async recalcBatchCounters(batchId: string) {
     const counts = await this.prisma.ingestionFile.groupBy({
       by: ['status'],

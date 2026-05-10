@@ -190,6 +190,11 @@ function BatchStatusCard({ batch, onSelect }: { batch: any; onSelect: (id: strin
             <XCircle className="w-3 h-3 text-red-500" /> {batch.failed} failed
           </span>
         )}
+        {batch.createdAt && (
+          <p className="text-xs text-gray-400">
+            {new Date(batch.createdAt).toLocaleString()}
+          </p>
+        )}
         <ChevronRight className="w-3.5 h-3.5 ml-auto text-gray-300" />
       </div>
     </button>

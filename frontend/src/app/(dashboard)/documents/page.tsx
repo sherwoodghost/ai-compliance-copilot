@@ -197,7 +197,11 @@ export default function DocumentsPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => deleteMutation.mutate(doc.id)}
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete this document?')) {
+                      deleteMutation.mutate(doc.id);
+                    }
+                  }}
                   className="p-1.5 rounded hover:bg-red-50"
                   title="Delete"
                 >

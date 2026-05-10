@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table } from '@tiptap/extension-table';
@@ -139,7 +140,9 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton
         onClick={() => {
           const url = window.prompt('Enter link URL:');
-          if (url) editor.chain().focus().setLink({ href: url }).run();
+          if (url && /^https?:\/\//.test(url)) {
+            editor.chain().focus().setLink({ href: url }).run();
+          }
         }}
         isActive={editor.isActive('link')}
         title="Link"
@@ -180,7 +183,10 @@ export function DocumentEditor({
       TableCell,
       TableHeader,
       Image,
-      Link.configure({ openOnClick: false }),
+      Link.configure({
+        openOnClick: false,
+        validate: (href) => /^https?:\/\//.test(href),
+      }),
       Placeholder.configure({ placeholder }),
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -198,6 +204,12 @@ export function DocumentEditor({
       },
     },
   });
+
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(!readOnly);
+    }
+  }, [editor, readOnly]);
 
   if (!editor) {
     return (

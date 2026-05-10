@@ -22,6 +22,15 @@ export interface ConversionResult {
 export class TipTapConverterService {
   private readonly logger = new Logger(TipTapConverterService.name);
 
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs),
+      ),
+    ]);
+  }
+
   // ── Text Extraction (for classification) ──────────────────────────────────
 
   /**
@@ -33,10 +42,10 @@ export class TipTapConverterService {
       let text = '';
 
       if (this.isDocx(mimeType)) {
-        const result = await mammoth.extractRawText({ buffer });
+        const result: any = await this.withTimeout(mammoth.extractRawText({ buffer }), 30000, 'DOCX extraction');
         text = result.value;
       } else if (this.isPdf(mimeType)) {
-        const result = await pdfParse(buffer);
+        const result: any = await this.withTimeout(pdfParse(buffer), 30000, 'PDF extraction');
         text = result.text;
       } else if (this.isCsv(mimeType)) {
         text = buffer.toString('utf-8');
@@ -86,17 +95,17 @@ export class TipTapConverterService {
   // ── DOCX ──────────────────────────────────────────────────────────────────
 
   private async convertDocx(buffer: Buffer): Promise<ConversionResult> {
-    const htmlResult = await mammoth.convertToHtml(buffer, {
+    const htmlResult: any = await this.withTimeout(mammoth.convertToHtml(buffer, {
       styleMap: [
         "p[style-name='Heading 1'] => h1:fresh",
         "p[style-name='Heading 2'] => h2:fresh",
         "p[style-name='Heading 3'] => h3:fresh",
       ],
-    });
+    }), 30000, 'DOCX HTML conversion');
 
     const html = this.sanitizeHtml(htmlResult.value);
     const json = generateJSON(html, SERVER_EXTENSIONS);
-    const plainText = await mammoth.extractRawText({ buffer });
+    const plainText: any = await this.withTimeout(mammoth.extractRawText({ buffer }), 30000, 'DOCX text extraction');
 
     return { json, html, plainText: plainText.value };
   }
@@ -104,7 +113,7 @@ export class TipTapConverterService {
   // ── PDF ───────────────────────────────────────────────────────────────────
 
   private async convertPdf(buffer: Buffer): Promise<ConversionResult> {
-    const result = await pdfParse(buffer);
+    const result: any = await this.withTimeout(pdfParse(buffer), 30000, 'PDF conversion');
     const text = result.text;
 
     // Build TipTap doc manually: split by double newlines, detect headings
@@ -204,7 +213,8 @@ export class TipTapConverterService {
       ],
     };
 
-    const html = `<img src="__STORAGE_REF__:${filename}" alt="${filename}" />`;
+    const safeName = this.escapeHtml(filename);
+    const html = `<img src="__STORAGE_REF__:${safeName}" alt="${safeName}" />`;
     return { json, html, plainText: `[Image: ${filename}]` };
   }
 
@@ -223,6 +233,15 @@ export class TipTapConverterService {
     const html = generateHTML(json, SERVER_EXTENSIONS);
 
     return { json, html, plainText: text };
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

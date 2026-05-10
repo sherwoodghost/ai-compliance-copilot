@@ -14,9 +14,8 @@ interface PiiPattern {
 }
 
 const PII_PATTERNS: PiiPattern[] = [
-  // SSN: 123-45-6789 or 123456789
+  // SSN: 123-45-6789
   { name: 'SSN', pattern: /\b\d{3}-\d{2}-\d{4}\b/g, replacement: '[REDACTED_SSN]' },
-  { name: 'SSN', pattern: /\b\d{9}\b/g, replacement: '[REDACTED_SSN]' },
 
   // Credit card numbers (basic patterns: 16 digits with optional separators)
   { name: 'CREDIT_CARD', pattern: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, replacement: '[REDACTED_CC]' },

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/lib/api/documents';
 import { DocumentEditor } from '@/components/editor/DocumentEditor';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import {
   ArrowLeft, Save, Download, Clock, FileText,
   Loader2, History, ChevronDown,
@@ -242,12 +243,23 @@ export default function DocumentDetailPage() {
       )}
 
       {/* Editor */}
-      <DocumentEditor
-        content={doc.content}
-        readOnly={!editMode}
-        onChange={handleEditorChange}
-        placeholder="Document content will appear here..."
-      />
+      <ErrorBoundary
+        fallback={
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">
+            <h3 className="text-lg font-semibold text-amber-800">Editor failed to load</h3>
+            <p className="mt-2 text-sm text-amber-600">
+              The document content may be corrupted. Try refreshing the page.
+            </p>
+          </div>
+        }
+      >
+        <DocumentEditor
+          content={doc.content}
+          readOnly={!editMode}
+          onChange={handleEditorChange}
+          placeholder="Document content will appear here..."
+        />
+      </ErrorBoundary>
     </div>
   );
 }
