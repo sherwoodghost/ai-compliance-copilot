@@ -1,4 +1,3 @@
-// @ts-nocheck — depends on future schema migration (IngestionBatch, JobStatus models)
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -19,7 +18,7 @@ export class IngestionService {
     @InjectQueue(INGESTION_QUEUE) private readonly ingestionQueue: Queue,
   ) {}
 
-  async createBatch(orgId: string, files: Express.Multer.File[]): Promise<any> {
+  async createBatch(orgId: string, files: Express.Multer.File[], folderPaths: Record<string, string> = {}): Promise<any> {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files provided');
     }
@@ -69,6 +68,7 @@ export class IngestionService {
             storageKey: key,
             mimeType: file.mimetype,
             sizeBytes: file.size,
+            folderPath: folderPaths[file.originalname] ?? null,
             status: 'queued',
           },
         });
@@ -151,10 +151,10 @@ export class IngestionService {
         data: {
           orgId,
           title: file.originalName.replace(/\.[^.]+$/, ''), // strip extension
-          docType: (dto.documentType as any) ?? 'evidence_note',
+          docType: dto.documentType ?? 'other',
           controlIds: dto.controlIds ?? file.suggestedControlIds,
           detectedFrameworks: file.detectedFrameworks,
-          ingestionFileId: fileId,
+          sourceStorageKey: file.storageKey,
           content: {},
           contentHtml: '',
         },

@@ -23,6 +23,8 @@ import {
   BarChart3,
   Download,
   Cpu,
+  Upload,
+  Files,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -41,6 +43,8 @@ const NAV = [
   { href: '/audit-exports', label: 'Audit Exports', icon: Download },
   { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/integrations', label: 'Integrations', icon: Plug },
+  { href: '/import', label: 'Import', icon: Upload },
+  { href: '/documents', label: 'Documents', icon: Files },
   { href: '/llm-gateway', label: 'LLM Gateway', icon: Cpu },
   { href: '/control-panel', label: 'Control Panel', icon: Zap },
 ];

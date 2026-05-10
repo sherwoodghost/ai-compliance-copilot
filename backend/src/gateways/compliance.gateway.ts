@@ -116,6 +116,44 @@ export class ComplianceGateway implements OnGatewayConnection, OnGatewayDisconne
     });
   }
 
+  // ─── Ingestion events ──────────────────────────────────────────────────────
+
+  emitIngestionBatchProgress(
+    orgId: string, batchId: string, progress: number,
+    processedFiles: number, totalFiles: number,
+  ) {
+    this.server.to(`org:${orgId}`).emit('ingestion:batch:progress', {
+      batchId, progress, processedFiles, totalFiles,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  emitIngestionFileClassified(
+    orgId: string, fileId: string, batchId: string,
+    status: string, detectedType: string | null, confidence: number | null, tier: number,
+  ) {
+    this.server.to(`org:${orgId}`).emit('ingestion:file:classified', {
+      fileId, batchId, status, detectedType, confidence, tier,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  emitIngestionBatchCompleted(
+    orgId: string, batchId: string,
+    autoPlaced: number, needsReview: number, failed: number,
+  ) {
+    this.server.to(`org:${orgId}`).emit('ingestion:batch:completed', {
+      batchId, autoPlaced, needsReview, failed,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  emitIngestionFileConverted(orgId: string, fileId: string, documentId: string) {
+    this.server.to(`org:${orgId}`).emit('ingestion:file:converted', {
+      fileId, documentId, timestamp: new Date().toISOString(),
+    });
+  }
+
   @SubscribeMessage('subscribe:workflow')
   handleSubscribeWorkflow(
     @MessageBody() data: { workflowId: string },

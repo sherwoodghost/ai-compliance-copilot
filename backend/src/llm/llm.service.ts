@@ -22,6 +22,10 @@ const AGENT_MODEL_ROUTING: Record<string, string> = {
   'drift-detector':    'claude-haiku-4-5-20251001',
   interview:           'claude-sonnet-4-6',
 
+  // Ingestion classifier — Haiku for cost-effective batch classification (Tier 2)
+  // Tier 3 overrides to Sonnet at call site via model param
+  'ingestion-classifier': 'claude-haiku-4-5-20251001',
+
   // Framework expert agents — Sonnet for deep framework knowledge
   'framework-expert-iso27001': 'claude-sonnet-4-6',
   'framework-expert-soc2':     'claude-sonnet-4-6',

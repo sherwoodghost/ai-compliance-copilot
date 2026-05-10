@@ -46,6 +46,25 @@ export function useComplianceSocket() {
       qc.invalidateQueries({ queryKey: ['journeys'] });
     });
 
+    // Ingestion events
+    socket.on('ingestion:batch:progress', () => {
+      qc.invalidateQueries({ queryKey: ['ingestion-batches'] });
+    });
+
+    socket.on('ingestion:file:classified', (data: { batchId: string }) => {
+      qc.invalidateQueries({ queryKey: ['ingestion-batches'] });
+      qc.invalidateQueries({ queryKey: ['ingestion-files', data.batchId] });
+    });
+
+    socket.on('ingestion:batch:completed', (data: { batchId: string }) => {
+      qc.invalidateQueries({ queryKey: ['ingestion-batches'] });
+      qc.invalidateQueries({ queryKey: ['ingestion-files', data.batchId] });
+    });
+
+    socket.on('ingestion:file:converted', () => {
+      qc.invalidateQueries({ queryKey: ['documents'] });
+    });
+
     return () => {
       socket.off('compliance:score:updated');
       socket.off('agent:run:updated');
@@ -54,6 +73,10 @@ export function useComplianceSocket() {
       socket.off('journey:stage:updated');
       socket.off('checkpoint:created');
       socket.off('checkpoint:resolved');
+      socket.off('ingestion:batch:progress');
+      socket.off('ingestion:file:classified');
+      socket.off('ingestion:batch:completed');
+      socket.off('ingestion:file:converted');
     };
   }, [qc]);
 }

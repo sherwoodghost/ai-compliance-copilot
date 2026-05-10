@@ -49,9 +49,9 @@ describe('PromptRegistryService — hardening', () => {
     expect(template.templateId).toBe('onboarding-dialogue');
   });
 
-  it('H05 — all 21 registered templates have contentHash', () => {
+  it('H05 — all 23 registered templates have contentHash', () => {
     const all = registry.listAll();
-    expect(all.length).toBe(21);
+    expect(all.length).toBe(23);
     for (const t of all) {
       expect(t.contentHash).toBeDefined();
       expect(t.contentHash.length).toBe(64); // SHA-256 hex

@@ -345,6 +345,10 @@ model Organization {
   // Phase A (Control Test Engine + Trust Center)
   controlTestResults  ControlTestResult[]
   trustCenter         TrustCenter?
+  // Bulk Document Import + Documents
+  jobStatuses          JobStatus[]
+  ingestionBatches     IngestionBatch[]
+  documents            Document[]
 
   @@map("organizations")
 }
@@ -1511,4 +1515,118 @@ model LlmBudget {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("llm_budgets")
+}
+
+// ─── Bulk Document Import & Document Management ─────────────────────────────
+
+model JobStatus {
+  id             String    @id @default(uuid())
+  orgId          String    @map("org_id")
+  type           String    // 'ingestion-batch' | 'document-conversion'
+  status         String    @default("queued") // queued | processing | completed | failed
+  progress       Int       @default(0)        // 0-100
+  resultPayload  Json?     @map("result_payload")
+  errorMessage   String?   @map("error_message") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ingestionBatch IngestionBatch?
+
+  @@index([orgId, type])
+  @@map("job_statuses")
+}
+
+model IngestionBatch {
+  id             String   @id @default(uuid())
+  orgId          String   @map("org_id")
+  totalFiles     Int      @map("total_files")
+  processedFiles Int      @default(0) @map("processed_files")
+  autoPlaced     Int      @default(0) @map("auto_placed")
+  needsReview    Int      @default(0) @map("needs_review")
+  failed         Int      @default(0)
+  status         String   @default("queued") // queued | processing | review_pending | completed | failed
+  jobStatusId    String   @unique @map("job_status_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  jobStatus    JobStatus        @relation(fields: [jobStatusId], references: [id])
+  files        IngestionFile[]
+
+  @@index([orgId, status])
+  @@map("ingestion_batches")
+}
+
+model IngestionFile {
+  id                   String    @id @default(uuid())
+  batchId              String    @map("batch_id")
+  orgId                String    @map("org_id")
+  originalName         String    @map("original_name")
+  storageKey           String    @map("storage_key")
+  mimeType             String    @map("mime_type")
+  sizeBytes            Int       @map("size_bytes")
+  folderPath           String?   @map("folder_path")
+  status               String    @default("queued") // queued | classifying | converting | mapped | needs_review | skipped | error
+  tier                 Int?      // 1=deterministic, 2=haiku, 3=sonnet
+  detectedType         String?   @map("detected_type")     // policy | procedure | evidence | report | template | other
+  detectedFrameworks   String[]  @default([]) @map("detected_frameworks")
+  suggestedControlIds  String[]  @default([]) @map("suggested_control_ids")
+  confidence           Int?      // 0-100
+  classificationReason String?   @map("classification_reason") @db.Text
+  documentId           String?   @map("document_id")
+  errorMessage         String?   @map("error_message") @db.Text
+  piiDetected          Boolean   @default(false) @map("pii_detected")
+  piiFields            String[]  @default([]) @map("pii_fields")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  batch    IngestionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  document Document?      @relation(fields: [documentId], references: [id])
+
+  @@index([batchId, status])
+  @@index([orgId])
+  @@map("ingestion_files")
+}
+
+model Document {
+  id                 String    @id @default(uuid())
+  orgId              String    @map("org_id")
+  title              String
+  docType            String    @map("doc_type") // policy | procedure | evidence | report | template | other
+  content            Json      @default("{}") // TipTap JSON — source of truth
+  contentHtml        String    @default("") @map("content_html") @db.Text
+  contentText        String?   @map("content_text") @db.Text // plain text for full-text search
+  controlIds         String[]  @default([]) @map("control_ids")
+  detectedFrameworks String[]  @default([]) @map("detected_frameworks")
+  activeForOrg       Boolean   @default(true) @map("active_for_org")
+  sourceStorageKey   String?   @map("source_storage_key") // original file in S3
+  version            Int       @default(1)
+  createdBy          String?   @map("created_by")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ingestionFiles  IngestionFile[]
+  versions        DocumentVersion[]
+
+  @@index([orgId, docType])
+  @@index([orgId, activeForOrg])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id          String   @id @default(uuid())
+  documentId  String   @map("document_id")
+  version     Int
+  content     Json     // TipTap JSON snapshot
+  contentHtml String   @map("content_html") @db.Text
+  editedBy    String?  @map("edited_by")
+  changeNote  String?  @map("change_note") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@map("document_versions")
 }

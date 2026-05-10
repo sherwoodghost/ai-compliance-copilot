@@ -21,6 +21,10 @@ export const QUEUE_NAMES = {
   AGENT_BENCHMARK: 'agent.benchmark',
   AGENT_AUDIT: 'agent.audit',
   AGENT_DASHBOARD: 'agent.dashboard',
+
+  // Ingestion pipeline queues (not part of assessment pipeline)
+  INGESTION: 'ingestion',
+  INGESTION_CONVERT: 'ingestion.convert',
 } as const;
 
 // Full assessment pipeline order (matches PIPELINE in workflow.engine.ts)

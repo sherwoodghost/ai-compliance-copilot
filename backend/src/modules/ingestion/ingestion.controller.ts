@@ -1,12 +1,10 @@
-// @ts-nocheck — depends on future schema migration (IngestionBatch, JobStatus models)
 import {
   Controller, Post, Get, Patch, Body, Param, Query,
   UseGuards, UseInterceptors, UploadedFiles,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { JwtPayload } from '../../modules/auth/types/jwt-payload.interface';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { IngestionService } from './ingestion.service';
 import { ReviewIngestionFileDto, BulkReviewDto } from './dto/ingestion.dto';
 
@@ -23,8 +21,13 @@ export class IngestionController {
   async createBatch(
     @CurrentUser() user: JwtPayload,
     @UploadedFiles() files: Express.Multer.File[],
+    @Body('folderPaths') folderPathsJson?: string,
   ) {
-    return this.svc.createBatch(user.orgId, files);
+    let folderPaths: Record<string, string> = {};
+    if (folderPathsJson) {
+      try { folderPaths = JSON.parse(folderPathsJson); } catch {}
+    }
+    return this.svc.createBatch(user.orgId, files, folderPaths);
   }
 
   /** List all ingestion batches for this org */

@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { LlmGatewayService } from '../../llm-gateway/llm-gateway.service';
+import { LlmService } from '../../llm/llm.service';
 
 export interface ClassificationResult {
   detectedType: string;  // policy | procedure | evidence | report | template | other
@@ -9,11 +11,32 @@ export interface ClassificationResult {
   classificationReason: string;
 }
 
-interface FileSignals {
+export interface FileSignals {
   filename: string;
   mimeType: string;
   sizeBytes: number;
   folderPath?: string;
+}
+
+export interface ClassificationContext {
+  companyName: string;
+  industry: string;
+  employeeCount: string;
+  targetFrameworks: string[];
+  cloudProviders: string[];
+  dataTypes: string[];
+  applicableControlCodes: string[];
+  existingDocTitles: string[];
+}
+
+interface Tier2BatchItem {
+  fileId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  folderPath?: string;
+  redactedText: string;
+  t1Hints: ClassificationResult | null;
 }
 
 // Tier 1 deterministic rules
@@ -58,6 +81,11 @@ const FOLDER_PATTERNS: Array<{ pattern: RegExp; type?: string; frameworks: strin
 @Injectable()
 export class IngestionClassifierService {
   private readonly logger = new Logger(IngestionClassifierService.name);
+
+  constructor(
+    private readonly gateway: LlmGatewayService,
+    private readonly llm: LlmService,
+  ) {}
 
   /**
    * Tier 1 — Deterministic classification.
@@ -128,5 +156,140 @@ export class IngestionClassifierService {
       tier: 1,
       classificationReason: reasons.join('; '),
     };
+  }
+
+  // ── Tier 2 — Haiku Batch Classification ─────────────────────────────────
+
+  /**
+   * Classify up to 10 files in a single Haiku LLM call.
+   * Uses company context (BusinessProfile) for smarter classification.
+   */
+  async classifyTier2Batch(
+    items: Tier2BatchItem[],
+    context: ClassificationContext,
+  ): Promise<Array<{ fileId: string; result: ClassificationResult | null }>> {
+    const filesDescription = items.map((item, i) => {
+      const hints = item.t1Hints
+        ? `Tier 1 hints: type=${item.t1Hints.detectedType}, frameworks=${item.t1Hints.detectedFrameworks.join(',')}`
+        : 'No Tier 1 match';
+      return `File ${i + 1}: "${item.originalName}" (${item.mimeType}, ${item.sizeBytes} bytes)
+${hints}
+Content preview:
+${item.redactedText.slice(0, 500)}`;
+    }).join('\n\n---\n\n');
+
+    const userMessage = `Company: ${context.companyName} (${context.industry}, ${context.employeeCount} employees)
+Target frameworks: ${context.targetFrameworks.join(', ') || 'not set'}
+Infrastructure: ${context.cloudProviders.join(', ') || 'not specified'}
+Data types: ${context.dataTypes.join(', ') || 'not specified'}
+Applicable controls: ${context.applicableControlCodes.slice(0, 50).join(', ')}
+
+Classify each of the following ${items.length} files.
+
+For each file, return a JSON object with:
+- fileIndex (0-based)
+- detectedType: one of "policy" | "procedure" | "evidence" | "report" | "template" | "other"
+- detectedFrameworks: string[] of framework IDs (SOC2, ISO27001, GDPR, ISO9001, HIPAA, PCI_DSS, NIST_CSF, FedRAMP)
+- suggestedControlIds: string[] of control codes this document likely maps to
+- confidence: 0-100
+- reason: brief explanation
+
+Return a JSON array only, no other text.
+
+${filesDescription}`;
+
+    try {
+      const response = await this.gateway.call({
+        promptTemplateId: 'ingestion-classify-t2',
+        userMessage,
+        agentName: 'ingestion-classifier',
+        taskType: 'compliance',
+        maxTokens: 2000,
+      });
+
+      const parsed = this.llm.parseJSON<any[]>(response.content);
+
+      return items.map((item, i) => {
+        const match = parsed.find((p: any) => p.fileIndex === i);
+        if (!match) return { fileId: item.fileId, result: null };
+
+        return {
+          fileId: item.fileId,
+          result: {
+            detectedType: match.detectedType ?? 'other',
+            detectedFrameworks: match.detectedFrameworks ?? [],
+            suggestedControlIds: match.suggestedControlIds ?? [],
+            confidence: match.confidence ?? 50,
+            tier: 2,
+            classificationReason: match.reason ?? 'Classified by AI (Tier 2)',
+          },
+        };
+      });
+    } catch (err: any) {
+      this.logger.error(`Tier 2 batch classification failed: ${err.message}`);
+      return items.map((item) => ({ fileId: item.fileId, result: null }));
+    }
+  }
+
+  // ── Tier 3 — Sonnet Deep Classification ─────────────────────────────────
+
+  /**
+   * Deep classification of a single document using Sonnet.
+   * Full document text + complete company context.
+   */
+  async classifyTier3(
+    signals: FileSignals,
+    fullText: string,
+    context: ClassificationContext,
+  ): Promise<ClassificationResult | null> {
+    const userMessage = `Company: ${context.companyName} (${context.industry}, ${context.employeeCount} employees)
+Target frameworks: ${context.targetFrameworks.join(', ') || 'not set'}
+Infrastructure: ${context.cloudProviders.join(', ') || 'not specified'}
+Data types: ${context.dataTypes.join(', ') || 'not specified'}
+Applicable controls: ${context.applicableControlCodes.slice(0, 100).join(', ')}
+Existing documents: ${context.existingDocTitles.slice(0, 20).join(', ')}
+
+Classify this document with high precision.
+
+File: "${signals.filename}" (${signals.mimeType}, ${signals.sizeBytes} bytes)
+
+Full content:
+${fullText}
+
+Return a single JSON object with:
+- detectedType: "policy" | "procedure" | "evidence" | "report" | "template" | "other"
+- detectedFrameworks: string[] of framework IDs
+- suggestedControlIds: string[] of specific control codes this document maps to
+- confidence: 0-100
+- reason: detailed explanation of the classification
+- isDuplicate: boolean — true if this appears to be a version of an existing document
+- duplicateOf: string | null — title of the existing document it duplicates
+
+Return JSON only, no other text.`;
+
+    try {
+      const response = await this.gateway.call({
+        promptTemplateId: 'ingestion-classify-t3',
+        userMessage,
+        agentName: 'ingestion-classifier',
+        model: 'claude-sonnet-4-6', // Override to Sonnet for Tier 3
+        taskType: 'compliance',
+        maxTokens: 1500,
+      });
+
+      const parsed = this.llm.parseJSON<any>(response.content);
+
+      return {
+        detectedType: parsed.detectedType ?? 'other',
+        detectedFrameworks: parsed.detectedFrameworks ?? [],
+        suggestedControlIds: parsed.suggestedControlIds ?? [],
+        confidence: parsed.confidence ?? 50,
+        tier: 3,
+        classificationReason: parsed.reason ?? 'Classified by AI (Tier 3)',
+      };
+    } catch (err: any) {
+      this.logger.error(`Tier 3 classification failed: ${err.message}`);
+      return null;
+    }
   }
 }
