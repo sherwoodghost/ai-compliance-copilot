@@ -3,11 +3,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient as api } from '@/lib/api/client';
 import { complianceApi } from '@/lib/api/compliance';
+import { gapAnalysisApi } from '@/lib/api/gap-analysis';
 import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
-  XCircle, Activity, Rocket,
+  XCircle, Activity, Rocket, ShieldAlert,
 } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -223,6 +224,97 @@ function ComplianceHealthWidget() {
   );
 }
 
+// ─── Gap Insights Widget ─────────────────────────────────────────────────────
+
+function GapInsightsWidget() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['gap-summary'],
+    queryFn: () => gapAnalysisApi.analyze(),
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="card p-5 animate-pulse">
+        <div className="h-4 bg-gray-100 rounded w-40 mb-4" />
+        <div className="h-20 bg-gray-50 rounded" />
+      </div>
+    );
+  }
+
+  if (!data || data.summary.totalApplicableControls === 0) return null;
+
+  const { summary } = data;
+  const coverageColor = summary.coveragePercentage >= 75 ? 'text-green-600' : summary.coveragePercentage >= 50 ? 'text-yellow-600' : 'text-red-600';
+  const barColor = summary.coveragePercentage >= 75 ? 'bg-green-500' : summary.coveragePercentage >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-brand-600" />
+          <h2 className="text-sm font-semibold text-gray-900">Gap Insights</h2>
+          <span className="text-xs text-gray-400 font-normal">{summary.totalApplicableControls} applicable controls</span>
+        </div>
+        <Link href="/gaps" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+          Full analysis <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {/* Coverage bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-xs text-gray-500 w-16">Coverage</span>
+        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className={cn('h-full rounded-full transition-all duration-500', barColor)} style={{ width: `${summary.coveragePercentage}%` }} />
+        </div>
+        <span className={cn('text-sm font-bold tabular-nums w-10 text-right', coverageColor)}>{summary.coveragePercentage}%</span>
+      </div>
+
+      {/* Gap severity breakdown */}
+      <div className="grid grid-cols-4 gap-2 mb-4">
+        {[
+          { label: 'Critical', count: summary.criticalGaps, color: 'text-red-600', bg: 'bg-red-50' },
+          { label: 'High', count: summary.highGaps, color: 'text-orange-600', bg: 'bg-orange-50' },
+          { label: 'Medium', count: summary.mediumGaps, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+          { label: 'Low', count: summary.lowGaps, color: 'text-blue-600', bg: 'bg-blue-50' },
+        ].map(({ label, count, color, bg }) => (
+          <div key={label} className={cn('rounded-lg p-2 text-center', bg)}>
+            <p className={cn('text-lg font-bold', color)}>{count}</p>
+            <p className={cn('text-xs', color)}>{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Top 3 remediation actions */}
+      {summary.topRemediations.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-gray-500 mb-2">Top actions to close gaps</p>
+          {summary.topRemediations.slice(0, 3).map((action, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs p-2 bg-gray-50 rounded-lg">
+              <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</span>
+              <span className="text-gray-700 flex-1 truncate">{action.label}</span>
+              <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium',
+                action.impact === 'high' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+              )}>
+                {action.impact} impact
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
+        <Link href="/gaps" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+          View all gaps <ArrowRight className="w-3 h-3" />
+        </Link>
+        <Link href="/audit-checklist" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+          Audit checklist <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
@@ -381,6 +473,9 @@ export default function OverviewPage() {
 
       {/* Compliance Health — live automated test results */}
       <ComplianceHealthWidget />
+
+      {/* Gap Insights — quick view from gap analysis */}
+      <GapInsightsWidget />
 
       {/* Recommended actions + trigger assessments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
