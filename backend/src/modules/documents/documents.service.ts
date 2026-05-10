@@ -247,18 +247,21 @@ export class DocumentsService {
   // ── Stats ─────────────────────────────────────────────────────────────────
 
   async getStats(orgId: string) {
-    const [byType, byFramework, totalDocs, recentDocs] = await Promise.all([
+    const [byType, frameworkCounts, totalDocs, recentDocs] = await Promise.all([
       // Count by doc type
       this.prisma.document.groupBy({
         by: ['docType'],
         where: { orgId, activeForOrg: true },
         _count: { id: true },
       }),
-      // All active documents to count frameworks
-      this.prisma.document.findMany({
-        where: { orgId, activeForOrg: true },
-        select: { detectedFrameworks: true },
-      }),
+      // Count frameworks via raw SQL with unnest
+      this.prisma.$queryRaw<Array<{ framework: string; count: bigint }>>`
+        SELECT unnest(detected_frameworks) as framework, COUNT(*) as count
+        FROM documents
+        WHERE org_id = ${orgId} AND active_for_org = true
+        GROUP BY framework
+        ORDER BY count DESC
+      `,
       // Total count
       this.prisma.document.count({ where: { orgId, activeForOrg: true } }),
       // Recent (last 7 days)
@@ -271,21 +274,15 @@ export class DocumentsService {
       }),
     ]);
 
-    // Count framework occurrences
-    const frameworkCounts: Record<string, number> = {};
-    for (const doc of byFramework) {
-      for (const fw of doc.detectedFrameworks) {
-        frameworkCounts[fw] = (frameworkCounts[fw] ?? 0) + 1;
-      }
-    }
-
     return {
       total: totalDocs,
       recentlyAdded: recentDocs,
       byType: Object.fromEntries(
         byType.map((g) => [g.docType, g._count.id]),
       ),
-      byFramework: frameworkCounts,
+      byFramework: Object.fromEntries(
+        frameworkCounts.map((f) => [f.framework, Number(f.count)]),
+      ),
     };
   }
 

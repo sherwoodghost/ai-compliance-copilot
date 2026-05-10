@@ -6,7 +6,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { IngestionService } from './ingestion.service';
-import { ReviewIngestionFileDto, BulkReviewDto } from './dto/ingestion.dto';
+import { ReviewIngestionFileDto, BulkReviewDto, CreatePresignedBatchDto } from './dto/ingestion.dto';
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -28,6 +28,24 @@ const ALLOWED_MIME_TYPES = new Set([
 @UseGuards(JwtAuthGuard)
 export class IngestionController {
   constructor(private readonly svc: IngestionService) {}
+
+  /** Request presigned upload URLs for a batch of files (no server-side buffering) */
+  @Post('batches/presigned')
+  async createPresignedBatch(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreatePresignedBatchDto,
+  ) {
+    return this.svc.createPresignedBatch(user.orgId, dto);
+  }
+
+  /** Confirm that all files have been uploaded directly to S3 */
+  @Post('batches/:batchId/confirm')
+  async confirmBatch(
+    @CurrentUser() user: JwtPayload,
+    @Param('batchId') batchId: string,
+  ) {
+    return this.svc.confirmBatch(user.orgId, batchId);
+  }
 
   /** Upload multiple files to start a new ingestion batch */
   @Post('batches')

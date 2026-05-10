@@ -1612,6 +1612,7 @@ model Document {
 
   @@index([orgId, docType])
   @@index([orgId, activeForOrg])
+  @@index([orgId, activeForOrg, updatedAt])
   @@map("documents")
 }
 

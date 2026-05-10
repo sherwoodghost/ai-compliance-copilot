@@ -72,9 +72,11 @@ export class IngestionWorker {
         where: { batchId, orgId, status: 'queued' },
       });
 
+      this.logger.log(`Found ${files.length} queued files to process (skipping already-processed)`);
+
       let processed = 0;
       const tier2Queue: Tier2QueueItem[] = [];
-      const tier3Queue: Array<{ fileId: string; originalName: string; storageKey: string; mimeType: string }> = [];
+      const tier3Queue: Array<{ fileId: string; originalName: string; storageKey: string; mimeType: string; cachedText?: string }> = [];
 
       // ── Pass 1: Tier 1 (deterministic) + collect Tier 2 candidates ────────
       for (const file of files) {
@@ -163,9 +165,11 @@ export class IngestionWorker {
                 // Escalate to Tier 3
                 const file = await this.prisma.ingestionFile.findUnique({ where: { id: fileId } });
                 if (file) {
+                  const t2Item = batch.find((b) => b.fileId === fileId);
                   tier3Queue.push({
                     fileId, originalName: file.originalName,
                     storageKey: file.storageKey, mimeType: file.mimeType,
+                    cachedText: t2Item?.redactedText,
                   });
                 }
 
@@ -207,17 +211,32 @@ export class IngestionWorker {
           const item = tier3Queue[i];
 
           try {
-            const buffer = await this.storage.download(item.storageKey);
-            const fullText = await this.converter.extractText(buffer, item.mimeType, 8000);
-            const redacted = this.piiRedactor.redact(fullText);
+            let redactedText: string;
+            if (item.cachedText) {
+              // Use cached text from Tier 2 pass, but get more text for Tier 3 (8000 chars vs 2000)
+              if (item.cachedText.length >= 7000) {
+                redactedText = item.cachedText;
+              } else {
+                // Need more text, re-extract with higher limit
+                const buffer = await this.storage.download(item.storageKey);
+                const fullText = await this.converter.extractText(buffer, item.mimeType, 8000);
+                const redacted = this.piiRedactor.redact(fullText);
+                redactedText = redacted.text;
+              }
+            } else {
+              const buffer = await this.storage.download(item.storageKey);
+              const fullText = await this.converter.extractText(buffer, item.mimeType, 8000);
+              const redacted = this.piiRedactor.redact(fullText);
+              redactedText = redacted.text;
+            }
 
             const t3 = await this.classifier.classifyTier3(
               {
                 filename: item.originalName,
                 mimeType: item.mimeType,
-                sizeBytes: buffer.length,
+                sizeBytes: redactedText.length,
               },
-              redacted.text,
+              redactedText,
               context,
             );
 
@@ -274,6 +293,13 @@ export class IngestionWorker {
     storageKey: string, mimeType: string,
     result: ClassificationResult, batchId: string,
   ) {
+    // Idempotency: skip if file already has a document
+    const existing = await this.prisma.ingestionFile.findUnique({ where: { id: fileId } });
+    if (existing?.documentId) {
+      this.logger.debug(`File ${fileId} already mapped to document ${existing.documentId}, skipping`);
+      return;
+    }
+
     const doc = await this.prisma.document.create({
       data: {
         orgId,

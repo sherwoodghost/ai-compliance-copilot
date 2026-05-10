@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../../database/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { ReviewIngestionFileDto, BulkReviewDto } from './dto/ingestion.dto';
+import { ReviewIngestionFileDto, BulkReviewDto, CreatePresignedBatchDto } from './dto/ingestion.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 export const INGESTION_QUEUE = 'ingestion';
@@ -17,6 +17,87 @@ export class IngestionService {
     private readonly storage: StorageService,
     @InjectQueue(INGESTION_QUEUE) private readonly ingestionQueue: Queue,
   ) {}
+
+  async createPresignedBatch(orgId: string, dto: CreatePresignedBatchDto): Promise<any> {
+    if (!dto.files || dto.files.length === 0) {
+      throw new BadRequestException('No files specified');
+    }
+    if (dto.files.length > 500) {
+      throw new BadRequestException('Maximum 500 files per batch');
+    }
+
+    // Create job status + batch record
+    const jobStatus = await this.prisma.jobStatus.create({
+      data: { orgId, type: 'ingestion-batch', status: 'uploading', progress: 0 },
+    });
+
+    const batch = await this.prisma.ingestionBatch.create({
+      data: {
+        orgId,
+        totalFiles: dto.files.length,
+        status: 'uploading',
+        jobStatusId: jobStatus.id,
+      },
+    });
+
+    // Generate presigned URLs and create IngestionFile records
+    const uploadUrls = await Promise.all(
+      dto.files.map(async (file) => {
+        const safeFilename = file.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const key = this.storage.ingestionKey(orgId, batch.id, `${uuidv4()}_${safeFilename}`);
+
+        const uploadUrl = await this.storage.getPresignedUploadUrl(key, file.mimeType, 3600);
+
+        await this.prisma.ingestionFile.create({
+          data: {
+            batchId: batch.id,
+            orgId,
+            originalName: file.filename,
+            storageKey: key,
+            mimeType: file.mimeType,
+            sizeBytes: file.sizeBytes,
+            folderPath: file.folderPath ?? null,
+            status: 'uploading',
+          },
+        });
+
+        return { filename: file.filename, uploadUrl, storageKey: key };
+      }),
+    );
+
+    return {
+      batchId: batch.id,
+      jobStatusId: jobStatus.id,
+      uploadUrls,
+    };
+  }
+
+  async confirmBatch(orgId: string, batchId: string): Promise<any> {
+    const batch = await this.prisma.ingestionBatch.findFirst({
+      where: { id: batchId, orgId, status: 'uploading' },
+    });
+    if (!batch) throw new NotFoundException('Batch not found or already confirmed');
+
+    // Mark all files as queued
+    await this.prisma.ingestionFile.updateMany({
+      where: { batchId, orgId, status: 'uploading' },
+      data: { status: 'queued' },
+    });
+
+    await this.prisma.ingestionBatch.update({
+      where: { id: batchId },
+      data: { status: 'queued' },
+    });
+
+    // Enqueue processing
+    await this.ingestionQueue.add(
+      'process-batch',
+      { batchId, orgId, jobStatusId: batch.jobStatusId },
+      { attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+    );
+
+    return { batchId, status: 'queued', totalFiles: batch.totalFiles };
+  }
 
   async createBatch(orgId: string, files: Express.Multer.File[], folderPaths: Record<string, string> = {}): Promise<any> {
     if (!files || files.length === 0) {

@@ -66,7 +66,7 @@ function BulkUploader() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const uploadMutation = useMutation({
-    mutationFn: (files: FileWithPath[]) => ingestionApi.createBatch(files),
+    mutationFn: (files: FileWithPath[]) => ingestionApi.createBatch(files, (percent) => setUploadProgress(percent)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ingestion-batches'] });
       setUploading(false);
@@ -81,7 +81,7 @@ function BulkUploader() {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     setUploading(true);
-    setUploadProgress(10);
+    setUploadProgress(0);
 
     // Extract folder paths from webkitRelativePath (available for directory uploads)
     const filesWithPaths: FileWithPath[] = acceptedFiles.map((file) => {

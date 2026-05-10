@@ -65,6 +65,17 @@ export class StorageService {
     return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
   }
 
+  // ── Presigned Upload URL ─────────────────────────────────────────────────
+
+  async getPresignedUploadUrl(key: string, contentType: string, expiresInSeconds = 3600): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+    });
+    return getSignedUrl(this.s3, command, { expiresIn: expiresInSeconds });
+  }
+
   // ── Delete ──────────────────────────────────────────────────────────────────
 
   async delete(key: string): Promise<void> {

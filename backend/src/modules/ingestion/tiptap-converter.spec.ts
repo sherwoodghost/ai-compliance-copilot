@@ -4,6 +4,50 @@
  * TC01–TC12: Verify text extraction and document conversion for all supported formats.
  */
 
+// Mock isomorphic-dompurify to avoid jsdom ESM compatibility issues in Jest
+jest.mock('isomorphic-dompurify', () => ({
+  sanitize: (html: string, opts?: { ALLOWED_TAGS?: string[]; ALLOWED_ATTR?: string[] }) => {
+    const allowedTags = opts?.ALLOWED_TAGS ?? [];
+    const allowedAttrs = opts?.ALLOWED_ATTR ?? [];
+
+    // Strip disallowed tags but keep their text content (except script/style)
+    let result = html;
+
+    // Remove script/iframe/object/embed tags and their content entirely
+    result = result.replace(/<script[\s\S]*?<\/script>/gi, '');
+    result = result.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
+    result = result.replace(/<object[\s\S]*?<\/object>/gi, '');
+    result = result.replace(/<embed[\s\S]*?\/?>/gi, '');
+
+    // Strip disallowed attributes from allowed tags (like event handlers)
+    result = result.replace(/<(\w+)(\s[^>]*)>/g, (match, tag, attrs) => {
+      const tagLower = tag.toLowerCase();
+      if (!allowedTags.includes(tagLower)) {
+        return '';
+      }
+      // Filter attributes
+      const cleanAttrs = (attrs || '').replace(/\s(\w[\w-]*)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*))?/g,
+        (attrMatch: string, attrName: string) => {
+          if (allowedAttrs.includes(attrName.toLowerCase())) {
+            return attrMatch;
+          }
+          return '';
+        });
+      return `<${tag}${cleanAttrs}>`;
+    });
+
+    // Remove disallowed closing tags
+    result = result.replace(/<\/(\w+)>/g, (match, tag) => {
+      if (allowedTags.includes(tag.toLowerCase())) {
+        return match;
+      }
+      return '';
+    });
+
+    return result;
+  },
+}));
+
 import { TipTapConverterService } from './tiptap-converter.service';
 
 const converter = new TipTapConverterService();

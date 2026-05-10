@@ -4,6 +4,8 @@ const { generateJSON, generateHTML } = require('@tiptap/html/server');
 import { SERVER_EXTENSIONS } from './tiptap-extensions';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
+const DOMPurify = require('isomorphic-dompurify');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const mammoth = require('mammoth');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse');
@@ -247,13 +249,19 @@ export class TipTapConverterService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private sanitizeHtml(html: string): string {
-    // Strip script tags, event handlers, and dangerous attributes
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '')
-      .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-      .replace(/<object[\s\S]*?<\/object>/gi, '')
-      .replace(/<embed[\s\S]*?\/?>/gi, '');
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: [
+        'p', 'br', 'b', 'i', 'u', 'em', 'strong', 'a', 'ul', 'ol', 'li',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code',
+        'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'span', 'div',
+        'sub', 'sup', 'hr', 's', 'del',
+      ],
+      ALLOWED_ATTR: [
+        'href', 'src', 'alt', 'title', 'class', 'id',
+        'colspan', 'rowspan', 'width', 'height',
+        'target', 'rel',
+      ],
+    });
   }
 
   private isDocx(mimeType: string): boolean {

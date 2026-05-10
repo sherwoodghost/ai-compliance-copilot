@@ -1,7 +1,8 @@
 import {
   IsOptional, IsInt, Min, Max, IsString, IsBoolean,
-  IsArray, IsIn, ArrayMaxSize,
+  IsArray, IsIn, ArrayMaxSize, IsNumber, ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateIngestionBatchDto {
   // Files come from multipart upload — no body fields needed
@@ -27,6 +28,29 @@ export class ReviewIngestionFileDto {
   @IsOptional()
   @IsBoolean()
   skipFile?: boolean;           // skip this file entirely
+}
+
+export class PresignedFileDto {
+  @IsString()
+  filename: string;
+
+  @IsString()
+  mimeType: string;
+
+  @IsNumber()
+  sizeBytes: number;
+
+  @IsOptional()
+  @IsString()
+  folderPath?: string;
+}
+
+export class CreatePresignedBatchDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PresignedFileDto)
+  @ArrayMaxSize(500)
+  files: PresignedFileDto[];
 }
 
 export class BulkReviewDto {
