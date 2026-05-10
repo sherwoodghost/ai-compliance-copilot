@@ -31,35 +31,134 @@ import {
   Lightbulb,
   Clock,
   HeartPulse,
+  ChevronDown,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
-const NAV = [
-  { href: '/overview', label: 'Overview', icon: LayoutDashboard },
-  { href: '/journey', label: 'Journey', icon: GitBranch },
-  { href: '/controls', label: 'Controls', icon: CheckSquare },
-  { href: '/control-library', label: 'Control Library', icon: Library },
-  { href: '/evidence', label: 'Evidence', icon: FolderOpen },
-  { href: '/policies', label: 'Policies', icon: FileText },
-  { href: '/risks', label: 'Risks', icon: AlertTriangle },
-  { href: '/tasks', label: 'Tasks', icon: ClipboardList },
-  { href: '/scope', label: 'Scope', icon: Target },
-  { href: '/readiness', label: 'Readiness', icon: BarChart3 },
-  { href: '/gaps', label: 'Gap Analysis', icon: TrendingUp },
-  { href: '/audit-checklist', label: 'Audit Checklist', icon: ClipboardCheck },
-  { href: '/crosswalk', label: 'Crosswalk', icon: GitMerge },
-  { href: '/action-plan', label: 'Action Plan', icon: Lightbulb },
-  { href: '/timeline', label: 'Timeline', icon: Clock },
-  { href: '/evidence-health', label: 'Evidence Health', icon: HeartPulse },
-  { href: '/audit-exports', label: 'Audit Exports', icon: Download },
-  { href: '/vendors', label: 'Vendors', icon: Building2 },
-  { href: '/integrations', label: 'Integrations', icon: Plug },
-  { href: '/import', label: 'Import', icon: Upload },
-  { href: '/documents', label: 'Documents', icon: Files },
-  { href: '/llm-gateway', label: 'LLM Gateway', icon: Cpu },
-  { href: '/control-panel', label: 'Control Panel', icon: Zap },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+  defaultOpen?: boolean;
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: '',
+    defaultOpen: true,
+    items: [
+      { href: '/overview', label: 'Overview', icon: LayoutDashboard },
+      { href: '/journey', label: 'Journey', icon: GitBranch },
+      { href: '/action-plan', label: 'Action Plan', icon: Lightbulb },
+    ],
+  },
+  {
+    title: 'Compliance Program',
+    defaultOpen: true,
+    items: [
+      { href: '/controls', label: 'Controls', icon: CheckSquare },
+      { href: '/control-library', label: 'Control Library', icon: Library },
+      { href: '/evidence', label: 'Evidence', icon: FolderOpen },
+      { href: '/policies', label: 'Policies', icon: FileText },
+      { href: '/risks', label: 'Risks', icon: AlertTriangle },
+      { href: '/tasks', label: 'Tasks', icon: ClipboardList },
+      { href: '/scope', label: 'Scope', icon: Target },
+    ],
+  },
+  {
+    title: 'Analytics & Insights',
+    defaultOpen: true,
+    items: [
+      { href: '/readiness', label: 'Readiness', icon: BarChart3 },
+      { href: '/gaps', label: 'Gap Analysis', icon: TrendingUp },
+      { href: '/evidence-health', label: 'Evidence Health', icon: HeartPulse },
+      { href: '/crosswalk', label: 'Crosswalk', icon: GitMerge },
+      { href: '/timeline', label: 'Timeline', icon: Clock },
+    ],
+  },
+  {
+    title: 'Audit',
+    defaultOpen: false,
+    items: [
+      { href: '/audit-checklist', label: 'Audit Checklist', icon: ClipboardCheck },
+      { href: '/audit-exports', label: 'Audit Exports', icon: Download },
+    ],
+  },
+  {
+    title: 'Data & Integrations',
+    defaultOpen: false,
+    items: [
+      { href: '/documents', label: 'Documents', icon: Files },
+      { href: '/import', label: 'Import', icon: Upload },
+      { href: '/vendors', label: 'Vendors', icon: Building2 },
+      { href: '/integrations', label: 'Integrations', icon: Plug },
+    ],
+  },
+  {
+    title: 'System',
+    defaultOpen: false,
+    items: [
+      { href: '/llm-gateway', label: 'LLM Gateway', icon: Cpu },
+      { href: '/control-panel', label: 'Control Panel', icon: Zap },
+    ],
+  },
 ];
+
+function NavSection({ section, pathname }: { section: NavSection; pathname: string }) {
+  // Auto-expand if any item in the section is active
+  const hasActive = section.items.some((item) => pathname.startsWith(item.href));
+  const [open, setOpen] = useState(section.defaultOpen || hasActive);
+
+  // No title = always open, no header
+  if (!section.title) {
+    return (
+      <div className="space-y-0.5">
+        {section.items.map(({ href, label, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={cn('sidebar-link', pathname.startsWith(href) && 'active')}
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            {label}
+          </Link>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
+      >
+        {section.title}
+        <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="space-y-0.5 mt-0.5">
+          {section.items.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn('sidebar-link', pathname.startsWith(href) && 'active')}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -88,19 +187,9 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              'sidebar-link',
-              pathname.startsWith(href) && 'active',
-            )}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
-          </Link>
+      <nav className="flex-1 px-3 py-4 space-y-3 overflow-y-auto">
+        {NAV_SECTIONS.map((section, i) => (
+          <NavSection key={section.title || i} section={section} pathname={pathname} />
         ))}
       </nav>
 
