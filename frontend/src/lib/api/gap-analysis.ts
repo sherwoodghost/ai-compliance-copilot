@@ -102,6 +102,76 @@ export interface CrosswalkSummary {
   sharedEffortPercentage: number;
 }
 
+// Action Plan types
+export interface ActionItem {
+  id: string;
+  title: string;
+  description: string;
+  category: 'quick_win' | 'strategic' | 'maintenance' | 'foundation';
+  type: string;
+  effort: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
+  priorityScore: number;
+  frameworkName: string;
+  controlCode: string | null;
+  controlTitle: string | null;
+  relatedEntityId: string | null;
+  relatedEntityType: string | null;
+  status: 'pending' | 'in_progress' | 'blocked';
+  estimatedHours: number;
+  dueDate: string | null;
+}
+
+export interface ActionPlanSummary {
+  totalActions: number;
+  quickWins: number;
+  strategic: number;
+  maintenance: number;
+  foundation: number;
+  estimatedTotalHours: number;
+  estimatedWeeksToComplete: number;
+  complianceLiftPercentage: number;
+  byFramework: { framework: string; actions: number; estimatedHours: number }[];
+  byEffort: { effort: string; count: number }[];
+}
+
+export interface ActionPlan {
+  summary: ActionPlanSummary;
+  actions: ActionItem[];
+}
+
+// Timeline types
+export interface TimelineMilestone {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: 'completed' | 'in_progress' | 'upcoming' | 'at_risk';
+  completedDate: string | null;
+  projectedDate: string | null;
+  progress: number;
+  framework: string | null;
+  blockers: string[];
+}
+
+export interface ComplianceVelocity {
+  period: string;
+  controlsImplemented: number;
+  evidenceCollected: number;
+  policiesApproved: number;
+  tasksCompleted: number;
+}
+
+export interface ComplianceTimeline {
+  milestones: TimelineMilestone[];
+  velocity: ComplianceVelocity[];
+  projectedCompletionDate: string | null;
+  currentPhase: string;
+  overallProgress: number;
+  weeksActive: number;
+  avgWeeklyVelocity: number;
+}
+
 export const gapAnalysisApi = {
   analyze: (frameworkId?: string) =>
     apiClient.get<{ summary: GapSummary; gaps: ControlGap[] }>('/gap-analysis', {
@@ -118,4 +188,12 @@ export const gapAnalysisApi = {
 
   getCrosswalk: () =>
     apiClient.get<{ summary: CrosswalkSummary[]; crosswalks: CrosswalkEntry[] }>('/gap-analysis/crosswalk').then((r) => r.data),
+
+  getActionPlan: (frameworkId?: string) =>
+    apiClient.get<ActionPlan>('/gap-analysis/action-plan', {
+      params: frameworkId ? { frameworkId } : {},
+    }).then((r) => r.data),
+
+  getTimeline: () =>
+    apiClient.get<ComplianceTimeline>('/gap-analysis/timeline').then((r) => r.data),
 };

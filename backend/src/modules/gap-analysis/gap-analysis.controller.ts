@@ -3,6 +3,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 import { GapAnalysisService } from './gap-analysis.service';
 import { AuditChecklistService } from './audit-checklist.service';
+import { ActionPlanService } from './action-plan.service';
+import { ComplianceTimelineService } from './compliance-timeline.service';
 
 @Controller('gap-analysis')
 @UseGuards(JwtAuthGuard)
@@ -10,6 +12,8 @@ export class GapAnalysisController {
   constructor(
     private readonly gapAnalysisService: GapAnalysisService,
     private readonly auditChecklistService: AuditChecklistService,
+    private readonly actionPlanService: ActionPlanService,
+    private readonly complianceTimelineService: ComplianceTimelineService,
   ) {}
 
   /** Full gap analysis with per-control breakdown */
@@ -40,5 +44,20 @@ export class GapAnalysisController {
     @Query('framework') framework?: string,
   ) {
     return this.auditChecklistService.generateChecklist(user.orgId, framework);
+  }
+
+  /** Smart prioritized action plan */
+  @Get('action-plan')
+  async getActionPlan(
+    @CurrentUser() user: JwtPayload,
+    @Query('frameworkId') frameworkId?: string,
+  ) {
+    return this.actionPlanService.generateActionPlan(user.orgId, frameworkId);
+  }
+
+  /** Compliance timeline with milestones and velocity tracking */
+  @Get('timeline')
+  async getTimeline(@CurrentUser() user: JwtPayload) {
+    return this.complianceTimelineService.getTimeline(user.orgId);
   }
 }
