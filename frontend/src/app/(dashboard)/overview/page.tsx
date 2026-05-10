@@ -7,11 +7,20 @@ import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
-  XCircle, Activity,
+  XCircle, Activity, Rocket,
 } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+
+const FRAMEWORK_ASSESSMENTS: Record<string, { type: string; description: string; icon: React.ElementType }> = {
+  soc2:     { type: 'SOC2',     description: 'Full AI-powered SOC 2 Type II readiness assessment',           icon: Shield },
+  iso27001: { type: 'ISO27001', description: 'ISO 27001:2022 ISMS gap analysis and Statement of Applicability', icon: FileText },
+  iso9001:  { type: 'ISO9001',  description: 'ISO 9001:2015 QMS gap analysis and clause compliance review',   icon: ClipboardList },
+  gdpr:     { type: 'GDPR',     description: 'GDPR data protection compliance assessment',                    icon: Shield },
+  hipaa:    { type: 'HIPAA',    description: 'HIPAA Security Rule and Privacy Rule compliance review',         icon: Shield },
+  'pci-dss':{ type: 'PCI_DSS',  description: 'PCI DSS v4.0 compliance and CDE scope assessment',             icon: Shield },
+};
 
 function StatCard({ label, value, icon: Icon, sub, color }: {
   label: string;
@@ -302,6 +311,22 @@ export default function OverviewPage() {
         />
       )}
 
+      {/* Empty framework state */}
+      {!statsLoading && stats?.totalControls === 0 && (
+        <div className="rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 p-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-brand-100 flex items-center justify-center mx-auto mb-4">
+            <Rocket className="w-6 h-6 text-brand-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Select your compliance frameworks to get started</h2>
+          <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
+            Complete onboarding to configure your target frameworks and generate your compliance program.
+          </p>
+          <Link href="/onboarding" className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm font-medium">
+            <Rocket className="w-4 h-4" /> Start compliance onboarding
+          </Link>
+        </div>
+      )}
+
       {/* Score + quick stats */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div className="card p-6 flex flex-col items-center justify-center">
@@ -387,29 +412,29 @@ export default function OverviewPage() {
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Run Assessment</h2>
           <div className="space-y-3">
-            {[
-              { type: 'SOC2', description: 'Full AI-powered SOC 2 Type II readiness assessment', icon: Shield },
-              { type: 'ISO27001', description: 'ISO 27001:2022 ISMS gap analysis and Statement of Applicability', icon: FileText },
-            ].map(({ type, description, icon: Icon }) => (
-              <div key={type} className="flex items-start justify-between gap-4 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4 text-brand-600" />
+            {(() => {
+              const entries = Object.entries(FRAMEWORK_ASSESSMENTS);
+              return entries.map(([key, { type, description, icon: Icon }]) => (
+                <div key={type} className="flex items-start justify-between gap-4 p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
+                      <Icon className="w-4 h-4 text-brand-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{type}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{description}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{type}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{description}</p>
-                  </div>
+                  <button
+                    className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0"
+                    onClick={() => assess.mutate(type)}
+                    disabled={assess.isPending}
+                  >
+                    <Play className="w-3 h-3" /> Run
+                  </button>
                 </div>
-                <button
-                  className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0"
-                  onClick={() => assess.mutate(type)}
-                  disabled={assess.isPending}
-                >
-                  <Play className="w-3 h-3" /> Run
-                </button>
-              </div>
-            ))}
+              ));
+            })()}
 
             <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
               <Link href="/readiness" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">

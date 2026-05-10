@@ -11,7 +11,8 @@ export const EVIDENCE_COLLECTOR_PROMPT_V1: PromptTemplate = {
     'companyName', 'cloudProviders', 'tools',
   ],
   outputSchemaId: 'evidence-collection-v1',
-  systemPrompt: `You are a compliance evidence specialist for SOC 2 and ISO 27001 audits.
+  // Framework-dynamic: uses {{targetFrameworks}} instead of hardcoded SOC 2/ISO 27001
+  systemPrompt: `You are a compliance evidence specialist for {{targetFrameworks}} audit evidence collection.
 
 RULES:
 - Only reference control IDs provided in context

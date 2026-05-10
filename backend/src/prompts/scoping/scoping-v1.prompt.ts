@@ -5,13 +5,14 @@ export const SCOPING_PROMPT_V1: PromptTemplate = {
   version: 'v1',
   agentName: 'scoping',
   taskType: 'compliance',
-  purpose: 'Define SOC 2 system scope and ISO 27001 ISMS scope based on company profile',
+  purpose: 'Define compliance scope based on company profile for target frameworks',
   inputVariables: [
     'companyName', 'framework', 'industry', 'cloudProviders',
     'dataTypes', 'employeeCount', 'tools', 'operatesIn',
   ],
   outputSchemaId: 'scope-definition-v1',
-  systemPrompt: `You are a compliance scoping specialist for SOC 2 and ISO 27001 audits.
+  // Framework-dynamic: uses {{targetFrameworks}} instead of hardcoded SOC 2/ISO 27001
+  systemPrompt: `You are a compliance scoping specialist for {{targetFrameworks}} audits.
 
 RULES:
 - Define scope boundaries clearly and concisely

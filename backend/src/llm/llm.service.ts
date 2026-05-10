@@ -21,6 +21,16 @@ const AGENT_MODEL_ROUTING: Record<string, string> = {
   'risk-scoring':      'claude-haiku-4-5-20251001',
   'drift-detector':    'claude-haiku-4-5-20251001',
   interview:           'claude-sonnet-4-6',
+
+  // Framework expert agents — Sonnet for deep framework knowledge
+  'framework-expert-iso27001': 'claude-sonnet-4-6',
+  'framework-expert-soc2':     'claude-sonnet-4-6',
+  'framework-expert-iso9001':  'claude-sonnet-4-6',
+  'framework-expert-gdpr':     'claude-sonnet-4-6',
+  'framework-expert-hipaa':    'claude-sonnet-4-6',
+  'framework-expert-pci-dss':  'claude-sonnet-4-6',
+  'framework-expert-nist-csf': 'claude-haiku-4-5-20251001',
+  'framework-expert-fedramp':  'claude-sonnet-4-6',
 };
 
 @Injectable()

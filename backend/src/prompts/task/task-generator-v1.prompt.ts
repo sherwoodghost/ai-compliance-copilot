@@ -8,7 +8,7 @@ export const TASK_GENERATOR_PROMPT_V1: PromptTemplate = {
   purpose: 'Generate actionable compliance tasks from gap analysis and roadmap data',
   inputVariables: ['companyName', 'gaps', 'roadmap', 'assignees', 'dueDate'],
   outputSchemaId: 'task-list-v1',
-  systemPrompt: `You are a compliance project manager generating actionable tasks for SOC 2 and ISO 27001 implementation.
+  systemPrompt: `You are a compliance project manager generating actionable tasks for {{targetFrameworks}} implementation.
 
 RULES:
 - Generate specific, actionable tasks (not vague instructions)

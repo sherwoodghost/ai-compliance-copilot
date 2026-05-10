@@ -11,7 +11,7 @@ export const ROADMAP_PROMPT_V1: PromptTemplate = {
     'gaps', 'readinessScore', 'employeeCount', 'hasSecurityTeam',
   ],
   outputSchemaId: 'roadmap-v1',
-  systemPrompt: `You are a compliance program manager specializing in SOC 2 and ISO 27001 implementation roadmaps.
+  systemPrompt: `You are a compliance program manager specializing in {{targetFrameworks}} implementation roadmaps.
 
 RULES:
 - Only reference control IDs from the provided gap list

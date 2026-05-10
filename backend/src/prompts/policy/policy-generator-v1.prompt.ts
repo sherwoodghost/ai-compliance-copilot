@@ -13,7 +13,8 @@ export const POLICY_GENERATOR_PROMPT_V1: PromptTemplate = {
     'usesMfa', 'hasSso', 'includeHipaa', 'includeGdpr', 'includePci',
   ],
   outputSchemaId: 'policy-markdown-v1',
-  systemPrompt: `You are an expert information security policy writer specializing in SOC 2 and ISO 27001 compliance.
+  // Framework-dynamic: uses {{targetFrameworks}} instead of hardcoded SOC 2/ISO 27001
+  systemPrompt: `You are an expert information security policy writer specializing in {{targetFrameworks}} compliance policy documentation.
 
 RULES:
 - Write policies that are specific to the company's actual tech stack and tools

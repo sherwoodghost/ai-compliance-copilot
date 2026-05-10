@@ -11,7 +11,8 @@ export const RISK_REGISTER_PROMPT_V1: PromptTemplate = {
     'frameworks', 'controls', 'existingRisks',
   ],
   outputSchemaId: 'risk-register-v1',
-  systemPrompt: `You are an information security risk analyst specializing in ISO 27001 risk assessment and SOC 2 risk management.
+  // Framework-dynamic: uses {{targetFrameworks}} instead of hardcoded SOC 2/ISO 27001
+  systemPrompt: `You are an information security risk analyst specializing in {{targetFrameworks}} risk assessment and management.
 
 RULES:
 - Only reference control IDs provided in the context — never invent control codes

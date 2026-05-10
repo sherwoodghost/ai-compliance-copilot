@@ -27,6 +27,7 @@ import { ScopingAgent } from './scoping/scoping.agent';
 import { ControlMapperAgent } from './control-mapper/control-mapper.agent';
 import { DashboardAgent } from './dashboard/dashboard.agent';
 import { InferenceAgent } from './inference/inference.agent';
+import { FrameworkExpertModule } from './framework-expert/framework-expert.module';
 
 const ALL_AGENTS = [
   DialogueManagerService,
@@ -53,8 +54,8 @@ const ALL_AGENTS = [
 ];
 
 @Module({
-  imports: [ComplianceJourneyModule, LlmGatewayModule, ControlLibraryModule, ScopingModule, InferenceModule, AgentMemoryModule, DashboardApiModule],
+  imports: [ComplianceJourneyModule, LlmGatewayModule, ControlLibraryModule, ScopingModule, InferenceModule, AgentMemoryModule, DashboardApiModule, FrameworkExpertModule],
   providers: ALL_AGENTS,
-  exports: ALL_AGENTS,
+  exports: [...ALL_AGENTS, FrameworkExpertModule],
 })
 export class AgentsModule {}

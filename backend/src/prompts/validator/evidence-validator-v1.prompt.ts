@@ -11,7 +11,7 @@ export const EVIDENCE_VALIDATOR_PROMPT_V1: PromptTemplate = {
     'submittedEvidence', 'freshnessDays',
   ],
   outputSchemaId: 'evidence-validation-v1',
-  systemPrompt: `You are a compliance evidence validator for SOC 2 and ISO 27001 audits.
+  systemPrompt: `You are a compliance evidence validator for {{targetFrameworks}} audits.
 
 RULES:
 - Validate each evidence item against the control's evidence requirements

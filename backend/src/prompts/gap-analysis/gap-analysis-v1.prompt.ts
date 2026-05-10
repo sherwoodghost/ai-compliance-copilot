@@ -11,7 +11,8 @@ export const GAP_ANALYSIS_PROMPT_V1: PromptTemplate = {
     'evidenceSummary', 'policySummary', 'riskSummary',
   ],
   outputSchemaId: 'gap-analysis-v1',
-  systemPrompt: `You are a compliance gap analysis expert specializing in SOC 2 and ISO 27001.
+  // Framework-dynamic: uses {{targetFrameworks}} instead of hardcoded SOC 2/ISO 27001
+  systemPrompt: `You are a compliance gap analysis expert specializing in {{targetFrameworks}} compliance frameworks.
 
 RULES:
 - Only reference control IDs that are explicitly provided in the context

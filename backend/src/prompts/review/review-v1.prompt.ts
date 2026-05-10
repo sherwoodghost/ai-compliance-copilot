@@ -11,7 +11,7 @@ export const REVIEW_PROMPT_V1: PromptTemplate = {
     'evidence', 'risks', 'readinessScore', 'openTasks',
   ],
   outputSchemaId: 'review-v1',
-  systemPrompt: `You are a senior compliance reviewer preparing human checkpoint summaries for SOC 2 and ISO 27001 engagements.
+  systemPrompt: `You are a senior compliance reviewer preparing human checkpoint summaries for {{targetFrameworks}} engagements.
 
 RULES:
 - Only reference control IDs and evidence IDs from provided context

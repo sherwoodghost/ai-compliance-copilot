@@ -703,6 +703,34 @@ model BusinessProfile {
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
 
+  // Company enrichment fields
+  websiteUrl         String?   @map("website_url")
+  websiteSummary     String?   @db.Text @map("website_summary")
+  productDescription String?   @db.Text @map("product_description")
+  targetCustomers    String?   @map("target_customers")
+  detectedTechStack  String[]  @default([]) @map("detected_tech_stack")
+  enrichedAt         DateTime? @map("enriched_at")
+  enrichmentSource   String?   @map("enrichment_source")
+
+  // ISO 9001 specific
+  hasExistingQms     Boolean?  @map("has_existing_qms")
+  qmsScope           String?   @db.Text @map("qms_scope")
+  customerSatisfactionMethod String? @map("customer_satisfaction_method")
+  ncrSystemExists    Boolean?  @map("ncr_system_exists")
+
+  // GDPR specific
+  dpoDesignated      Boolean?  @map("dpo_designated")
+  ropaExists         Boolean?  @map("ropa_exists")
+  transferMechanisms String[]  @default([]) @map("transfer_mechanisms")
+
+  // HIPAA specific
+  coveredEntityType  String?   @map("covered_entity_type")
+  phiInCloud         Boolean?  @map("phi_in_cloud")
+
+  // PCI DSS specific
+  merchantLevel      String?   @map("merchant_level")
+  cdeSegmented       Boolean?  @map("cde_segmented")
+
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("business_profiles")
