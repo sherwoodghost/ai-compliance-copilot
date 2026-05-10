@@ -8,7 +8,7 @@ import { ScoreGauge } from '@/components/charts/ScoreGauge';
 import {
   Play, CheckCircle, AlertCircle, Clock, FileText, ClipboardList,
   Zap, AlertTriangle, TrendingUp, Shield, ArrowRight, RefreshCw,
-  XCircle, Activity, Rocket, ShieldAlert,
+  XCircle, Activity, Rocket, ShieldAlert, Lightbulb, ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -315,6 +315,104 @@ function GapInsightsWidget() {
   );
 }
 
+// ─── Quick Actions Widget ────────────────────────────────────────────────────
+
+function QuickActionsWidget() {
+  const { data: plan, isLoading: planLoading } = useQuery({
+    queryKey: ['action-plan-preview'],
+    queryFn: () => gapAnalysisApi.getActionPlan(),
+    staleTime: 60_000,
+  });
+
+  const { data: timeline, isLoading: timelineLoading } = useQuery({
+    queryKey: ['timeline-preview'],
+    queryFn: () => gapAnalysisApi.getTimeline(),
+    staleTime: 60_000,
+  });
+
+  if (planLoading || timelineLoading) {
+    return (
+      <div className="card p-5 animate-pulse">
+        <div className="h-4 bg-gray-100 rounded w-40 mb-4" />
+        <div className="h-20 bg-gray-50 rounded" />
+      </div>
+    );
+  }
+
+  const quickWins = plan?.actions.filter((a) => a.category === 'quick_win').slice(0, 3) ?? [];
+  const phase = timeline?.currentPhase ?? 'Getting Started';
+  const progress = timeline?.overallProgress ?? 0;
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Lightbulb className="w-4 h-4 text-brand-600" />
+          <h2 className="text-sm font-semibold text-gray-900">What to Do Next</h2>
+        </div>
+        <Link href="/action-plan" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+          Full plan <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {/* Phase + progress */}
+      <div className="flex items-center gap-3 mb-4 p-3 bg-brand-50 rounded-lg">
+        <div className="flex-1">
+          <p className="text-xs text-brand-600 font-medium">Current Phase: {phase}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1 h-1.5 bg-brand-100 rounded-full overflow-hidden">
+              <div className="h-full bg-brand-500 rounded-full" style={{ width: `${progress}%` }} />
+            </div>
+            <span className="text-xs font-bold text-brand-700">{progress}%</span>
+          </div>
+        </div>
+        {timeline?.projectedCompletionDate && (
+          <div className="text-right">
+            <p className="text-[10px] text-brand-500">Projected</p>
+            <p className="text-xs font-bold text-brand-700">
+              {new Date(timeline.projectedCompletionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Quick wins */}
+      {quickWins.length > 0 ? (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
+            <Zap className="w-3 h-3 text-green-500" /> Quick wins — do these first
+          </p>
+          {quickWins.map((action) => (
+            <div key={action.id} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg text-xs">
+              <ChevronRight className="w-3 h-3 text-green-500 flex-shrink-0" />
+              <span className="text-gray-700 flex-1 truncate">{action.title}</span>
+              <span className="text-[10px] text-green-600 font-medium flex-shrink-0">{action.estimatedHours}h</span>
+            </div>
+          ))}
+        </div>
+      ) : plan && plan.summary.totalActions > 0 ? (
+        <p className="text-xs text-gray-500">No quick wins available — check the full action plan for next steps.</p>
+      ) : (
+        <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 rounded-lg p-2.5">
+          <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+          No pending actions — your compliance posture looks great!
+        </div>
+      )}
+
+      {plan && plan.summary.totalActions > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-400">
+            {plan.summary.totalActions} actions · ~{plan.summary.estimatedTotalHours}h total
+          </span>
+          <Link href="/timeline" className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+            View timeline <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
@@ -476,6 +574,9 @@ export default function OverviewPage() {
 
       {/* Gap Insights — quick view from gap analysis */}
       <GapInsightsWidget />
+
+      {/* Quick Actions — what to do next from action plan + timeline */}
+      <QuickActionsWidget />
 
       {/* Recommended actions + trigger assessments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
