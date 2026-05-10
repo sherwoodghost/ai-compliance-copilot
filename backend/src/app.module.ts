@@ -44,6 +44,7 @@ import { TrustCenterModule } from './modules/trust-center/trust-center.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { GapAnalysisModule } from './modules/gap-analysis/gap-analysis.module';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
     StorageModule,
     IngestionModule,
     DocumentsModule,
+    GapAnalysisModule,
   ],
 })
 export class AppModule {}
