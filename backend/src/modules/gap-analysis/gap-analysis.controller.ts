@@ -5,6 +5,7 @@ import { GapAnalysisService } from './gap-analysis.service';
 import { AuditChecklistService } from './audit-checklist.service';
 import { ActionPlanService } from './action-plan.service';
 import { ComplianceTimelineService } from './compliance-timeline.service';
+import { EvidenceHealthService } from './evidence-health.service';
 
 @Controller('gap-analysis')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +15,7 @@ export class GapAnalysisController {
     private readonly auditChecklistService: AuditChecklistService,
     private readonly actionPlanService: ActionPlanService,
     private readonly complianceTimelineService: ComplianceTimelineService,
+    private readonly evidenceHealthService: EvidenceHealthService,
   ) {}
 
   /** Full gap analysis with per-control breakdown */
@@ -59,5 +61,11 @@ export class GapAnalysisController {
   @Get('timeline')
   async getTimeline(@CurrentUser() user: JwtPayload) {
     return this.complianceTimelineService.getTimeline(user.orgId);
+  }
+
+  /** Evidence health report: freshness, expiry, and coverage */
+  @Get('evidence-health')
+  async getEvidenceHealth(@CurrentUser() user: JwtPayload) {
+    return this.evidenceHealthService.getHealthReport(user.orgId);
   }
 }

@@ -172,6 +172,42 @@ export interface ComplianceTimeline {
   avgWeeklyVelocity: number;
 }
 
+// Evidence Health types
+export interface EvidenceHealthItem {
+  id: string;
+  title: string;
+  controlCode: string;
+  controlTitle: string;
+  framework: string;
+  type: string;
+  source: string;
+  collectedAt: string;
+  expiresAt: string | null;
+  isValid: boolean;
+  status: 'fresh' | 'expiring_soon' | 'expired' | 'stale' | 'invalid';
+  daysUntilExpiry: number | null;
+  daysSinceCollection: number;
+}
+
+export interface EvidenceHealthSummary {
+  totalEvidence: number;
+  fresh: number;
+  expiringSoon: number;
+  expired: number;
+  stale: number;
+  invalid: number;
+  coverageRate: number;
+  controlsWithoutEvidence: number;
+  avgDaysSinceCollection: number;
+  byFramework: { framework: string; total: number; fresh: number; atRisk: number }[];
+  byType: { type: string; count: number }[];
+}
+
+export interface EvidenceHealthReport {
+  summary: EvidenceHealthSummary;
+  items: EvidenceHealthItem[];
+}
+
 export const gapAnalysisApi = {
   analyze: (frameworkId?: string) =>
     apiClient.get<{ summary: GapSummary; gaps: ControlGap[] }>('/gap-analysis', {
@@ -196,4 +232,7 @@ export const gapAnalysisApi = {
 
   getTimeline: () =>
     apiClient.get<ComplianceTimeline>('/gap-analysis/timeline').then((r) => r.data),
+
+  getEvidenceHealth: () =>
+    apiClient.get<EvidenceHealthReport>('/gap-analysis/evidence-health').then((r) => r.data),
 };
