@@ -29,6 +29,12 @@ export class CreatePolicyDto {
   generatedBy?: GeneratedBy;
 }
 
+export class GeneratePolicyDto {
+  @ApiProperty({ description: 'Control ID to generate a policy for' })
+  @IsUUID()
+  controlId: string;
+}
+
 export class UpdatePolicyDto {
   @ApiPropertyOptional()
   @IsOptional()

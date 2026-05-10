@@ -14,7 +14,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PoliciesService } from './policies.service';
-import { CreatePolicyDto, UpdatePolicyDto } from './dto/policies.dto';
+import { CreatePolicyDto, UpdatePolicyDto, GeneratePolicyDto } from './dto/policies.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -36,6 +36,12 @@ export class PoliciesController {
     @Query('status') status?: string,
   ) {
     return this.policiesService.findAll(user.orgId, controlId, status);
+  }
+
+  @Get('coverage')
+  @ApiOperation({ summary: 'Get policy coverage gaps — controls missing policies' })
+  getCoverage(@CurrentUser() user: JwtPayload) {
+    return this.policiesService.getCoverageGaps(user.orgId);
   }
 
   @Get(':policyId')
@@ -60,6 +66,16 @@ export class PoliciesController {
   @Post()
   create(@CurrentUser() user: JwtPayload, @Body() dto: CreatePolicyDto) {
     return this.policiesService.create(user.orgId, dto);
+  }
+
+  @Post('generate')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'AI-generate a policy for a specific control' })
+  generate(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: GeneratePolicyDto,
+  ) {
+    return this.policiesService.generatePolicy(user.orgId, dto.controlId);
   }
 
   @Patch(':policyId')
@@ -98,5 +114,15 @@ export class PoliciesController {
     @Body() body: { content: string },
   ) {
     return this.policiesService.createNewVersion(user.orgId, policyId, body.content);
+  }
+
+  @Post(':policyId/ai-improve')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'AI-improve an existing policy' })
+  aiImprove(
+    @CurrentUser() user: JwtPayload,
+    @Param('policyId', ParseUUIDPipe) policyId: string,
+  ) {
+    return this.policiesService.aiImprovePolicy(user.orgId, policyId);
   }
 }

@@ -18,8 +18,8 @@ export const complianceApi = {
   getEvidence: (params?: Record<string, string>) =>
     apiClient.get('/evidence', { params }).then((r) => r.data),
   getExpiryReport: () => apiClient.get('/evidence/expiry-report').then((r) => r.data),
-  uploadEvidence: (data: FormData) =>
-    apiClient.post('/evidence', data, { headers: { 'Content-Type': 'multipart/form-data' } }).then((r) => r.data),
+  uploadEvidence: (data: Record<string, unknown>) =>
+    apiClient.post('/evidence', data).then((r) => r.data),
   deleteEvidence: (id: string) => apiClient.delete(`/evidence/${id}`).then((r) => r.data),
 
   // Policies
@@ -28,6 +28,9 @@ export const complianceApi = {
   getPolicyVersions: (id: string) => apiClient.get(`/policies/${id}/versions`).then((r) => r.data),
   approvePolicy: (id: string) => apiClient.patch(`/policies/${id}/approve`).then((r) => r.data),
   archivePolicy: (id: string) => apiClient.patch(`/policies/${id}/archive`).then((r) => r.data),
+  generatePolicy: (controlId: string) => apiClient.post('/policies/generate', { controlId }).then((r) => r.data),
+  aiImprovePolicy: (policyId: string) => apiClient.post(`/policies/${policyId}/ai-improve`).then((r) => r.data),
+  getPolicyCoverage: () => apiClient.get('/policies/coverage').then((r) => r.data),
 
   // Tasks
   getMyTasks: () => apiClient.get('/tasks/mine').then((r) => r.data),
@@ -36,6 +39,10 @@ export const complianceApi = {
   getTaskStats: () => apiClient.get('/tasks/stats').then((r) => r.data),
   updateTask: (id: string, data: Record<string, unknown>) =>
     apiClient.patch(`/tasks/${id}`, data).then((r) => r.data),
+  createTask: (data: Record<string, unknown>) =>
+    apiClient.post('/tasks', data).then((r) => r.data),
+  createTaskFromAction: (data: Record<string, unknown>) =>
+    apiClient.post('/tasks/from-action', data).then((r) => r.data),
 
   // Workflows (control panel)
   listWorkflows: () => apiClient.get('/control-panel/workflows').then((r) => r.data),
