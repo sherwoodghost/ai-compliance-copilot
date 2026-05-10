@@ -27,6 +27,12 @@ export class GapAnalysisController {
     return this.gapAnalysisService.getCoverageMatrix(user.orgId);
   }
 
+  /** Framework crosswalk: control mappings across frameworks */
+  @Get('crosswalk')
+  async getFrameworkCrosswalk(@CurrentUser() user: JwtPayload) {
+    return this.gapAnalysisService.getFrameworkCrosswalk(user.orgId);
+  }
+
   /** Pre-audit readiness checklist */
   @Get('checklist')
   async getAuditChecklist(

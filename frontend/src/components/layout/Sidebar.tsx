@@ -27,6 +27,7 @@ import {
   Files,
   TrendingUp,
   ClipboardCheck,
+  GitMerge,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,7 @@ const NAV = [
   { href: '/readiness', label: 'Readiness', icon: BarChart3 },
   { href: '/gaps', label: 'Gap Analysis', icon: TrendingUp },
   { href: '/audit-checklist', label: 'Audit Checklist', icon: ClipboardCheck },
+  { href: '/crosswalk', label: 'Crosswalk', icon: GitMerge },
   { href: '/audit-exports', label: 'Audit Exports', icon: Download },
   { href: '/vendors', label: 'Vendors', icon: Building2 },
   { href: '/integrations', label: 'Integrations', icon: Plug },

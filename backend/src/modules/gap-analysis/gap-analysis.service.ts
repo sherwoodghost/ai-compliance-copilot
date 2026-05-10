@@ -456,6 +456,84 @@ export class GapAnalysisService {
     return matrices;
   }
 
+  /**
+   * Framework crosswalk: show how controls map across frameworks,
+   * highlighting shared effort opportunities
+   */
+  async getFrameworkCrosswalk(orgId: string) {
+    // Get all crosswalk mappings for controls applicable to this org
+    const crosswalks = await this.prisma.frameworkCrosswalk.findMany({
+      where: {
+        sourceControl: { applicability: { some: { orgId, applicable: true } } },
+      },
+      include: {
+        sourceControl: {
+          include: { framework: { select: { id: true, name: true } } },
+        },
+        targetControl: {
+          include: { framework: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    // Get org control statuses
+    const orgControls = await this.prisma.organizationControl.findMany({
+      where: { orgId },
+      select: { controlId: true, status: true },
+    });
+    const statusMap = new Map(orgControls.map((oc) => [oc.controlId, oc.status]));
+
+    // Build crosswalk entries
+    const entries = crosswalks.map((cw) => ({
+      id: cw.id,
+      sourceControl: {
+        id: cw.sourceControl.id,
+        code: cw.sourceControl.code,
+        title: cw.sourceControl.title,
+        framework: cw.sourceControl.framework.name,
+        status: statusMap.get(cw.sourceControl.id) ?? 'not_started',
+      },
+      targetControl: {
+        id: cw.targetControl.id,
+        code: cw.targetControl.code,
+        title: cw.targetControl.title,
+        framework: cw.targetControl.framework.name,
+        status: statusMap.get(cw.targetControl.id) ?? 'not_started',
+      },
+      mappingType: cw.mappingType,
+      confidence: cw.confidence,
+      rationale: cw.rationale,
+      automatable: cw.automatable,
+    }));
+
+    // Compute summary stats
+    const frameworkPairs = new Map<string, { total: number; equivalent: number; partial: number; related: number; bothImplemented: number }>();
+
+    for (const entry of entries) {
+      const pairKey = [entry.sourceControl.framework, entry.targetControl.framework].sort().join(' ↔ ');
+      if (!frameworkPairs.has(pairKey)) {
+        frameworkPairs.set(pairKey, { total: 0, equivalent: 0, partial: 0, related: 0, bothImplemented: 0 });
+      }
+      const pair = frameworkPairs.get(pairKey)!;
+      pair.total++;
+      if (entry.mappingType === 'equivalent') pair.equivalent++;
+      else if (entry.mappingType === 'partial') pair.partial++;
+      else pair.related++;
+
+      if (entry.sourceControl.status === 'implemented' && entry.targetControl.status === 'implemented') {
+        pair.bothImplemented++;
+      }
+    }
+
+    const summary = Array.from(frameworkPairs.entries()).map(([pair, stats]) => ({
+      frameworkPair: pair,
+      ...stats,
+      sharedEffortPercentage: stats.total > 0 ? Math.round(((stats.equivalent + stats.partial * 0.5) / stats.total) * 100) : 0,
+    }));
+
+    return { summary, crosswalks: entries };
+  }
+
   private calculateSeverity(gapTypes: GapType[], weight: number): 'critical' | 'high' | 'medium' | 'low' {
     const hasCriticalGap =
       gapTypes.includes('control_not_implemented') &&

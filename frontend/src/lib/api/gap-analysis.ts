@@ -82,6 +82,26 @@ export interface AuditChecklist {
   estimatedDaysToReady: number;
 }
 
+export interface CrosswalkEntry {
+  id: string;
+  sourceControl: { id: string; code: string; title: string; framework: string; status: string };
+  targetControl: { id: string; code: string; title: string; framework: string; status: string };
+  mappingType: 'equivalent' | 'partial' | 'related';
+  confidence: string;
+  rationale: string | null;
+  automatable: boolean;
+}
+
+export interface CrosswalkSummary {
+  frameworkPair: string;
+  total: number;
+  equivalent: number;
+  partial: number;
+  related: number;
+  bothImplemented: number;
+  sharedEffortPercentage: number;
+}
+
 export const gapAnalysisApi = {
   analyze: (frameworkId?: string) =>
     apiClient.get<{ summary: GapSummary; gaps: ControlGap[] }>('/gap-analysis', {
@@ -95,4 +115,7 @@ export const gapAnalysisApi = {
     apiClient.get<AuditChecklist>('/gap-analysis/checklist', {
       params: framework ? { framework } : {},
     }).then((r) => r.data),
+
+  getCrosswalk: () =>
+    apiClient.get<{ summary: CrosswalkSummary[]; crosswalks: CrosswalkEntry[] }>('/gap-analysis/crosswalk').then((r) => r.data),
 };
