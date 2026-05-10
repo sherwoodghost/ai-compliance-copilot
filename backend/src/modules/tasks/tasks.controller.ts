@@ -1,7 +1,7 @@
-import { Controller, Get, Patch, Param, Body, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Param, Body, Query, UseGuards, ParseUUIDPipe, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TaskStatus, TaskPriority } from '@prisma/client';
-import { TasksService, UpdateTaskDto } from './tasks.service';
+import { TasksService, UpdateTaskDto, CreateTaskDto, CreateFromActionDto } from './tasks.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
 
@@ -31,6 +31,23 @@ export class TasksController {
   @Get('stats')
   getStats(@CurrentUser() user: JwtPayload) {
     return this.tasksService.getStats(user.orgId);
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new task' })
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateTaskDto) {
+    return this.tasksService.create(user.orgId, dto);
+  }
+
+  @Post('from-action')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a task directly from an Action Plan item' })
+  createFromAction(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateFromActionDto,
+  ) {
+    return this.tasksService.createFromAction(user.orgId, dto);
   }
 
   @Get(':taskId')

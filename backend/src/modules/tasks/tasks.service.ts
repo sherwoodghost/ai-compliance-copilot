@@ -13,6 +13,29 @@ export class UpdateTaskDto {
   @ApiPropertyOptional()                        @IsOptional() @IsString()            description?: string;
 }
 
+export class CreateTaskDto {
+  @ApiPropertyOptional()                        @IsOptional() @IsString()            title?: string;
+  @ApiPropertyOptional()                        @IsOptional() @IsString()            description?: string;
+  @ApiPropertyOptional({ enum: TaskPriority })  @IsOptional() @IsEnum(TaskPriority)  priority?: TaskPriority;
+  @ApiPropertyOptional()                        @IsOptional() @IsUUID()              controlId?: string;
+  @ApiPropertyOptional()                        @IsOptional() @IsUUID()              assignedTo?: string;
+  @ApiPropertyOptional()                        @IsOptional() @IsDateString()        dueDate?: string;
+}
+
+export class CreateFromActionDto {
+  @IsString()  title: string;
+  @IsOptional() @IsString()  description?: string;
+  @IsOptional() @IsString()  controlId?: string;
+  @IsOptional() @IsString()  effort?: 'low' | 'medium' | 'high';
+  @IsOptional() @IsString()  impact?: 'low' | 'medium' | 'high';
+  @IsOptional() @IsString()  type?: string;
+  @IsOptional() @IsString()  category?: string;
+  @IsOptional() @IsString()  frameworkName?: string;
+  @IsOptional() @IsString()  controlCode?: string;
+  @IsOptional() @IsDateString()  dueDate?: string;
+  @IsOptional() @IsUUID()  assignedTo?: string;
+}
+
 @Injectable()
 export class TasksService {
   constructor(
@@ -87,6 +110,89 @@ export class TasksService {
       where:   { orgId, assignedTo: userId, status: { not: 'done' } },
       include: { control: { select: { code: true, title: true } } },
       orderBy: [{ priority: 'asc' }, { dueDate: 'asc' }],
+    });
+  }
+
+  /**
+   * Create a manual task.
+   */
+  async create(orgId: string, dto: CreateTaskDto) {
+    if (!dto.title) throw new NotFoundException('Title is required');
+
+    return this.prisma.task.create({
+      data: {
+        orgId,
+        title: dto.title,
+        description: dto.description,
+        priority: dto.priority ?? 'medium',
+        status: 'open',
+        source: 'manual',
+        ...(dto.controlId && { controlId: dto.controlId }),
+        ...(dto.assignedTo && { assignedTo: dto.assignedTo }),
+        ...(dto.dueDate && { dueDate: new Date(dto.dueDate) }),
+      },
+      include: {
+        control: { select: { id: true, code: true, title: true } },
+        assignee: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+  }
+
+  /**
+   * Create a task directly from an Action Plan item.
+   * Maps action effort + impact to task priority and infers default due dates.
+   */
+  async createFromAction(orgId: string, dto: CreateFromActionDto) {
+    // Map effort/impact → priority
+    let priority: TaskPriority = 'medium';
+    if (dto.impact === 'high' && dto.effort === 'low') priority = 'critical';
+    else if (dto.impact === 'high') priority = 'high';
+    else if (dto.impact === 'medium') priority = 'medium';
+    else priority = 'low';
+
+    // Map category → due date
+    const now = new Date();
+    let dueDate: Date | undefined;
+    if (dto.dueDate) {
+      dueDate = new Date(dto.dueDate);
+    } else {
+      switch (dto.category) {
+        case 'quick_win':   dueDate = new Date(now.getTime() + 7 * 86400_000);  break; // 1 week
+        case 'foundation':  dueDate = new Date(now.getTime() + 14 * 86400_000); break; // 2 weeks
+        case 'strategic':   dueDate = new Date(now.getTime() + 30 * 86400_000); break; // 1 month
+        case 'maintenance': dueDate = new Date(now.getTime() + 60 * 86400_000); break; // 2 months
+        default:            dueDate = new Date(now.getTime() + 21 * 86400_000); break; // 3 weeks
+      }
+    }
+
+    // Build description with action context
+    const descParts = [
+      dto.description ?? '',
+      '',
+      '---',
+      `**Source**: Action Plan${dto.category ? ` · ${dto.category.replace('_', ' ')}` : ''}`,
+      dto.frameworkName ? `**Framework**: ${dto.frameworkName}` : '',
+      dto.controlCode ? `**Control**: ${dto.controlCode}` : '',
+      dto.effort ? `**Effort**: ${dto.effort}` : '',
+      dto.impact ? `**Impact**: ${dto.impact}` : '',
+    ].filter(Boolean).join('\n');
+
+    return this.prisma.task.create({
+      data: {
+        orgId,
+        title: dto.title,
+        description: descParts,
+        priority,
+        status: 'open',
+        source: 'agent',
+        ...(dto.controlId && { controlId: dto.controlId }),
+        ...(dto.assignedTo && { assignedTo: dto.assignedTo }),
+        dueDate,
+      },
+      include: {
+        control: { select: { id: true, code: true, title: true } },
+        assignee: { select: { id: true, fullName: true, email: true } },
+      },
     });
   }
 

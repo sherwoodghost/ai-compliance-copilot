@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { gapAnalysisApi, ActionItem } from '@/lib/api/gap-analysis';
+import { complianceApi } from '@/lib/api/compliance';
 import {
   Zap, Target, Wrench, Shield, Clock, ArrowRight,
   ChevronDown, ChevronUp, Filter, Search, Lightbulb,
+  CheckSquare, Plus, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -84,9 +86,33 @@ function EstimateBar({ summary }: { summary: any }) {
 }
 
 function ActionRow({ action }: { action: ActionItem }) {
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
+  const [taskCreated, setTaskCreated] = useState(false);
   const catConfig = CATEGORY_CONFIG[action.category];
   const CatIcon = catConfig.icon;
+
+  const createTask = useMutation({
+    mutationFn: () =>
+      complianceApi.createTaskFromAction({
+        title: action.title,
+        description: action.description,
+        controlId: action.relatedEntityType === 'control' ? action.relatedEntityId : undefined,
+        effort: action.effort,
+        impact: action.impact,
+        type: action.type,
+        category: action.category,
+        frameworkName: action.frameworkName,
+        controlCode: action.controlCode ?? undefined,
+      }),
+    onSuccess: () => {
+      setTaskCreated(true);
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['task-stats'] });
+      // Auto-reset confirmation after 3 seconds
+      setTimeout(() => setTaskCreated(false), 3000);
+    },
+  });
 
   return (
     <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
@@ -128,7 +154,7 @@ function ActionRow({ action }: { action: ActionItem }) {
       {expanded && (
         <div className="px-4 pb-3 border-t border-gray-100 bg-gray-50">
           <p className="text-xs text-gray-600 mt-2">{action.description}</p>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
             <span className="text-[10px] text-gray-400">Priority score: {action.priorityScore}</span>
             <span className={cn(
               'text-[10px] px-1.5 py-0.5 rounded',
@@ -140,16 +166,44 @@ function ActionRow({ action }: { action: ActionItem }) {
               <span className="text-[10px] text-red-500">Due: {new Date(action.dueDate).toLocaleDateString()}</span>
             )}
           </div>
-          {action.relatedEntityType && (
-            <div className="mt-2">
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            {/* Create Task button */}
+            <button
+              onClick={() => createTask.mutate()}
+              disabled={createTask.isPending || taskCreated}
+              className={cn(
+                'inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors',
+                taskCreated
+                  ? 'bg-green-100 text-green-700 border border-green-200'
+                  : 'bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50',
+              )}
+            >
+              {createTask.isPending ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Creating...
+                </>
+              ) : taskCreated ? (
+                <>
+                  <Check className="w-3 h-3" />
+                  Task Created
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="w-3 h-3" />
+                  Create Task
+                </>
+              )}
+            </button>
+            {action.relatedEntityType && (
               <a
                 href={`/${action.relatedEntityType === 'control' ? 'controls' : action.relatedEntityType === 'policy' ? 'policies' : action.relatedEntityType === 'evidence' ? 'evidence' : action.relatedEntityType === 'task' ? 'tasks' : 'risks'}`}
-                className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700"
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md text-brand-600 hover:text-brand-700 border border-brand-200 bg-white"
               >
                 Go to {action.relatedEntityType} <ArrowRight className="w-3 h-3" />
               </a>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -157,13 +211,46 @@ function ActionRow({ action }: { action: ActionItem }) {
 }
 
 export default function ActionPlanPage() {
+  const qc = useQueryClient();
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'prioritized' | 'category'>('prioritized');
+  const [bulkResult, setBulkResult] = useState<{ created: number; total: number } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['action-plan'],
     queryFn: () => gapAnalysisApi.getActionPlan(),
+  });
+
+  const bulkCreate = useMutation({
+    mutationFn: async (actions: ActionItem[]) => {
+      let created = 0;
+      for (const a of actions) {
+        try {
+          await complianceApi.createTaskFromAction({
+            title: a.title,
+            description: a.description,
+            controlId: a.relatedEntityType === 'control' ? a.relatedEntityId : undefined,
+            effort: a.effort,
+            impact: a.impact,
+            type: a.type,
+            category: a.category,
+            frameworkName: a.frameworkName,
+            controlCode: a.controlCode ?? undefined,
+          });
+          created++;
+        } catch {
+          // continue
+        }
+      }
+      return { created, total: actions.length };
+    },
+    onSuccess: (result) => {
+      setBulkResult(result);
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['task-stats'] });
+      setTimeout(() => setBulkResult(null), 5000);
+    },
   });
 
   const filtered = data?.actions.filter((a) => {
@@ -178,15 +265,59 @@ export default function ActionPlanPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Lightbulb className="w-6 h-6 text-brand-600" />
-          Action Plan
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Smart prioritized list of what to do next to reach compliance fastest
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Lightbulb className="w-6 h-6 text-brand-600" />
+            Action Plan
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Smart prioritized list of what to do next to reach compliance fastest
+          </p>
+        </div>
+        {data && filtered.length > 0 && (
+          <button
+            onClick={() => bulkCreate.mutate(filtered)}
+            disabled={bulkCreate.isPending}
+            className="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-50 flex items-center gap-2 shadow-sm"
+          >
+            {bulkCreate.isPending ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Creating tasks...
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Convert {filtered.length} {filtered.length === 1 ? 'action' : 'actions'} to tasks
+              </>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* Bulk result banner */}
+      {bulkResult && (
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-start gap-2">
+          <Check className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-green-800">
+              Created {bulkResult.created} {bulkResult.created === 1 ? 'task' : 'tasks'} from action plan
+            </p>
+            {bulkResult.created < bulkResult.total && (
+              <p className="text-xs text-green-700 mt-0.5">
+                {bulkResult.total - bulkResult.created} actions could not be converted (already linked or failed)
+              </p>
+            )}
+          </div>
+          <a
+            href="/tasks"
+            className="text-xs font-medium text-green-700 hover:text-green-800 inline-flex items-center gap-1 shrink-0"
+          >
+            View tasks <ArrowRight className="w-3 h-3" />
+          </a>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="text-center py-12 text-gray-400">Generating your action plan...</div>
