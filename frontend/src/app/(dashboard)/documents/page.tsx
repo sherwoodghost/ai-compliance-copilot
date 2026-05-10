@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/lib/api/documents';
 import {
@@ -52,25 +53,32 @@ function FrameworkBadges({ frameworks }: { frameworks: string[] }) {
 }
 
 export default function DocumentsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [frameworkFilter, setFrameworkFilter] = useState('');
   const [page, setPage] = useState(1);
 
-  const isSearchMode = search.trim().length >= 2;
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const isSearchMode = debouncedSearch.trim().length >= 2;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['documents', search, typeFilter, frameworkFilter, page],
+    queryKey: ['documents', debouncedSearch, typeFilter, frameworkFilter, page],
     queryFn: () =>
       isSearchMode
-        ? documentsApi.search(search, {
+        ? documentsApi.search(debouncedSearch, {
             docType: typeFilter || undefined,
             framework: frameworkFilter || undefined,
             limit: 25,
           })
         : documentsApi.list({
-            search: search || undefined,
+            search: debouncedSearch || undefined,
             docType: typeFilter || undefined,
             framework: frameworkFilter || undefined,
             page,
@@ -114,8 +122,8 @@ export default function DocumentsPage() {
           <input
             type="text"
             placeholder="Search documents..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            value={searchInput}
+            onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
             className="input pl-9 w-full"
           />
         </div>
@@ -157,7 +165,8 @@ export default function DocumentsPage() {
           {documents.map((doc: any) => (
             <div
               key={doc.id}
-              className="flex items-center gap-4 px-4 py-3 bg-white border border-gray-100 rounded-lg hover:shadow-sm transition-shadow group"
+              onClick={() => router.push(`/documents/${doc.id}`)}
+              className="flex items-center gap-4 px-4 py-3 bg-white border border-gray-100 rounded-lg hover:shadow-sm transition-shadow group cursor-pointer"
             >
               <FileText className="w-5 h-5 text-gray-400 shrink-0" />
 
@@ -189,7 +198,7 @@ export default function DocumentsPage() {
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {doc.sourceStorageKey && (
                   <button
-                    onClick={() => handleDownload(doc.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDownload(doc.id); }}
                     className="p-1.5 rounded hover:bg-gray-100"
                     title="Download original"
                   >
@@ -197,7 +206,8 @@ export default function DocumentsPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     if (window.confirm('Are you sure you want to delete this document?')) {
                       deleteMutation.mutate(doc.id);
                     }

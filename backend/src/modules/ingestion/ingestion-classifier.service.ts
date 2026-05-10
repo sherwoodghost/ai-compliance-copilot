@@ -9,6 +9,8 @@ export interface ClassificationResult {
   confidence: number;    // 0-100
   tier: number;          // 1 = deterministic, 2 = haiku, 3 = sonnet
   classificationReason: string;
+  isDuplicate?: boolean;
+  duplicateOf?: string | null;
 }
 
 export interface FileSignals {
@@ -286,6 +288,8 @@ Return JSON only, no other text.`;
         confidence: parsed.confidence ?? 50,
         tier: 3,
         classificationReason: parsed.reason ?? 'Classified by AI (Tier 3)',
+        isDuplicate: parsed.isDuplicate ?? false,
+        duplicateOf: parsed.duplicateOf ?? null,
       };
     } catch (err: any) {
       this.logger.error(`Tier 3 classification failed: ${err.message}`);

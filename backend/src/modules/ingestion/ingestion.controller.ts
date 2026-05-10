@@ -22,6 +22,12 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/gif',
   'image/webp',
+  'application/octet-stream', // fallback — validated by extension below
+]);
+
+/** Extensions allowed when mimetype falls back to application/octet-stream */
+const ALLOWED_OCTET_STREAM_EXTENSIONS = new Set([
+  '.docx', '.doc', '.xlsx', '.xls', '.pdf', '.csv', '.md', '.txt',
 ]);
 
 @Controller('ingestion')
@@ -53,6 +59,14 @@ export class IngestionController {
     limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB per file
     fileFilter: (_req, file, cb) => {
       if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+        // Extra check: if octet-stream, validate extension
+        if (file.mimetype === 'application/octet-stream') {
+          const ext = '.' + (file.originalname.split('.').pop() ?? '').toLowerCase();
+          if (!ALLOWED_OCTET_STREAM_EXTENSIONS.has(ext)) {
+            cb(new BadRequestException(`Unsupported file type: ${file.mimetype} (${file.originalname})`), false);
+            return;
+          }
+        }
         cb(null, true);
       } else {
         cb(new BadRequestException(`Unsupported file type: ${file.mimetype}`), false);

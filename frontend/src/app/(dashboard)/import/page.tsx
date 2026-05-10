@@ -385,6 +385,12 @@ function FileReviewRow({
       <FileText className="w-4 h-4 text-gray-400 shrink-0" />
       <span className="text-sm truncate flex-1 min-w-0">{file.originalName}</span>
 
+      {file.isDuplicate && (
+        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+          Possible duplicate{file.duplicateOf ? ` of "${file.duplicateOf}"` : ''}
+        </span>
+      )}
+
       <TierBadge tier={file.tier} />
       <ConfidenceBadge confidence={file.confidence} />
 
@@ -424,7 +430,7 @@ export default function ImportPage() {
   const { data: batches = [], isLoading } = useQuery({
     queryKey: ['ingestion-batches'],
     queryFn: () => ingestionApi.listBatches(),
-    refetchInterval: 5000, // Poll for progress updates
+    refetchInterval: 30000, // fallback polling; Socket.io handles real-time updates
   });
 
   return (

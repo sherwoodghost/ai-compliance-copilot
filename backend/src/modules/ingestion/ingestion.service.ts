@@ -8,6 +8,23 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const INGESTION_QUEUE = 'ingestion';
 
+/** Resolve application/octet-stream to correct MIME type based on file extension */
+function resolveMimeType(mimetype: string, filename: string): string {
+  if (mimetype !== 'application/octet-stream') return mimetype;
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const map: Record<string, string> = {
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc: 'application/msword',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls: 'application/vnd.ms-excel',
+    pdf: 'application/pdf',
+    csv: 'text/csv',
+    md: 'text/markdown',
+    txt: 'text/plain',
+  };
+  return map[ext ?? ''] ?? mimetype;
+}
+
 @Injectable()
 export class IngestionService {
   private readonly logger = new Logger(IngestionService.name);
@@ -134,12 +151,13 @@ export class IngestionService {
       files.map(async (file) => {
         const safeFilename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
         const key = this.storage.ingestionKey(orgId, batch.id, `${uuidv4()}_${safeFilename}`);
+        const resolvedMime = resolveMimeType(file.mimetype, file.originalname);
 
         // Verify org ownership before writing
         this.storage.assertOrgOwnership(orgId, key);
 
         // Upload to staging storage
-        await this.storage.upload(key, file.buffer, file.mimetype);
+        await this.storage.upload(key, file.buffer, resolvedMime);
 
         return this.prisma.ingestionFile.create({
           data: {
@@ -147,7 +165,7 @@ export class IngestionService {
             orgId,
             originalName: file.originalname,
             storageKey: key,
-            mimeType: file.mimetype,
+            mimeType: resolvedMime,
             sizeBytes: file.size,
             folderPath: folderPaths[file.originalname] ?? null,
             status: 'queued',

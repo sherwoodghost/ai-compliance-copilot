@@ -240,6 +240,17 @@ export class IngestionWorker {
               context,
             );
 
+            // Save duplicate detection info from Tier 3
+            if (t3 && t3.isDuplicate) {
+              await this.prisma.ingestionFile.update({
+                where: { id: item.fileId },
+                data: {
+                  isDuplicate: true,
+                  duplicateOf: t3.duplicateOf ?? null,
+                },
+              });
+            }
+
             if (t3 && t3.confidence >= 60) {
               // Auto-place: Tier 3 high-confidence result
               await this.autoPlace(
@@ -327,6 +338,11 @@ export class IngestionWorker {
         documentId: doc.id,
       },
     });
+
+    // Note: Evidence and Policy records are NOT auto-created here because they
+    // require fields (controlId, type/source for Evidence; controlId, content for
+    // Policy) that cannot be inferred from the ingested file alone. Users can link
+    // documents to Evidence/Policy records manually via the documentId relation.
 
     // Emit real-time file classified event
     this.gateway.emitIngestionFileClassified(orgId, fileId, batchId, 'mapped', result.detectedType, result.confidence, result.tier);

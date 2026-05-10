@@ -6,7 +6,7 @@ const ONBOARDING_PATH = '/onboarding';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const accessToken = req.cookies.get('accessToken')?.value;
+  const accessToken = req.cookies.get('access_token')?.value;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   // Unauthenticated user hitting a protected route → login

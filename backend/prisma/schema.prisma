@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -299,56 +299,56 @@ enum AgentEventType {
 // ─── Tenancy Layer ────────────────────────────────────────────────────────────
 
 model Organization {
-  id                String           @id @default(uuid())
-  name              String
-  slug              String           @unique
-  plan              Plan             @default(starter)
-  subscriptionTier  SubscriptionTier @default(free) @map("subscription_tier")
-  settings          Json             @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id               String           @id @default(uuid())
+  name             String
+  slug             String           @unique
+  plan             Plan             @default(starter)
+  subscriptionTier SubscriptionTier @default(free) @map("subscription_tier")
+  settings         Json             @default("{}")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  users               User[]
-  sessions            Session[]
-  businessProfile     BusinessProfile?
-  onboardingSessions  OnboardingSession[]
-  organizationControls OrganizationControl[]
-  evidence            Evidence[]
-  policies            Policy[]
-  workflows           Workflow[]
-  agentRuns           AgentRun[]
-  tasks               Task[]
-  integrations        Integration[]
-  riskItems           RiskItem[]
-  vendorRisks         VendorRisk[]
-  auditLogs           AuditLog[]
-  systemLogs          SystemLog[]
-  profileChangeLogs   ProfileChangeLog[]
-  complianceJourneys  ComplianceJourney[]
-  humanCheckpoints    HumanCheckpoint[]
-  agentEvents         AgentEvent[]
-  profileVersions     BusinessProfileVersion[]
+  users                  User[]
+  sessions               Session[]
+  businessProfile        BusinessProfile?
+  onboardingSessions     OnboardingSession[]
+  organizationControls   OrganizationControl[]
+  evidence               Evidence[]
+  policies               Policy[]
+  workflows              Workflow[]
+  agentRuns              AgentRun[]
+  tasks                  Task[]
+  integrations           Integration[]
+  riskItems              RiskItem[]
+  vendorRisks            VendorRisk[]
+  auditLogs              AuditLog[]
+  systemLogs             SystemLog[]
+  profileChangeLogs      ProfileChangeLog[]
+  complianceJourneys     ComplianceJourney[]
+  humanCheckpoints       HumanCheckpoint[]
+  agentEvents            AgentEvent[]
+  profileVersions        BusinessProfileVersion[]
   // Phase 9
-  controlApplicability ControlApplicability[]
-  soc2Scopes          Soc2Scope[]
-  iso27001Scopes      Iso27001Scope[]
-  soaEntries          IsoStatementOfApplicability[]
-  readinessScores     ReadinessScore[]
-  dashboardConfigs    DashboardConfig[]
-  auditExports        AuditExport[]
-  riskTreatments      RiskTreatment[]
+  controlApplicability   ControlApplicability[]
+  soc2Scopes             Soc2Scope[]
+  iso27001Scopes         Iso27001Scope[]
+  soaEntries             IsoStatementOfApplicability[]
+  readinessScores        ReadinessScore[]
+  dashboardConfigs       DashboardConfig[]
+  auditExports           AuditExport[]
+  riskTreatments         RiskTreatment[]
   // Phase 10 (Prompt 4)
-  agentMemory         AgentMemory[]
-  inferenceResults    InferenceResult[]
+  agentMemory            AgentMemory[]
+  inferenceResults       InferenceResult[]
   integrationSuggestions IntegrationSuggestion[]
-  llmBudget           LlmBudget?
+  llmBudget              LlmBudget?
   // Phase A (Control Test Engine + Trust Center)
-  controlTestResults  ControlTestResult[]
-  trustCenter         TrustCenter?
+  controlTestResults     ControlTestResult[]
+  trustCenter            TrustCenter?
   // Bulk Document Import + Documents
-  jobStatuses          JobStatus[]
-  ingestionBatches     IngestionBatch[]
-  documents            Document[]
+  jobStatuses            JobStatus[]
+  ingestionBatches       IngestionBatch[]
+  documents              Document[]
 
   @@map("organizations")
 }
@@ -365,25 +365,25 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  organization          Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  sessions              Session[]
-  assignedControls      OrganizationControl[] @relation("ControlAssignee")
-  reviewedEvidence      Evidence[]            @relation("EvidenceReviewer")
-  approvedPolicies      Policy[]              @relation("PolicyApprover")
-  triggeredWorkflows    Workflow[]            @relation("WorkflowTrigger")
-  assignedTasks         Task[]               @relation("TaskAssignee")
-  ownedRisks            RiskItem[]           @relation("RiskOwner")
-  auditLogs             AuditLog[]
-  onboardingSessions    OnboardingSession[]
-  profileChangeLogs     ProfileChangeLog[]
-  reviewedCheckpoints      HumanCheckpoint[]     @relation("CheckpointReviewer")
-  profileVersionsAuthor    BusinessProfileVersion[]
+  organization           Organization             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sessions               Session[]
+  assignedControls       OrganizationControl[]    @relation("ControlAssignee")
+  reviewedEvidence       Evidence[]               @relation("EvidenceReviewer")
+  approvedPolicies       Policy[]                 @relation("PolicyApprover")
+  triggeredWorkflows     Workflow[]               @relation("WorkflowTrigger")
+  assignedTasks          Task[]                   @relation("TaskAssignee")
+  ownedRisks             RiskItem[]               @relation("RiskOwner")
+  auditLogs              AuditLog[]
+  onboardingSessions     OnboardingSession[]
+  profileChangeLogs      ProfileChangeLog[]
+  reviewedCheckpoints    HumanCheckpoint[]        @relation("CheckpointReviewer")
+  profileVersionsAuthor  BusinessProfileVersion[]
   // Phase 9
-  applicabilityOverrides   ControlApplicability[] @relation("ApplicabilityOverride")
-  soc2ScopeApprovals       Soc2Scope[]            @relation("Soc2ScopeApprover")
-  isoScopeApprovals        Iso27001Scope[]        @relation("IsoScopeApprover")
-  riskTreatmentsOwned      RiskTreatment[]        @relation("RiskTreatmentOwner")
-  riskTreatmentsAccepted   RiskTreatment[]        @relation("RiskTreatmentAcceptor")
+  applicabilityOverrides ControlApplicability[]   @relation("ApplicabilityOverride")
+  soc2ScopeApprovals     Soc2Scope[]              @relation("Soc2ScopeApprover")
+  isoScopeApprovals      Iso27001Scope[]          @relation("IsoScopeApprover")
+  riskTreatmentsOwned    RiskTreatment[]          @relation("RiskTreatmentOwner")
+  riskTreatmentsAccepted RiskTreatment[]          @relation("RiskTreatmentAcceptor")
 
   @@map("users")
 }
@@ -434,7 +434,7 @@ model Control {
   weight      Int      @default(1)
   createdAt   DateTime @default(now()) @map("created_at")
 
-  framework            Framework             @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  framework            Framework                     @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   organizationControls OrganizationControl[]
   evidence             Evidence[]
   policies             Policy[]
@@ -492,12 +492,15 @@ model Evidence {
   createdAt   DateTime       @default(now()) @map("created_at")
   // Immutability — set when attached to an audit bundle, never mutated after
   frozenAt    DateTime?      @map("frozen_at")
-  contentHash String?        @map("content_hash")  // SHA-256 of evidence data
+  contentHash String?        @map("content_hash") // SHA-256 of evidence data
 
-  organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  control       Control             @relation(fields: [controlId], references: [id], onDelete: Cascade)
-  reviewer      User?               @relation("EvidenceReviewer", fields: [reviewedBy], references: [id])
-  testResults   ControlTestResult[]
+  documentId String? @map("document_id")
+
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control      Control             @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  reviewer     User?               @relation("EvidenceReviewer", fields: [reviewedBy], references: [id])
+  document     Document?           @relation(fields: [documentId], references: [id])
+  testResults  ControlTestResult[]
 
   @@map("evidence")
 }
@@ -516,9 +519,12 @@ model Policy {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
+  documentId String? @unique @map("document_id")
+
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
   approver     User?        @relation("PolicyApprover", fields: [approvedBy], references: [id])
+  document     Document?    @relation(fields: [documentId], references: [id])
 
   @@map("policies")
 }
@@ -526,17 +532,17 @@ model Policy {
 // ─── Agent Layer ──────────────────────────────────────────────────────────────
 
 model Workflow {
-  id             String         @id @default(uuid())
-  orgId          String         @map("org_id")
-  name           String
-  type           WorkflowType
-  status         WorkflowStatus @default(pending)
-  inputPayload   Json           @default("{}") @map("input_payload")
-  outputPayload  Json?          @map("output_payload")
-  startedAt      DateTime?      @map("started_at")
-  completedAt    DateTime?      @map("completed_at")
-  triggeredBy    String?        @map("triggered_by")
-  createdAt      DateTime       @default(now()) @map("created_at")
+  id            String         @id @default(uuid())
+  orgId         String         @map("org_id")
+  name          String
+  type          WorkflowType
+  status        WorkflowStatus @default(pending)
+  inputPayload  Json           @default("{}") @map("input_payload")
+  outputPayload Json?          @map("output_payload")
+  startedAt     DateTime?      @map("started_at")
+  completedAt   DateTime?      @map("completed_at")
+  triggeredBy   String?        @map("triggered_by")
+  createdAt     DateTime       @default(now()) @map("created_at")
 
   organization      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   trigger           User?              @relation("WorkflowTrigger", fields: [triggeredBy], references: [id])
@@ -564,26 +570,26 @@ model AgentRun {
   llmCostUsd    Decimal?    @map("llm_cost_usd") @db.Decimal(10, 6)
   createdAt     DateTime    @default(now()) @map("created_at")
 
-  workflow         Workflow?          @relation(fields: [workflowId], references: [id])
-  organization     Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  steps            AgentStep[]
+  workflow          Workflow?          @relation(fields: [workflowId], references: [id])
+  organization      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps             AgentStep[]
   onboardingSession OnboardingSession? @relation("OnboardingAgentRun")
 
   @@map("agent_runs")
 }
 
 model AgentStep {
-  id              String     @id @default(uuid())
-  runId           String     @map("run_id")
-  stepName        String     @map("step_name")
-  stepIndex       Int        @map("step_index")
-  status          StepStatus @default(pending)
-  inputSnapshot   Json       @default("{}") @map("input_snapshot")
-  outputSnapshot  Json?      @map("output_snapshot")
-  errorMessage    String?    @map("error_message")
-  startedAt       DateTime?  @map("started_at")
-  completedAt     DateTime?  @map("completed_at")
-  durationMs      Int?       @map("duration_ms")
+  id             String     @id @default(uuid())
+  runId          String     @map("run_id")
+  stepName       String     @map("step_name")
+  stepIndex      Int        @map("step_index")
+  status         StepStatus @default(pending)
+  inputSnapshot  Json       @default("{}") @map("input_snapshot")
+  outputSnapshot Json?      @map("output_snapshot")
+  errorMessage   String?    @map("error_message")
+  startedAt      DateTime?  @map("started_at")
+  completedAt    DateTime?  @map("completed_at")
+  durationMs     Int?       @map("duration_ms")
 
   run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
@@ -637,23 +643,23 @@ model Integration {
 // ─── Risk Layer ───────────────────────────────────────────────────────────────
 
 model RiskItem {
-  id           String         @id @default(uuid())
-  orgId        String         @map("org_id")
-  controlId    String?        @map("control_id")
-  title        String
-  description  String?
-  likelihood   RiskLikelihood
-  impact       RiskImpact
+  id               String         @id @default(uuid())
+  orgId            String         @map("org_id")
+  controlId        String?        @map("control_id")
+  title            String
+  description      String?
+  likelihood       RiskLikelihood
+  impact           RiskImpact
   riskScore        Int            @map("risk_score") // computed: likelihood_value * impact_value
-  severity         String?        // critical | high | medium | low (derived from riskScore)
+  severity         String? // critical | high | medium | low (derived from riskScore)
   mitigationAdvice String?        @map("mitigation_advice") @db.Text
   status           RiskStatus     @default(open)
   owner            String?
   identifiedBy     GeneratedBy    @default(agent) @map("identified_by")
   identifiedAt     DateTime       @default(now()) @map("identified_at")
   reviewedAt       DateTime?      @map("reviewed_at")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
 
   organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   control        Control?        @relation(fields: [controlId], references: [id])
@@ -664,15 +670,15 @@ model RiskItem {
 }
 
 model VendorRisk {
-  id             String     @id @default(uuid())
-  orgId          String     @map("org_id")
-  vendorName     String     @map("vendor_name")
+  id             String    @id @default(uuid())
+  orgId          String    @map("org_id")
+  vendorName     String    @map("vendor_name")
   category       String?
-  riskLevel      RiskLevel  @map("risk_level")
-  assessment     Json       @default("{}")
-  lastAssessedAt DateTime?  @map("last_assessed_at")
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
+  riskLevel      RiskLevel @map("risk_level")
+  assessment     Json      @default("{}")
+  lastAssessedAt DateTime? @map("last_assessed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -709,31 +715,31 @@ model BusinessProfile {
 
   // Company enrichment fields
   websiteUrl         String?   @map("website_url")
-  websiteSummary     String?   @db.Text @map("website_summary")
-  productDescription String?   @db.Text @map("product_description")
+  websiteSummary     String?   @map("website_summary") @db.Text
+  productDescription String?   @map("product_description") @db.Text
   targetCustomers    String?   @map("target_customers")
   detectedTechStack  String[]  @default([]) @map("detected_tech_stack")
   enrichedAt         DateTime? @map("enriched_at")
   enrichmentSource   String?   @map("enrichment_source")
 
   // ISO 9001 specific
-  hasExistingQms     Boolean?  @map("has_existing_qms")
-  qmsScope           String?   @db.Text @map("qms_scope")
-  customerSatisfactionMethod String? @map("customer_satisfaction_method")
-  ncrSystemExists    Boolean?  @map("ncr_system_exists")
+  hasExistingQms             Boolean? @map("has_existing_qms")
+  qmsScope                   String?  @map("qms_scope") @db.Text
+  customerSatisfactionMethod String?  @map("customer_satisfaction_method")
+  ncrSystemExists            Boolean? @map("ncr_system_exists")
 
   // GDPR specific
-  dpoDesignated      Boolean?  @map("dpo_designated")
-  ropaExists         Boolean?  @map("ropa_exists")
-  transferMechanisms String[]  @default([]) @map("transfer_mechanisms")
+  dpoDesignated      Boolean? @map("dpo_designated")
+  ropaExists         Boolean? @map("ropa_exists")
+  transferMechanisms String[] @default([]) @map("transfer_mechanisms")
 
   // HIPAA specific
-  coveredEntityType  String?   @map("covered_entity_type")
-  phiInCloud         Boolean?  @map("phi_in_cloud")
+  coveredEntityType String?  @map("covered_entity_type")
+  phiInCloud        Boolean? @map("phi_in_cloud")
 
   // PCI DSS specific
-  merchantLevel      String?   @map("merchant_level")
-  cdeSegmented       Boolean?  @map("cde_segmented")
+  merchantLevel String?  @map("merchant_level")
+  cdeSegmented  Boolean? @map("cde_segmented")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -753,9 +759,9 @@ model OnboardingSession {
   startedAt           DateTime         @default(now()) @map("started_at")
   completedAt         DateTime?        @map("completed_at")
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  agentRun     AgentRun?    @relation("OnboardingAgentRun", fields: [agentRunId], references: [id])
+  organization Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agentRun     AgentRun?           @relation("OnboardingAgentRun", fields: [agentRunId], references: [id])
   messages     OnboardingMessage[]
 
   @@map("onboarding_sessions")
@@ -848,8 +854,8 @@ model ComplianceJourney {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  workflow     Workflow?           @relation(fields: [workflowId], references: [id])
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workflow     Workflow?         @relation(fields: [workflowId], references: [id])
   checkpoints  HumanCheckpoint[]
 
   @@map("compliance_journeys")
@@ -874,18 +880,18 @@ model HumanCheckpoint {
   metrics       Json    @default("{}") // score, controlsImplemented, evidenceCount etc.
 
   // Human decision
-  reviewerId  String?   @map("reviewer_id")
-  reviewedAt  DateTime? @map("reviewed_at")
-  decision    String?   // approved | rejected | override
-  comments    String?   @db.Text
-  overrideReason String? @map("override_reason") @db.Text
+  reviewerId     String?   @map("reviewer_id")
+  reviewedAt     DateTime? @map("reviewed_at")
+  decision       String? // approved | rejected | override
+  comments       String?   @db.Text
+  overrideReason String?   @map("override_reason") @db.Text
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   journey      ComplianceJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
-  reviewer     User?         @relation("CheckpointReviewer", fields: [reviewerId], references: [id])
+  reviewer     User?             @relation("CheckpointReviewer", fields: [reviewerId], references: [id])
 
   @@map("human_checkpoints")
 }
@@ -916,7 +922,7 @@ model BusinessProfileVersion {
   id           String   @id @default(uuid())
   orgId        String   @map("org_id")
   version      Int
-  snapshot     Json     // full BusinessProfile data at this point in time
+  snapshot     Json // full BusinessProfile data at this point in time
   changedById  String   @map("changed_by_id")
   changeReason String?  @map("change_reason") @db.Text
   diff         Json     @default("{}") // fields that changed vs previous version
@@ -935,7 +941,7 @@ model DialogueState {
   id              String   @id @default(uuid())
   orgId           String   @unique @map("org_id")
   sessionId       String   @map("session_id")
-  currentTopic    String   @map("current_topic")   // which field cluster we are probing
+  currentTopic    String   @map("current_topic") // which field cluster we are probing
   completedFields Json     @default("[]") @map("completed_fields")
   pendingFields   Json     @default("[]") @map("pending_fields")
   questionHistory Json     @default("[]") @map("question_history") // [{question, answer, field, confidence}]
@@ -952,13 +958,13 @@ model DialogueState {
 // ─── Control Library Extensions ───────────────────────────────────────────────
 
 model ControlDomain {
-  id                   String  @id @default(uuid())
-  frameworkId          String  @map("framework_id")
-  code                 String  // e.g. "CC6", "A.5"
+  id                   String   @id @default(uuid())
+  frameworkId          String   @map("framework_id")
+  code                 String // e.g. "CC6", "A.5"
   name                 String
-  trustServiceCategory String? @map("trust_service_category") // SOC2 only
-  description          String? @db.Text
-  sortOrder            Int     @default(0) @map("sort_order")
+  trustServiceCategory String?  @map("trust_service_category") // SOC2 only
+  description          String?  @db.Text
+  sortOrder            Int      @default(0) @map("sort_order")
   createdAt            DateTime @default(now()) @map("created_at")
 
   framework    Framework            @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
@@ -973,24 +979,24 @@ model ControlLibraryMeta {
   id                 String   @id @default(uuid())
   controlId          String   @unique @map("control_id")
   domainId           String?  @map("domain_id")
-  applicabilityNotes String?  @db.Text @map("applicability_notes")
-  confidence         String   @default("high")  // high/medium/low
-  sourceReference    String?  @db.Text @map("source_reference")
+  applicabilityNotes String?  @map("applicability_notes") @db.Text
+  confidence         String   @default("high") // high/medium/low
+  sourceReference    String?  @map("source_reference") @db.Text
   importedAt         DateTime @default(now()) @map("imported_at")
 
-  control Control       @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  control Control        @relation(fields: [controlId], references: [id], onDelete: Cascade)
   domain  ControlDomain? @relation(fields: [domainId], references: [id])
 
   @@map("control_library_meta")
 }
 
 model ControlEvidenceRequirement {
-  id            String  @id @default(uuid())
-  controlId     String  @map("control_id")
-  evidenceType  String  @map("evidence_type")  // policy_doc/config_export/log/screenshot/etc
-  description   String? @db.Text
-  isMandatory   Boolean @default(true) @map("is_mandatory")
-  freshnessDays Int?    @map("freshness_days")  // max age in days
+  id            String   @id @default(uuid())
+  controlId     String   @map("control_id")
+  evidenceType  String   @map("evidence_type") // policy_doc/config_export/log/screenshot/etc
+  description   String?  @db.Text
+  isMandatory   Boolean  @default(true) @map("is_mandatory")
+  freshnessDays Int?     @map("freshness_days") // max age in days
   createdAt     DateTime @default(now()) @map("created_at")
 
   control Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
@@ -999,10 +1005,10 @@ model ControlEvidenceRequirement {
 }
 
 model ControlPolicyRequirement {
-  id          String  @id @default(uuid())
-  controlId   String  @map("control_id")
-  policyName  String  @map("policy_name")
-  description String? @db.Text
+  id          String   @id @default(uuid())
+  controlId   String   @map("control_id")
+  policyName  String   @map("policy_name")
+  description String?  @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
 
   control Control @relation(fields: [controlId], references: [id], onDelete: Cascade)
@@ -1011,14 +1017,14 @@ model ControlPolicyRequirement {
 }
 
 model FrameworkCrosswalk {
-  id               String  @id @default(uuid())
-  sourceControlId  String  @map("source_control_id")
-  targetControlId  String  @map("target_control_id")
-  mappingType      String  @default("related") @map("mapping_type") // equivalent/partial/related
-  confidence       String  @default("high")
-  rationale        String? @db.Text
-  automatable      Boolean @default(false)
-  createdAt        DateTime @default(now()) @map("created_at")
+  id              String   @id @default(uuid())
+  sourceControlId String   @map("source_control_id")
+  targetControlId String   @map("target_control_id")
+  mappingType     String   @default("related") @map("mapping_type") // equivalent/partial/related
+  confidence      String   @default("high")
+  rationale       String?  @db.Text
+  automatable     Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
 
   sourceControl Control @relation("CrosswalkSource", fields: [sourceControlId], references: [id], onDelete: Cascade)
   targetControl Control @relation("CrosswalkTarget", fields: [targetControlId], references: [id], onDelete: Cascade)
@@ -1030,23 +1036,23 @@ model FrameworkCrosswalk {
 // ─── Control Applicability ─────────────────────────────────────────────────────
 
 model ControlApplicability {
-  id                  String   @id @default(uuid())
-  orgId               String   @map("org_id")
-  controlId           String   @map("control_id")
+  id                  String    @id @default(uuid())
+  orgId               String    @map("org_id")
+  controlId           String    @map("control_id")
   applicable          Boolean
-  applicabilityStatus String   @default("needs_review") @map("applicability_status") // applicable/not_applicable/needs_review
-  rationale           String?  @db.Text
-  overriddenBy        String?  @map("overridden_by")  // userId who manually overrode
+  applicabilityStatus String    @default("needs_review") @map("applicability_status") // applicable/not_applicable/needs_review
+  rationale           String?   @db.Text
+  overriddenBy        String?   @map("overridden_by") // userId who manually overrode
   overriddenAt        DateTime? @map("overridden_at")
-  confidence          String   @default("high")
-  requiresHumanReview Boolean  @default(false) @map("requires_human_review")
-  profileVersionUsed  Int?     @map("profile_version_used")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  confidence          String    @default("high")
+  requiresHumanReview Boolean   @default(false) @map("requires_human_review")
+  profileVersionUsed  Int?      @map("profile_version_used")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  control      Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
-  overriddenByUser User?    @relation("ApplicabilityOverride", fields: [overriddenBy], references: [id])
+  organization     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  control          Control      @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  overriddenByUser User?        @relation("ApplicabilityOverride", fields: [overriddenBy], references: [id])
 
   @@unique([orgId, controlId])
   @@map("control_applicability")
@@ -1055,21 +1061,21 @@ model ControlApplicability {
 // ─── Scoping ──────────────────────────────────────────────────────────────────
 
 model Soc2Scope {
-  id                      String    @id @default(uuid())
-  orgId                   String    @map("org_id")
-  workflowId              String?   @map("workflow_id")
-  trustServiceCategories  Json      @default("[]") @map("trust_service_categories")
-  auditType               String?   @map("audit_type")  // type_i/type_ii
-  systemsInScope          Json      @default("[]") @map("systems_in_scope")
-  systemsOutOfScope       Json      @default("[]") @map("systems_out_of_scope")
-  dataInScope             Json      @default("[]") @map("data_in_scope")
-  ambiguousItems          Json      @default("[]") @map("ambiguous_items")
-  status                  String    @default("draft")  // draft/approved/superseded
-  approvedBy              String?   @map("approved_by")
-  approvedAt              DateTime? @map("approved_at")
-  version                 Int       @default(1)
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
+  id                     String    @id @default(uuid())
+  orgId                  String    @map("org_id")
+  workflowId             String?   @map("workflow_id")
+  trustServiceCategories Json      @default("[]") @map("trust_service_categories")
+  auditType              String?   @map("audit_type") // type_i/type_ii
+  systemsInScope         Json      @default("[]") @map("systems_in_scope")
+  systemsOutOfScope      Json      @default("[]") @map("systems_out_of_scope")
+  dataInScope            Json      @default("[]") @map("data_in_scope")
+  ambiguousItems         Json      @default("[]") @map("ambiguous_items")
+  status                 String    @default("draft") // draft/approved/superseded
+  approvedBy             String?   @map("approved_by")
+  approvedAt             DateTime? @map("approved_at")
+  version                Int       @default(1)
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   approver     User?        @relation("Soc2ScopeApprover", fields: [approvedBy], references: [id])
@@ -1078,41 +1084,41 @@ model Soc2Scope {
 }
 
 model Iso27001Scope {
-  id                  String    @id @default(uuid())
-  orgId               String    @map("org_id")
-  ismsScope           String?   @db.Text @map("isms_scope")
-  boundaries          String?   @db.Text
-  interestedParties   Json      @default("[]") @map("interested_parties")
-  internalIssues      Json      @default("[]") @map("internal_issues")
-  externalIssues      Json      @default("[]") @map("external_issues")
-  exclusions          Json      @default("[]")
-  exclusionRationale  String?   @db.Text @map("exclusion_rationale")
-  status              String    @default("draft")
-  approvedBy          String?   @map("approved_by")
-  approvedAt          DateTime? @map("approved_at")
-  version             Int       @default(1)
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid())
+  orgId              String    @map("org_id")
+  ismsScope          String?   @map("isms_scope") @db.Text
+  boundaries         String?   @db.Text
+  interestedParties  Json      @default("[]") @map("interested_parties")
+  internalIssues     Json      @default("[]") @map("internal_issues")
+  externalIssues     Json      @default("[]") @map("external_issues")
+  exclusions         Json      @default("[]")
+  exclusionRationale String?   @map("exclusion_rationale") @db.Text
+  status             String    @default("draft")
+  approvedBy         String?   @map("approved_by")
+  approvedAt         DateTime? @map("approved_at")
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  organization         Organization              @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  approver             User?                     @relation("IsoScopeApprover", fields: [approvedBy], references: [id])
+  organization             Organization                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  approver                 User?                         @relation("IsoScopeApprover", fields: [approvedBy], references: [id])
   statementOfApplicability IsoStatementOfApplicability[]
 
   @@map("iso27001_scopes")
 }
 
 model IsoStatementOfApplicability {
-  id                   String   @id @default(uuid())
-  orgId                String   @map("org_id")
-  isoScopeId           String   @map("iso_scope_id")
-  controlId            String   @map("control_id")
-  applicable           Boolean
-  applicabilityRationale String? @db.Text @map("applicability_rationale")
-  implementationStatus String?  @map("implementation_status")
-  evidenceReferences   Json     @default("[]") @map("evidence_references")
-  version              Int      @default(1)
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  id                     String   @id @default(uuid())
+  orgId                  String   @map("org_id")
+  isoScopeId             String   @map("iso_scope_id")
+  controlId              String   @map("control_id")
+  applicable             Boolean
+  applicabilityRationale String?  @map("applicability_rationale") @db.Text
+  implementationStatus   String?  @map("implementation_status")
+  evidenceReferences     Json     @default("[]") @map("evidence_references")
+  version                Int      @default(1)
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
   organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   isoScope     Iso27001Scope @relation(fields: [isoScopeId], references: [id], onDelete: Cascade)
@@ -1126,13 +1132,13 @@ model IsoStatementOfApplicability {
 
 model PromptTemplate {
   id                 String   @id @default(uuid())
-  templateId         String   @map("template_id")  // e.g. "onboarding-dialogue"
-  version            String   // e.g. "v1", "v2"
+  templateId         String   @map("template_id") // e.g. "onboarding-dialogue"
+  version            String // e.g. "v1", "v2"
   agentName          String?  @map("agent_name")
   purpose            String?  @db.Text
   taskType           String?  @map("task_type")
-  systemPrompt       String   @db.Text @map("system_prompt")
-  userPromptTemplate String?  @db.Text @map("user_prompt_template")
+  systemPrompt       String   @map("system_prompt") @db.Text
+  userPromptTemplate String?  @map("user_prompt_template") @db.Text
   inputVariables     Json     @default("[]") @map("input_variables")
   outputSchemaId     String?  @map("output_schema_id")
   contentHash        String   @map("content_hash")
@@ -1157,7 +1163,7 @@ model LlmCall {
   promptTemplateId          String?  @map("prompt_template_id")
   promptTemplateVersion     String?  @map("prompt_template_version")
   promptHash                String?  @map("prompt_hash")
-  renderedPrompt            Json?    @map("rendered_prompt")  // exact messages sent
+  renderedPrompt            Json?    @map("rendered_prompt") // exact messages sent
   model                     String?
   provider                  String?
   inputTokens               Int?     @map("input_tokens")
@@ -1171,7 +1177,7 @@ model LlmCall {
   hallucinationDetected     Boolean  @default(false) @map("hallucination_detected")
   forbiddenLanguageDetected Boolean  @default(false) @map("forbidden_language_detected")
   retryCount                Int      @default(0) @map("retry_count")
-  rawOutput                 String?  @db.Text @map("raw_output")
+  rawOutput                 String?  @map("raw_output") @db.Text
   createdAt                 DateTime @default(now()) @map("created_at")
 
   promptTemplate   PromptTemplate?      @relation(fields: [promptTemplateId, promptTemplateVersion], references: [templateId, version])
@@ -1189,7 +1195,7 @@ model LlmRetrievalSource {
   chunkId          String?  @map("chunk_id")
   similarityScore  Float?   @map("similarity_score")
   includedInPrompt Boolean  @default(true) @map("included_in_prompt")
-  chunkText        String?  @db.Text @map("chunk_text")
+  chunkText        String?  @map("chunk_text") @db.Text
   createdAt        DateTime @default(now()) @map("created_at")
 
   llmCall LlmCall @relation(fields: [llmCallId], references: [id], onDelete: Cascade)
@@ -1198,18 +1204,18 @@ model LlmRetrievalSource {
 }
 
 model LlmEvalResult {
-  id                       String   @id @default(uuid())
-  llmCallId                String?  @unique @map("llm_call_id")   // nullable — static eval cases have no real call
-  evalRunId                String?  @map("eval_run_id")
-  schemaValid              Boolean? @map("schema_valid")
-  controlIdsValid          Boolean? @map("control_ids_valid")
-  hallucinationDetected    Boolean? @map("hallucination_detected")
+  id                        String   @id @default(uuid())
+  llmCallId                 String?  @unique @map("llm_call_id") // nullable — static eval cases have no real call
+  evalRunId                 String?  @map("eval_run_id")
+  schemaValid               Boolean? @map("schema_valid")
+  controlIdsValid           Boolean? @map("control_ids_valid")
+  hallucinationDetected     Boolean? @map("hallucination_detected")
   forbiddenLanguageDetected Boolean? @map("forbidden_language_detected")
-  citationsValid           Boolean? @map("citations_valid")
-  humanOverridden          Boolean  @default(false) @map("human_overridden")
-  correctnessScore         Float?   @map("correctness_score")
-  notes                    String?  @db.Text
-  createdAt                DateTime @default(now()) @map("created_at")
+  citationsValid            Boolean? @map("citations_valid")
+  humanOverridden           Boolean  @default(false) @map("human_overridden")
+  correctnessScore          Float?   @map("correctness_score")
+  notes                     String?  @db.Text
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   llmCall LlmCall? @relation(fields: [llmCallId], references: [id], onDelete: SetNull)
 
@@ -1220,15 +1226,15 @@ model LlmEvalResult {
 // Note: actual vector column added via raw SQL migration (pgvector)
 
 model VectorEmbedding {
-  id          String   @id @default(uuid())
-  orgId       String?  @map("org_id")  // NULL = global (control library, templates)
-  sourceType  String   @map("source_type") // control/policy_template/evidence/agent_output/business_profile/risk_register
-  sourceId    String?  @map("source_id")
-  chunkIndex  Int      @default(0) @map("chunk_index")
-  chunkText   String   @db.Text @map("chunk_text")
-  metadata    Json     @default("{}")
+  id         String   @id @default(uuid())
+  orgId      String?  @map("org_id") // NULL = global (control library, templates)
+  sourceType String   @map("source_type") // control/policy_template/evidence/agent_output/business_profile/risk_register
+  sourceId   String?  @map("source_id")
+  chunkIndex Int      @default(0) @map("chunk_index")
+  chunkText  String   @map("chunk_text") @db.Text
+  metadata   Json     @default("{}")
   // embedding VECTOR(1536) — added via raw SQL migration
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([orgId, sourceType])
   @@map("vector_embeddings")
@@ -1237,18 +1243,18 @@ model VectorEmbedding {
 // ─── Readiness Scoring ────────────────────────────────────────────────────────
 
 model ReadinessScore {
-  id                   String   @id @default(uuid())
-  orgId                String   @map("org_id")
-  framework            String   // SOC2/ISO27001/BOTH
-  overallScore         Int      @default(0) @map("overall_score")
-  policyScore          Int      @default(0) @map("policy_score")
-  evidenceScore        Int      @default(0) @map("evidence_score")
-  controlDesignScore   Int      @default(0) @map("control_design_score")
-  operationalScore     Int      @default(0) @map("operational_score")
-  riskManagementScore  Int      @default(0) @map("risk_management_score")
-  scoreInputs          Json     @default("{}") @map("score_inputs")  // contributing factors snapshot
-  formulaVersion       String   @default("v1") @map("formula_version")
-  snapshotAt           DateTime @default(now()) @map("snapshot_at")
+  id                  String   @id @default(uuid())
+  orgId               String   @map("org_id")
+  framework           String // SOC2/ISO27001/BOTH
+  overallScore        Int      @default(0) @map("overall_score")
+  policyScore         Int      @default(0) @map("policy_score")
+  evidenceScore       Int      @default(0) @map("evidence_score")
+  controlDesignScore  Int      @default(0) @map("control_design_score")
+  operationalScore    Int      @default(0) @map("operational_score")
+  riskManagementScore Int      @default(0) @map("risk_management_score")
+  scoreInputs         Json     @default("{}") @map("score_inputs") // contributing factors snapshot
+  formulaVersion      String   @default("v1") @map("formula_version")
+  snapshotAt          DateTime @default(now()) @map("snapshot_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1261,12 +1267,12 @@ model ReadinessScore {
 model DashboardConfig {
   id                 String   @id @default(uuid())
   orgId              String   @map("org_id")
-  roleView           String   @map("role_view")  // executive/security/auditor/admin/contributor
+  roleView           String   @map("role_view") // executive/security/auditor/admin/contributor
   widgets            Json     @default("[]")
   navigation         Json     @default("[]")
   alerts             Json     @default("[]")
   recommendedActions Json     @default("[]") @map("recommended_actions")
-  generatedBy        String?  @map("generated_by")  // dashboard-agent/manual
+  generatedBy        String?  @map("generated_by") // dashboard-agent/manual
   version            Int      @default(1)
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -1280,20 +1286,20 @@ model DashboardConfig {
 // ─── Audit Exports ────────────────────────────────────────────────────────────
 
 model AuditExport {
-  id               String    @id @default(uuid())
-  orgId            String    @map("org_id")
-  exportType       String    @map("export_type")  // soc2_readiness/iso_soa/evidence_binder/control_matrix
-  framework        String?
-  status           String    @default("draft")  // draft/approved/superseded
-  content          Json      @default("{}")
-  evidenceHashes   Json      @default("[]") @map("evidence_hashes")
-  policyVersions   Json      @default("[]") @map("policy_versions")
-  approvalRecordIds Json     @default("[]") @map("approval_record_ids")
-  disclaimerIncluded Boolean @default(true) @map("disclaimer_included")
-  generatedBy      String?   @map("generated_by")
-  workflowId       String?   @map("workflow_id")
-  dataSnapshotAt   DateTime? @map("data_snapshot_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id                 String    @id @default(uuid())
+  orgId              String    @map("org_id")
+  exportType         String    @map("export_type") // soc2_readiness/iso_soa/evidence_binder/control_matrix
+  framework          String?
+  status             String    @default("draft") // draft/approved/superseded
+  content            Json      @default("{}")
+  evidenceHashes     Json      @default("[]") @map("evidence_hashes")
+  policyVersions     Json      @default("[]") @map("policy_versions")
+  approvalRecordIds  Json      @default("[]") @map("approval_record_ids")
+  disclaimerIncluded Boolean   @default(true) @map("disclaimer_included")
+  generatedBy        String?   @map("generated_by")
+  workflowId         String?   @map("workflow_id")
+  dataSnapshotAt     DateTime? @map("data_snapshot_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1303,24 +1309,24 @@ model AuditExport {
 // ─── Risk Treatments ──────────────────────────────────────────────────────────
 
 model RiskTreatment {
-  id                    String    @id @default(uuid())
-  riskId                String    @map("risk_id")
-  orgId                 String    @map("org_id")
-  treatmentType         String    @map("treatment_type")  // mitigate/accept/transfer/avoid
-  treatmentDescription  String?   @db.Text @map("treatment_description")
-  ownerId               String?   @map("owner_id")
-  targetCompletionDate  DateTime? @map("target_completion_date")
-  status                String    @default("open")  // open/in_progress/completed/accepted
-  acceptedBy            String?   @map("accepted_by")
-  acceptedAt            DateTime? @map("accepted_at")
-  residualRiskAfter     String?   @map("residual_risk_after")  // low/medium/high
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid())
+  riskId               String    @map("risk_id")
+  orgId                String    @map("org_id")
+  treatmentType        String    @map("treatment_type") // mitigate/accept/transfer/avoid
+  treatmentDescription String?   @map("treatment_description") @db.Text
+  ownerId              String?   @map("owner_id")
+  targetCompletionDate DateTime? @map("target_completion_date")
+  status               String    @default("open") // open/in_progress/completed/accepted
+  acceptedBy           String?   @map("accepted_by")
+  acceptedAt           DateTime? @map("accepted_at")
+  residualRiskAfter    String?   @map("residual_risk_after") // low/medium/high
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  riskItem     RiskItem      @relation(fields: [riskId], references: [id], onDelete: Cascade)
-  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  owner        User?         @relation("RiskTreatmentOwner", fields: [ownerId], references: [id])
-  acceptedByUser User?       @relation("RiskTreatmentAcceptor", fields: [acceptedBy], references: [id])
+  riskItem       RiskItem     @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  owner          User?        @relation("RiskTreatmentOwner", fields: [ownerId], references: [id])
+  acceptedByUser User?        @relation("RiskTreatmentAcceptor", fields: [acceptedBy], references: [id])
 
   @@map("risk_treatments")
 }
@@ -1328,18 +1334,18 @@ model RiskTreatment {
 // ─── Agent Memory (Shared Agent Memory Layer) ─────────────────────────────────
 
 model AgentMemory {
-  id              String    @id @default(uuid())
-  organizationId  String    @map("organization_id")
-  workflowRunId   String    @map("workflow_run_id")
-  agentId         String    @map("agent_id")
-  step            Int       @default(0)
-  namespace       String    // "inference", "scoping", "evidence", etc.
-  key             String
-  valueJson       Json      @map("value_json")
-  schemaVersion   String    @default("v1") @map("schema_version")
-  ttlAt           DateTime? @map("ttl_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  workflowRunId  String    @map("workflow_run_id")
+  agentId        String    @map("agent_id")
+  step           Int       @default(0)
+  namespace      String // "inference", "scoping", "evidence", etc.
+  key            String
+  valueJson      Json      @map("value_json")
+  schemaVersion  String    @default("v1") @map("schema_version")
+  ttlAt          DateTime? @map("ttl_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1352,22 +1358,22 @@ model AgentMemory {
 // ─── Inference Results ────────────────────────────────────────────────────────
 
 model InferenceResult {
-  id                  String   @id @default(uuid())
-  orgId               String   @map("org_id")
-  onboardingVersion   Int      @default(1) @map("onboarding_version")
-  riskLevel           String   @map("risk_level")         // LOW/MEDIUM/HIGH
-  riskScore           Int      @default(0) @map("risk_score")
-  riskDrivers         Json     @default("[]") @map("risk_drivers")
-  inferredFrameworks  Json     @default("[]") @map("inferred_frameworks")
-  dataClassification  String   @map("data_classification") // PUBLIC/INTERNAL/CONFIDENTIAL/SENSITIVE
-  requiredControls    Json     @default("[]") @map("required_controls")
-  expectedIntegrations Json    @default("[]") @map("expected_integrations")
-  systemFlags         Json     @default("{}") @map("system_flags")
-  engineVersion       String   @default("1.0.0") @map("engine_version")
-  computedAt          DateTime @default(now()) @map("computed_at")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id                   String   @id @default(uuid())
+  orgId                String   @map("org_id")
+  onboardingVersion    Int      @default(1) @map("onboarding_version")
+  riskLevel            String   @map("risk_level") // LOW/MEDIUM/HIGH
+  riskScore            Int      @default(0) @map("risk_score")
+  riskDrivers          Json     @default("[]") @map("risk_drivers")
+  inferredFrameworks   Json     @default("[]") @map("inferred_frameworks")
+  dataClassification   String   @map("data_classification") // PUBLIC/INTERNAL/CONFIDENTIAL/SENSITIVE
+  requiredControls     Json     @default("[]") @map("required_controls")
+  expectedIntegrations Json     @default("[]") @map("expected_integrations")
+  systemFlags          Json     @default("{}") @map("system_flags")
+  engineVersion        String   @default("1.0.0") @map("engine_version")
+  computedAt           DateTime @default(now()) @map("computed_at")
+  createdAt            DateTime @default(now()) @map("created_at")
 
-  organization         Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization           Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
   integrationSuggestions IntegrationSuggestion[]
 
   @@index([orgId])
@@ -1377,16 +1383,16 @@ model InferenceResult {
 // ─── Integration Suggestions ──────────────────────────────────────────────────
 
 model IntegrationSuggestion {
-  id                String   @id @default(uuid())
-  orgId             String   @map("org_id")
-  inferenceResultId String?  @map("inference_result_id")
+  id                String    @id @default(uuid())
+  orgId             String    @map("org_id")
+  inferenceResultId String?   @map("inference_result_id")
   provider          String
-  category          String   // identity/cloud/code/monitoring/ticketing/hr
-  reason            String   @db.Text
-  priority          String   @default("MEDIUM") // HIGH/MEDIUM/LOW
-  controlsSatisfied Json     @default("[]") @map("controls_satisfied")
-  setupComplexity   String   @default("MEDIUM") @map("setup_complexity") // LOW/MEDIUM/HIGH
-  status            String   @default("suggested") // suggested/dismissed/planned/connected
+  category          String // identity/cloud/code/monitoring/ticketing/hr
+  reason            String    @db.Text
+  priority          String    @default("MEDIUM") // HIGH/MEDIUM/LOW
+  controlsSatisfied Json      @default("[]") @map("controls_satisfied")
+  setupComplexity   String    @default("MEDIUM") @map("setup_complexity") // LOW/MEDIUM/HIGH
+  status            String    @default("suggested") // suggested/dismissed/planned/connected
   dismissedAt       DateTime? @map("dismissed_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
@@ -1409,12 +1415,12 @@ enum TestOutcome {
 
 model ControlTestDefinition {
   id                String   @id @default(uuid())
-  testId            String   @unique @map("test_id")       // e.g. "github-branch-protection"
-  controlCode       String   @map("control_code")          // e.g. "CC8.1"
+  testId            String   @unique @map("test_id") // e.g. "github-branch-protection"
+  controlCode       String   @map("control_code") // e.g. "CC8.1"
   name              String
   description       String   @db.Text
-  frequencyCron     String   @default("0 */6 * * *") @map("frequency_cron")  // default: every 6h
-  requiresConnector String?  @map("requires_connector")    // "github" | "aws" | null (DB-only)
+  frequencyCron     String   @default("0 */6 * * *") @map("frequency_cron") // default: every 6h
+  requiresConnector String?  @map("requires_connector") // "github" | "aws" | null (DB-only)
   isActive          Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now()) @map("created_at")
 
@@ -1431,13 +1437,13 @@ model ControlTestResult {
   outcome      TestOutcome
   details      Json        @default("{}")
   evidenceId   String?     @map("evidence_id")
-  errorMessage String?     @db.Text @map("error_message")
+  errorMessage String?     @map("error_message") @db.Text
   durationMs   Int?        @map("duration_ms")
   testedAt     DateTime    @default(now()) @map("tested_at")
 
-  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
   definition   ControlTestDefinition @relation(fields: [testId], references: [testId])
-  evidence     Evidence?            @relation(fields: [evidenceId], references: [id])
+  evidence     Evidence?             @relation(fields: [evidenceId], references: [id])
 
   @@index([orgId, controlCode])
   @@index([orgId, testId])
@@ -1449,7 +1455,7 @@ model ControlTestResult {
 model TrustCenter {
   id           String    @id @default(uuid())
   orgId        String    @unique @map("org_id")
-  slug         String    @unique                // URL: /trust/{slug}
+  slug         String    @unique // URL: /trust/{slug}
   isPublic     Boolean   @default(false) @map("is_public")
   companyName  String    @map("company_name")
   logoUrl      String?   @map("logo_url")
@@ -1462,7 +1468,7 @@ model TrustCenter {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  organization Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  organization Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
   accessLinks  TrustCenterAccessLink[]
 
   @@map("trust_centers")
@@ -1472,7 +1478,7 @@ model TrustCenterAccessLink {
   id            String    @id @default(uuid())
   trustCenterId String    @map("trust_center_id")
   token         String    @unique
-  label         String                             // e.g. "Shared with Acme Auditors"
+  label         String // e.g. "Shared with Acme Auditors"
   expiresAt     DateTime? @map("expires_at")
   viewCount     Int       @default(0) @map("view_count")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -1501,16 +1507,16 @@ model OAuthState {
 // ─── LLM Budget (Per-Tenant Cost Governance) ──────────────────────────────────
 
 model LlmBudget {
-  id                    String   @id @default(uuid())
-  orgId                 String   @unique @map("org_id")
-  dailyCapUsd           Decimal  @default(5) @map("daily_cap_usd") @db.Decimal(10, 4)
-  monthlyCapUsd         Decimal  @default(50) @map("monthly_cap_usd") @db.Decimal(10, 4)
-  ratePerMinuteLimit    Int      @default(30) @map("rate_per_minute_limit")
-  currentDaySpendUsd    Decimal  @default(0) @map("current_day_spend_usd") @db.Decimal(10, 6)
-  currentMonthSpendUsd  Decimal  @default(0) @map("current_month_spend_usd") @db.Decimal(10, 6)
-  capHitAt              DateTime? @map("cap_hit_at")
-  lastResetAt           DateTime  @default(now()) @map("last_reset_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  id                   String    @id @default(uuid())
+  orgId                String    @unique @map("org_id")
+  dailyCapUsd          Decimal   @default(5) @map("daily_cap_usd") @db.Decimal(10, 4)
+  monthlyCapUsd        Decimal   @default(50) @map("monthly_cap_usd") @db.Decimal(10, 4)
+  ratePerMinuteLimit   Int       @default(30) @map("rate_per_minute_limit")
+  currentDaySpendUsd   Decimal   @default(0) @map("current_day_spend_usd") @db.Decimal(10, 6)
+  currentMonthSpendUsd Decimal   @default(0) @map("current_month_spend_usd") @db.Decimal(10, 6)
+  capHitAt             DateTime? @map("cap_hit_at")
+  lastResetAt          DateTime  @default(now()) @map("last_reset_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1520,15 +1526,15 @@ model LlmBudget {
 // ─── Bulk Document Import & Document Management ─────────────────────────────
 
 model JobStatus {
-  id             String    @id @default(uuid())
-  orgId          String    @map("org_id")
-  type           String    // 'ingestion-batch' | 'document-conversion'
-  status         String    @default("queued") // queued | processing | completed | failed
-  progress       Int       @default(0)        // 0-100
-  resultPayload  Json?     @map("result_payload")
-  errorMessage   String?   @map("error_message") @db.Text
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  orgId         String   @map("org_id")
+  type          String // 'ingestion-batch' | 'document-conversion'
+  status        String   @default("queued") // queued | processing | completed | failed
+  progress      Int      @default(0) // 0-100
+  resultPayload Json?    @map("result_payload")
+  errorMessage  String?  @map("error_message") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   organization   Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   ingestionBatch IngestionBatch?
@@ -1551,7 +1557,7 @@ model IngestionBatch {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  jobStatus    JobStatus        @relation(fields: [jobStatusId], references: [id])
+  jobStatus    JobStatus       @relation(fields: [jobStatusId], references: [id])
   files        IngestionFile[]
 
   @@index([orgId, status])
@@ -1559,27 +1565,29 @@ model IngestionBatch {
 }
 
 model IngestionFile {
-  id                   String    @id @default(uuid())
-  batchId              String    @map("batch_id")
-  orgId                String    @map("org_id")
-  originalName         String    @map("original_name")
-  storageKey           String    @map("storage_key")
-  mimeType             String    @map("mime_type")
-  sizeBytes            Int       @map("size_bytes")
-  folderPath           String?   @map("folder_path")
-  status               String    @default("queued") // queued | classifying | converting | mapped | needs_review | skipped | error
-  tier                 Int?      // 1=deterministic, 2=haiku, 3=sonnet
-  detectedType         String?   @map("detected_type")     // policy | procedure | evidence | report | template | other
-  detectedFrameworks   String[]  @default([]) @map("detected_frameworks")
-  suggestedControlIds  String[]  @default([]) @map("suggested_control_ids")
-  confidence           Int?      // 0-100
-  classificationReason String?   @map("classification_reason") @db.Text
-  documentId           String?   @map("document_id")
-  errorMessage         String?   @map("error_message") @db.Text
-  piiDetected          Boolean   @default(false) @map("pii_detected")
-  piiFields            String[]  @default([]) @map("pii_fields")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid())
+  batchId              String   @map("batch_id")
+  orgId                String   @map("org_id")
+  originalName         String   @map("original_name")
+  storageKey           String   @map("storage_key")
+  mimeType             String   @map("mime_type")
+  sizeBytes            Int      @map("size_bytes")
+  folderPath           String?  @map("folder_path")
+  status               String   @default("queued") // queued | classifying | converting | mapped | needs_review | skipped | error
+  tier                 Int? // 1=deterministic, 2=haiku, 3=sonnet
+  detectedType         String?  @map("detected_type") // policy | procedure | evidence | report | template | other
+  detectedFrameworks   String[] @default([]) @map("detected_frameworks")
+  suggestedControlIds  String[] @default([]) @map("suggested_control_ids")
+  confidence           Int? // 0-100
+  classificationReason String?  @map("classification_reason") @db.Text
+  documentId           String?  @map("document_id")
+  errorMessage         String?  @map("error_message") @db.Text
+  piiDetected          Boolean  @default(false) @map("pii_detected")
+  piiFields            String[] @default([]) @map("pii_fields")
+  isDuplicate          Boolean  @default(false) @map("is_duplicate")
+  duplicateOf          String?  @map("duplicate_of")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   batch    IngestionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   document Document?      @relation(fields: [documentId], references: [id])
@@ -1590,25 +1598,27 @@ model IngestionFile {
 }
 
 model Document {
-  id                 String    @id @default(uuid())
-  orgId              String    @map("org_id")
+  id                 String   @id @default(uuid())
+  orgId              String   @map("org_id")
   title              String
-  docType            String    @map("doc_type") // policy | procedure | evidence | report | template | other
-  content            Json      @default("{}") // TipTap JSON — source of truth
-  contentHtml        String    @default("") @map("content_html") @db.Text
-  contentText        String?   @map("content_text") @db.Text // plain text for full-text search
-  controlIds         String[]  @default([]) @map("control_ids")
-  detectedFrameworks String[]  @default([]) @map("detected_frameworks")
-  activeForOrg       Boolean   @default(true) @map("active_for_org")
-  sourceStorageKey   String?   @map("source_storage_key") // original file in S3
-  version            Int       @default(1)
-  createdBy          String?   @map("created_by")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  docType            String   @map("doc_type") // policy | procedure | evidence | report | template | other
+  content            Json     @default("{}") // TipTap JSON — source of truth
+  contentHtml        String   @default("") @map("content_html") @db.Text
+  contentText        String?  @map("content_text") @db.Text // plain text for full-text search
+  controlIds         String[] @default([]) @map("control_ids")
+  detectedFrameworks String[] @default([]) @map("detected_frameworks")
+  activeForOrg       Boolean  @default(true) @map("active_for_org")
+  sourceStorageKey   String?  @map("source_storage_key") // original file in S3
+  version            Int      @default(1)
+  createdBy          String?  @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  organization    Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  ingestionFiles  IngestionFile[]
-  versions        DocumentVersion[]
+  organization   Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ingestionFiles IngestionFile[]
+  versions       DocumentVersion[]
+  evidence       Evidence[]
+  policy         Policy?
 
   @@index([orgId, docType])
   @@index([orgId, activeForOrg])
@@ -1620,7 +1630,7 @@ model DocumentVersion {
   id          String   @id @default(uuid())
   documentId  String   @map("document_id")
   version     Int
-  content     Json     // TipTap JSON snapshot
+  content     Json // TipTap JSON snapshot
   contentHtml String   @map("content_html") @db.Text
   editedBy    String?  @map("edited_by")
   changeNote  String?  @map("change_note") @db.Text

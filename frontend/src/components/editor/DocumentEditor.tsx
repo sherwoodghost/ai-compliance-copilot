@@ -194,6 +194,7 @@ export function DocumentEditor({
       CharacterCount,
     ],
     content: content ?? { type: 'doc', content: [{ type: 'paragraph' }] },
+    immediatelyRender: false,
     editable: !readOnly,
     onUpdate: ({ editor: ed }) => {
       onChange?.(ed.getJSON(), ed.getHTML());

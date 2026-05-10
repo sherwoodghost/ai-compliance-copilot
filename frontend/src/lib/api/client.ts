@@ -75,8 +75,9 @@ apiClient.interceptors.response.use(
 );
 
 export function setTokens(accessToken: string, refreshToken: string) {
-  Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 / 96, secure: true, sameSite: 'strict' });
-  Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 7, secure: true, sameSite: 'strict' });
+  const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 / 96, secure: isSecure, sameSite: 'lax' });
+  Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 7, secure: isSecure, sameSite: 'lax' });
 }
 
 export function clearTokens() {

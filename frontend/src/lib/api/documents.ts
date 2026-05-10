@@ -30,4 +30,16 @@ export const documentsApi = {
 
   getDownloadUrl: (id: string) =>
     apiClient.get(`/documents/${id}/download`).then((r) => r.data),
+
+  getTemplates: () =>
+    apiClient.get('/documents/templates').then((r) => r.data),
+
+  createFromTemplate: (templateId: string, title?: string) =>
+    apiClient.post('/documents/from-template', { templateId, title }).then((r) => r.data),
+
+  exportDocument: (id: string, format: 'html' | 'text' | 'markdown' = 'html') =>
+    apiClient.get(`/documents/${id}/export`, { params: { format }, responseType: 'blob' }),
+
+  bulkExport: (params?: { docType?: string; framework?: string }) =>
+    apiClient.get('/documents/bulk-export', { params }).then((r) => r.data),
 };

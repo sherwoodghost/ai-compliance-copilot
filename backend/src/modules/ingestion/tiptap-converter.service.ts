@@ -8,7 +8,7 @@ const DOMPurify = require('isomorphic-dompurify');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const mammoth = require('mammoth');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfParse = require('pdf-parse');
+const { PDFParse, VerbosityLevel } = require('pdf-parse');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { marked } = require('marked');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -47,7 +47,8 @@ export class TipTapConverterService {
         const result: any = await this.withTimeout(mammoth.extractRawText({ buffer }), 30000, 'DOCX extraction');
         text = result.value;
       } else if (this.isPdf(mimeType)) {
-        const result: any = await this.withTimeout(pdfParse(buffer), 30000, 'PDF extraction');
+        const parser = new PDFParse({ data: new Uint8Array(buffer), verbosity: VerbosityLevel.ERRORS });
+        const result: any = await this.withTimeout(parser.getText(), 30000, 'PDF extraction');
         text = result.text;
       } else if (this.isCsv(mimeType)) {
         text = buffer.toString('utf-8');
@@ -115,7 +116,8 @@ export class TipTapConverterService {
   // ── PDF ───────────────────────────────────────────────────────────────────
 
   private async convertPdf(buffer: Buffer): Promise<ConversionResult> {
-    const result: any = await this.withTimeout(pdfParse(buffer), 30000, 'PDF conversion');
+    const parser = new PDFParse({ data: new Uint8Array(buffer), verbosity: VerbosityLevel.ERRORS });
+    const result: any = await this.withTimeout(parser.getText(), 30000, 'PDF conversion');
     const text = result.text;
 
     // Build TipTap doc manually: split by double newlines, detect headings
